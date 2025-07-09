@@ -791,6 +791,6 @@ If you find this tool helpful, please consider:
 - 💡 Suggesting new features
 - 🤝 Contributing to the project
 
----
-
-*Built with ❤️ for the mobile security community*
+<p align="right">
+    <img src="https://wakatime.com/badge/user/f5bf5341-405c-480f-bd76-40a5c1a8ada9/project/f2697ac6-8530-46a0-ae2c-01eb4f730bdb.svg?style=for-the-badge"/>
+</p>
