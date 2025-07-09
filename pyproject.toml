@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lu77U-MobileSec"
-version = "1.0.0"
+version = "1.0.1"
 description = "Professional mobile security analysis and vulnerability patching tool for Android applications with AI-powered detection and automated fix generation"
 authors = [
     {name = "Sam MG Harish (lu77_u)", email = "sammgharish@gmail.com"}
