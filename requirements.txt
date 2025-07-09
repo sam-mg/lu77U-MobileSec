@@ -7,7 +7,6 @@
 
 # AI/LLM Integration
 groq>=0.4.0
-ollama>=0.1.0
 
 # HTTP/API Clients
 requests>=2.25.0
@@ -27,21 +26,11 @@ python-magic>=0.4.27
 
 # System Utilities
 psutil>=5.8.0
-pathlib2>=2.3.0
 
 # CLI & UI
 click>=8.0.0
 rich>=13.0.0
 colorama>=0.4.6
 
-# Async Processing
-asyncio-mqtt>=0.11.0
-asyncio>=3.4.3
-
 # Security & Crypto
 cryptography>=3.4.8
-hashlib2>=1.0.0
-
-# Network Analysis
-scapy>=2.4.5
-pyshark>=0.6
