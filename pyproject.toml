@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lu77U-MobileSec"
+version = "1.0.0"
+description = "Professional mobile security analysis and vulnerability patching tool for Android applications with AI-powered detection and automated fix generation"
+authors = [
+    {name = "Sam MG Harish (lu77_u)", email = "sammgharish@gmail.com"}
+]
+license = "Apache-2.0"
+readme = "README.md"
+requires-python = ">=3.13"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Systems Administration",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+]
+keywords = ["mobile-security", "apk-analysis", "android-security", "vulnerability-detection", "security-patches", "pentesting", "mobile-app-security", "automated-fixes", "lu77U"]
+dependencies = [
+    "groq>=0.4.0",
+    "requests>=2.25.0",
+    "aiohttp>=3.8.0",
+    "httpx>=0.24.0",
+    "zipfile36>=0.1.3",
+    "jsonschema>=4.0.0",
+    "pyyaml>=6.0",
+    "psutil>=5.8.0",
+]
+dynamic = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-asyncio>=0.18.0",
+    "black>=22.0",
+    "flake8>=4.0",
+    "mypy>=0.950",
+]
+analysis = [
+    "beautifulsoup4>=4.9.0",
+    "lxml>=4.6.0",
+    "python-magic>=0.4.24",
+]
+full = [
+    "beautifulsoup4>=4.9.0",
+    "lxml>=4.6.0",
+    "python-magic>=0.4.24",
+    "pytest>=6.0",
+    "pytest-asyncio>=0.18.0",
+    "black>=22.0",
+    "flake8>=4.0",
+    "mypy>=0.950",
+]
+
+[project.scripts]
+lu77u-mobilesec = "lu77u_mobilesec.cli.app:run"
+
+[project.urls]
+Homepage = "https://github.com/sam-mg/lu77U-MobileSec"
+Repository = "https://github.com/sam-mg/lu77U-MobileSec"
+Issues = "https://github.com/sam-mg/lu77U-MobileSec/issues"
+Documentation = "https://github.com/sam-mg/lu77U-MobileSec/wiki"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lu77u_mobilesec*"]
+exclude = ["tests*", "docs*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md", "*.yml", "*.yaml", "*.json"]
+
+[tool.black]
+line-length = 127
+target-version = ['py38']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
