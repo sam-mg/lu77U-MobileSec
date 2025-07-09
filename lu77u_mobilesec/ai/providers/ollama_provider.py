@@ -143,7 +143,6 @@ class OllamaProvider(BaseAIProvider):
 
     async def analyze_with_local_llm(self, prompt: str, system_message: str = "You are a security expert specialized in Android and mobile app vulnerabilities.") -> Dict:
         """Analyze content using local Ollama and always return a list of vulnerabilities."""
-        global ollama
         
         if ollama is None:
             self._load_ollama()
