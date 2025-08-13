@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lu77U-MobileSec"
+version = "0.0.1"
+description = "The Only Mobile Security Tool Which You Need"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    {name = "Sam MG Harish", email = "sammgharish@gmail.com"},
+]
+maintainers = [
+    {name = "Sam MG Harish", email = "sammgharish@gmail.com"},
+]
+keywords = ["mobile", "security", "cli", "tool", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Natural Language :: English",
+]
+dependencies = [
+    "psutil>=5.8.0",
+    "tqdm>=4.60.0",
+    "colorama>=0.4.0",
+    "requests>=2.25.0",
+    "moviepy>=1.0.3",
+    "ensta==5.2.9"
+]
+
+[project.urls]
+Homepage = "https://github.com/sam-mg/lu77U-MobileSec"
+
+[project.scripts]
+"lu77U-MobileSec" = "lu77U_MobileSec.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lu77U_MobileSec*"]
+exclude = ["tests*"]
