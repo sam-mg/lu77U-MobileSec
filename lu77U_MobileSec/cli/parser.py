@@ -4,11 +4,11 @@ Command line argument parser for lu77U-MobileSec
 
 import argparse
 from lu77U_MobileSec import __version__
-from lu77U_MobileSec.utils import debug_print
+from lu77U_MobileSec.utils import verbose_print
 
 def create_parser():
     """Create and configure the argument parser"""
-    debug_print("Creating argument parser", False)
+    verbose_print("Creating argument parser", False)
     
     parser = argparse.ArgumentParser(
         prog='lu77U-MobileSec',
@@ -28,7 +28,7 @@ def create_parser():
         help='Enable debug/verbose mode with yellow debug output'
     )
     
-    debug_print("Argument parser created successfully", False)
+    verbose_print("Argument parser created successfully", False)
     return parser
 
 def parse_args(args=None):
@@ -36,6 +36,6 @@ def parse_args(args=None):
     parser = create_parser()
     parsed_args = parser.parse_args(args)
     
-    debug_print(f"Arguments parsed: {vars(parsed_args)}", parsed_args.verbose)
+    verbose_print(f"Arguments parsed: {vars(parsed_args)}", parsed_args.verbose)
     
     return parsed_args

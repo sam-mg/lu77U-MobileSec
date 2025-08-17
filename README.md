@@ -14,11 +14,14 @@ pip install lu77U-MobileSec
 # Basic usage
 lu77U-MobileSec
 
-# With debug mode
+# With verbose mode
 lu77U-MobileSec -V
 
 # Show help
 lu77U-MobileSec --help
+
+# Show version
+lu77U-MobileSec -v
 ```
 
 ## Features
@@ -38,8 +41,8 @@ lu77U-MobileSec --help
 
 MIT License
 
-## Author
+Happy Pentesting!
 
-**Sam MG Harish**
-- Email: sammgharish@gmail.com
-- GitHub: [@sam-mg](https://github.com/sam-mg)
+<p align="right">
+  <img src="https://wakatime.com/badge/user/f5bf5341-405c-480f-bd76-40a5c1a8ada9/project/bf85413c-ecef-42cb-a459-a8677138ea8b.svg?style=for-the-badge" alt="WakaTime Repo Image" />
+</p>

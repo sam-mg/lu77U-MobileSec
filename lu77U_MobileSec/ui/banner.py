@@ -4,6 +4,7 @@ Banner display utilities for lu77U-MobileSec
 
 import re
 from .colors import Colors
+from ..utils.screen import clear_screen
 
 def get_visible_length(text):
     """Calculate the visible length of text by removing ANSI color codes"""
@@ -18,6 +19,7 @@ def center_text_in_box(text, box_width=48):
 
 def print_banner():
     """Display the main banner for lu77U-MobileSec"""
+    clear_screen()
     print(f"\n{Colors.CYAN}{Colors.BOLD}╔{'═' * 46}╗")
     print(center_text_in_box(f"{Colors.BOLD}lu77U-MobileSec{Colors.RESET}{Colors.CYAN}{Colors.BOLD}"))
     print(center_text_in_box(f"{Colors.BOLD}The Only Mobile Security Tool Which You Need{Colors.RESET}{Colors.CYAN}{Colors.BOLD}"))

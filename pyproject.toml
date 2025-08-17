@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lu77U-MobileSec"
-version = "0.0.1"
+version = "0.0.2"
 description = "The Only Mobile Security Tool Which You Need"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -48,4 +48,3 @@ Homepage = "https://github.com/sam-mg/lu77U-MobileSec"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["lu77U_MobileSec*"]
-exclude = ["tests*"]
