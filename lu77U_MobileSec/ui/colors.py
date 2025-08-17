@@ -5,12 +5,18 @@ Color constants and utilities for console output
 import sys
 import platform
 
-try:
-    if platform.system() == "Windows":
+if platform.system() == "Windows":
+    try:
         import colorama
-        colorama.init(autoreset=True)
-except ImportError:
-    pass
+        colorama.init(autoreset=True, convert=True, strip=False, wrap=True)
+    except ImportError:
+        pass
+else:
+    try:
+        import colorama
+        colorama.init(autoreset=False)
+    except ImportError:
+        pass
 
 class Colors:
     """ANSI color codes for terminal output"""
@@ -32,4 +38,4 @@ class Colors:
     WARNING = PURPLE  
     INFO = CYAN
     HEADER = PURPLE
-    DEBUG = YELLOW
+    VERBOSE = YELLOW
