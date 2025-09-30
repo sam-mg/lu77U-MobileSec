@@ -1,8 +1,5 @@
-"""
-Color constants and utilities for console output
-"""
+"""Color constants and utilities"""
 
-import sys
 import platform
 
 if platform.system() == "Windows":

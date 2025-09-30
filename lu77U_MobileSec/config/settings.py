@@ -1,9 +1,7 @@
-"""
-Configuration settings for lu77U-MobileSec
-"""
+"""Configuration settings for lu77U-MobileSec"""
 
 APP_NAME = "lu77U-MobileSec"
-APP_VERSION = "0.0.2"
+APP_VERSION = "0.0.3"
 APP_DESCRIPTION = "The Only Mobile Security Tool Which You Need"
 APP_AUTHOR = "Sam MG Harish"
 APP_EMAIL = "sammgharish@gmail.com"
