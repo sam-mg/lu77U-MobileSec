@@ -1,8 +1,4 @@
-#!/usr/bin/env python3
-"""
-lu77U-MobileSec CLI entry point
-Main entry point for the lu77U-MobileSec package when run as a module.
-"""
+"""lu77U-MobileSec CLI entry point"""
 
 import sys
 import platform
