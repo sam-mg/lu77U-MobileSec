@@ -30,12 +30,10 @@ class BaseFrameworkDetector:
     def __init__(self, verbose=False):
         """Initialize base detector"""
         self.verbose = verbose
-        verbose_print("BaseFrameworkDetector initialized", self.verbose)
         self.apk = None
         self.dalvik_files = []
         self.analysis = None
         self.confidence_threshold = 0.3
-        verbose_print(f"Confidence threshold set to: {self.confidence_threshold}", self.verbose)
     
     def load_apk(self, apk_path: str) -> bool:
         """Load APK using androguard"""
@@ -46,10 +44,10 @@ class BaseFrameworkDetector:
             return False
             
         try:
-            verbose_print(f"Loading APK with androguard: {apk_path}", self.verbose)
+            from ..detection.extractors.logging_config import setup_androguard_logging
+            setup_androguard_logging(self.verbose)
             self.apk, self.dalvik_files, self.analysis = AnalyzeAPK(apk_path)
-            verbose_print("APK loaded successfully", self.verbose)
-            verbose_print(f"Found {len(self.dalvik_files)} dalvik files", self.verbose)
+            verbose_print(f"Loaded APK with {len(self.dalvik_files)} dalvik files", self.verbose)
             return True
         except Exception as e:
             verbose_print(f"Error loading APK: {e}", self.verbose)
@@ -57,7 +55,6 @@ class BaseFrameworkDetector:
     
     def get_apk_files(self) -> list:
         """Get list of files in the APK"""
-        verbose_print("Retrieving APK file list", self.verbose)
         if not self.apk:
             verbose_print("APK not loaded - cannot get file list", self.verbose)
             return []
@@ -219,14 +216,12 @@ class BaseFrameworkDetector:
             project = Path(project_path)
             verbose_print(f"Project path exists: {project.exists()}", self.verbose)
             
-            # Check for platform folders
             verbose_print("Checking for platform folders", self.verbose)
             structure['has_android_folder'] = (project / 'android').exists()
             structure['has_ios_folder'] = (project / 'ios').exists()
             verbose_print(f"Android folder: {structure['has_android_folder']}", self.verbose)
             verbose_print(f"iOS folder: {structure['has_ios_folder']}", self.verbose)
             
-            # Count file types
             verbose_print("Counting source files by type", self.verbose)
             structure['kotlin_files'] = len(list(project.rglob('*.kt')))
             structure['java_files'] = len(list(project.rglob('*.java')))
@@ -240,7 +235,6 @@ class BaseFrameworkDetector:
             verbose_print(f"JS files: {structure['js_files']}", self.verbose)
             verbose_print(f"Native libraries: {structure['native_libs']}", self.verbose)
             
-            # Check for config files
             verbose_print("Checking for configuration files", self.verbose)
             config_files = ['pubspec.yaml', 'package.json', 'build.gradle', 'CMakeLists.txt']
             for config in config_files:
@@ -300,13 +294,11 @@ class BaseFrameworkDetector:
             project = Path(project_path)
             verbose_print(f"Project path validated: {project.exists()}", self.verbose)
             
-            # Get all file paths
             verbose_print("Collecting all file paths", self.verbose)
             all_files = [str(f.relative_to(project)) for f in project.rglob('*') if f.is_file()]
             verbose_print(f"Found {len(all_files)} files in project", self.verbose)
             content_parts.extend(all_files)
             
-            # Read specific config files
             verbose_print("Reading configuration files", self.verbose)
             config_files = ['pubspec.yaml', 'package.json', 'build.gradle']
             for config in config_files:

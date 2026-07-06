@@ -12,15 +12,10 @@ except ImportError:
 class NativeDetector:
     def __init__(self, verbose=False):
         self.verbose = verbose
-        verbose_print("NativeDetector initialized", self.verbose)
         self.framework_name = "Native (C/C++)"
-
+    
     def detect(self, input_path: str):
-        verbose_print(f"Detecting Native framework in: {input_path}", self.verbose)
-        verbose_print(f"Input type: {'APK' if input_path.endswith('.apk') else 'Directory'}", self.verbose)
-        
         if input_path.endswith('.apk'):
-            verbose_print("Starting APK-based native detection", self.verbose)
             return self._detect_native_in_apk(input_path)
         else:
             verbose_print("Starting directory-based native detection", self.verbose)
@@ -28,20 +23,16 @@ class NativeDetector:
     
     def _detect_native_in_apk(self, apk_path: str):
         """Detect native libraries in APK file"""
-        verbose_print(f"Starting native detection in APK: {apk_path}", self.verbose)
         indicators = []
         confidence = 0.0
         
         # Check APK path for native indicators
-        verbose_print("Checking APK path for native/NDK indicators", self.verbose)
         path_lower = apk_path.lower()
         if 'native' in path_lower or 'ndk' in path_lower:
             verbose_print(f"APK path contains native indicator: {path_lower}", self.verbose)
             indicators.append('APK path contains Native/NDK')
             confidence += 0.3
             verbose_print(f"Confidence increased by 0.3 due to path indicator (total: {confidence})", self.verbose)
-        else:
-            verbose_print("No native indicators in APK path", self.verbose)
         
         if not ANDROGUARD_AVAILABLE:
             verbose_print("Androguard not available - limited APK native detection", self.verbose)
@@ -55,63 +46,39 @@ class NativeDetector:
             verbose_print("No indicators found and androguard unavailable", self.verbose)
             return None
         
-        verbose_print("Androguard available - performing detailed APK analysis", self.verbose)
         try:
-            verbose_print("Loading APK with androguard", self.verbose)
+            from ..detection.extractors.logging_config import setup_androguard_logging
+            setup_androguard_logging(self.verbose)
             apk, dex, dx = AnalyzeAPK(apk_path)
-            verbose_print("APK analyzed successfully", self.verbose)
             
             # Check for native libraries (.so files)
-            verbose_print("Scanning for native libraries (.so files)", self.verbose)
             so_files = []
-            lib_files = apk.get_files_types()
-            verbose_print(f"Total files in APK: {len(apk.get_files())}", self.verbose)
-            
             for file_path in apk.get_files():
                 if file_path.startswith('lib/') and file_path.endswith('.so'):
                     so_files.append(os.path.basename(file_path))
-                    verbose_print(f"Found native library: {file_path}", self.verbose)
             
             if so_files:
-                verbose_print(f"Total native libraries found: {len(so_files)}", self.verbose)
                 indicators.append(f'Native libraries (.so): {", ".join(so_files[:3])}{"..." if len(so_files) > 3 else ""}')
                 confidence += 0.8
-                verbose_print(f"Found {len(so_files)} native libraries in APK", self.verbose)
-                verbose_print(f"Confidence increased by 0.8 due to native libraries (total: {confidence})", self.verbose)
-            else:
-                verbose_print("No native libraries (.so files) found", self.verbose)
+                verbose_print(f"Found {len(so_files)} native libraries", self.verbose)
             
             # Check for native architectures
-            verbose_print("Scanning for native architectures", self.verbose)
             lib_dirs = set()
             for file_path in apk.get_files():
                 if file_path.startswith('lib/') and '/' in file_path[4:]:
                     arch = file_path.split('/')[1]
                     lib_dirs.add(arch)
-                    verbose_print(f"Found native architecture: {arch}", self.verbose)
             
             if lib_dirs:
-                verbose_print(f"Total native architectures found: {len(lib_dirs)} - {sorted(lib_dirs)}", self.verbose)
                 indicators.append(f'Native architectures: {", ".join(sorted(lib_dirs))}')
                 confidence += 0.4
-                verbose_print(f"Found native architectures: {lib_dirs}", self.verbose)
-                verbose_print(f"Confidence increased by 0.4 due to architectures (total: {confidence})", self.verbose)
-            else:
-                verbose_print("No native architectures found", self.verbose)
+                verbose_print(f"Found native architectures: {', '.join(sorted(lib_dirs))}", self.verbose)
                 
         except Exception as e:
-            verbose_print(f"Error analyzing APK for native libraries: {e}", self.verbose)
-            if indicators:
-                verbose_print("Adding APK analysis failure indicator", self.verbose)
-                indicators.append('APK analysis failed - using path pattern')
-            else:
-                verbose_print("No indicators and APK analysis failed", self.verbose)
-                return None
+            verbose_print(f"Error analyzing APK: {e}", self.verbose)
         
         if indicators:
             confidence = min(confidence, 1.0)
-            verbose_print(f"Native detection completed - indicators: {len(indicators)}, confidence: {confidence}", self.verbose)
-            verbose_print(f"Final indicators: {indicators}", self.verbose)
             return {
                 'framework': self.framework_name,
                 'indicators': indicators,
@@ -130,11 +97,7 @@ class NativeDetector:
         # Validate directory
         if not os.path.isdir(input_path):
             verbose_print(f"Path is not a directory: {input_path}", self.verbose)
-            return None
-            
-        verbose_print("Directory validated successfully", self.verbose)
-        
-        # Check for native development directories
+            return None        # Check for native development directories
         verbose_print("Checking for native development directories", self.verbose)
         native_paths = [
             'jni/', 'src/main/cpp', 'src/main/jni', 'app/src/main/cpp'
@@ -206,14 +169,11 @@ class NativeDetector:
             verbose_print(f"Total C/C++ files found: {len(cpp_files_found)}", self.verbose)
             indicators.append(f'C/C++ source files: {", ".join(cpp_files_found[:3])}{"..." if len(cpp_files_found) > 3 else ""}')
             confidence += 0.5
-            verbose_print(f"Confidence increased by 0.5 due to C/C++ files (total: {confidence})", self.verbose)
         else:
             verbose_print("No C/C++ source files found", self.verbose)
         
         if indicators:
             confidence = min(confidence, 1.0)
-            verbose_print(f"Native detection completed - indicators: {len(indicators)}, confidence: {confidence}", self.verbose)
-            verbose_print(f"Final indicators: {indicators}", self.verbose)
             return {
                 'framework': self.framework_name,
                 'indicators': indicators,

@@ -1,47 +1,74 @@
 """React Native Framework Detector for lu77U-MobileSec"""
 
 from ..utils.verbose import verbose_print
+from ..config.constants import FRAMEWORK_REACT_NATIVE, TECH_DETECTION_MAP
 import os
+import zipfile
 
 class ReactNativeDetector:
     def __init__(self, verbose=False):
         self.verbose = verbose
-        verbose_print("ReactNativeDetector initialized", self.verbose)
-        self.framework_name = "React Native"
-
+        self.framework_name = FRAMEWORK_REACT_NATIVE
+        self.apk_indicators = TECH_DETECTION_MAP[FRAMEWORK_REACT_NATIVE]
+    
     def detect(self, input_path: str):
-        verbose_print(f"Detecting React Native framework in: {input_path}", self.verbose)
-        verbose_print(f"Input type: {'APK' if input_path.endswith('.apk') else 'Directory'}", self.verbose)
         
         if input_path.endswith('.apk'):
-            verbose_print("Starting APK-based React Native detection", self.verbose)
-            path_lower = input_path.lower()
-            verbose_print(f"Checking APK path for React Native indicators: {path_lower}", self.verbose)
-            
-            if 'react' in path_lower and 'native' in path_lower:
-                verbose_print("React Native APK detected by path pattern", self.verbose)
-                return {
-                    'framework': self.framework_name,
-                    'indicators': ['APK path contains React Native'],
-                    'confidence': 0.9
-                }
-            else:
-                verbose_print("No React Native indicators in APK path", self.verbose)
-                return None
+            return self._detect_in_apk(input_path)
         else:
-            verbose_print("Starting directory-based React Native detection", self.verbose)
-            return self._detect_react_native_in_project(input_path)
-    def _detect_react_native_in_project(self, input_path: str):
+            return self._detect_in_project(input_path)
+    
+    def _detect_in_apk(self, apk_path: str):
+        """Detect React Native in APK by checking for native libraries and bundles"""
+        try:
+            with zipfile.ZipFile(apk_path, 'r') as zipObject:
+                file_names = zipObject.namelist()
+                
+                found_indicators = []
+                
+                rn_libs = [f for f in file_names if 'libreactnativejni.so' in f]
+                if rn_libs:
+                    found_indicators.append(f'libreactnativejni.so ({len(rn_libs)} architectures)')
+                    verbose_print(f"Found React Native JNI library in {len(rn_libs)} architectures", self.verbose)
+                
+                js_bundles = [f for f in file_names if 'index.android.bundle' in f or 'index.bundle' in f]
+                if js_bundles:
+                    found_indicators.append('JavaScript bundle')
+                    verbose_print("Found React Native JavaScript bundle", self.verbose)
+                
+                rn_assets = [f for f in file_names if f.startswith('assets/') and ('.bundle' in f or 'drawable-' in f)]
+                if rn_assets:
+                    found_indicators.append(f'React Native assets ({len(rn_assets)} files)')
+                    verbose_print(f"Found {len(rn_assets)} React Native asset files", self.verbose)
+                
+                hermes_libs = [f for f in file_names if 'libhermes.so' in f or 'libjsi.so' in f]
+                if hermes_libs:
+                    found_indicators.append('Hermes engine')
+                    verbose_print("Found Hermes JavaScript engine", self.verbose)
+                
+                if found_indicators:
+                    confidence = min(0.95, 0.8 + (len(found_indicators) * 0.05))
+                    verbose_print(f"React Native detected in APK with {len(found_indicators)} indicators, confidence: {confidence}", self.verbose)
+                    
+                    return {
+                        'framework': self.framework_name,
+                        'indicators': found_indicators,
+                        'confidence': confidence
+                    }
+                
+                return None
+                
+        except (FileNotFoundError, zipfile.BadZipFile) as e:
+            verbose_print(f"Error reading APK: {e}", self.verbose)
+            return None
+    
+    def _detect_in_project(self, input_path: str):
         """Detect React Native in project directory"""
-        verbose_print(f"Starting React Native detection in project: {input_path}", self.verbose)
         
-        # Validate directory
         if not os.path.isdir(input_path):
             verbose_print(f"Path is not a directory: {input_path}", self.verbose)
             return None
-        verbose_print("Directory validated successfully", self.verbose)
         
-        # Define primary and secondary indicators
         primary_indicators = [
             'package.json', 'node_modules/react-native', 'metro.config.js'
         ]
@@ -49,51 +76,31 @@ class ReactNativeDetector:
             'react-native.config.js', 'ios/Podfile'
         ]
         
-        verbose_print(f"Primary indicators to check: {primary_indicators}", self.verbose)
-        verbose_print(f"Secondary indicators to check: {secondary_indicators}", self.verbose)
-        
         found_primary = []
         found_secondary = []
         
-        # Check for primary indicators
-        verbose_print("Checking for primary React Native indicators", self.verbose)
         for indicator in primary_indicators:
             full_path = os.path.join(input_path, indicator)
-            verbose_print(f"Checking primary indicator: {full_path}", self.verbose)
             if os.path.exists(full_path):
                 verbose_print(f"Found primary indicator: {indicator}", self.verbose)
                 found_primary.append(indicator)
-            else:
-                verbose_print(f"Primary indicator not found: {indicator}", self.verbose)
         
-        # Check for secondary indicators
-        verbose_print("Checking for secondary React Native indicators", self.verbose)
         for indicator in secondary_indicators:
             full_path = os.path.join(input_path, indicator)
-            verbose_print(f"Checking secondary indicator: {full_path}", self.verbose)
             if os.path.exists(full_path):
                 verbose_print(f"Found secondary indicator: {indicator}", self.verbose)
                 found_secondary.append(indicator)
-            else:
-                verbose_print(f"Secondary indicator not found: {indicator}", self.verbose)
         
-        # Validate package.json for React Native dependency
         if 'package.json' in found_primary:
-            verbose_print("Validating package.json for React Native dependency", self.verbose)
             try:
                 import json
                 package_path = os.path.join(input_path, 'package.json')
-                verbose_print(f"Reading package.json from: {package_path}", self.verbose)
                 
                 with open(package_path, 'r') as f:
                     package_data = json.load(f)
-                    verbose_print("Successfully parsed package.json", self.verbose)
                     
                     dependencies = package_data.get('dependencies', {})
                     dev_dependencies = package_data.get('devDependencies', {})
-                    
-                    verbose_print(f"Found {len(dependencies)} dependencies", self.verbose)
-                    verbose_print(f"Found {len(dev_dependencies)} dev dependencies", self.verbose)
                     
                     has_react_native = 'react-native' in dependencies or 'react-native' in dev_dependencies
                     
@@ -103,22 +110,17 @@ class ReactNativeDetector:
                     else:
                         verbose_print("No React Native dependency found in package.json", self.verbose)
                         found_primary.remove('package.json')
-                        verbose_print("Removed package.json from primary indicators", self.verbose)
                         
             except (json.JSONDecodeError, FileNotFoundError, Exception) as e:
                 verbose_print(f"Could not parse package.json: {e}", self.verbose)
                 if 'package.json' in found_primary:
                     found_primary.remove('package.json')
-                    verbose_print("Removed invalid package.json from primary indicators", self.verbose)
         
-        # Calculate results
         if found_primary:
             all_found = found_primary + found_secondary
-            verbose_print(f"React Native indicators found: primary={found_primary}, secondary={found_secondary}", self.verbose)
-            verbose_print(f"Total indicators found: {len(all_found)} - {all_found}", self.verbose)
             
             confidence = min(1.0, 0.7 + (len(all_found) * 0.1))
-            verbose_print(f"Calculated confidence: {confidence} (base 0.7 + {len(all_found)} * 0.1)", self.verbose)
+            verbose_print(f"React Native indicators found: {len(all_found)}, confidence: {confidence}", self.verbose)
             
             return {
                 'framework': self.framework_name,
@@ -126,5 +128,4 @@ class ReactNativeDetector:
                 'confidence': confidence
             }
         
-        verbose_print("No React Native indicators found.", self.verbose)
         return None

@@ -13,8 +13,6 @@ class PDFReportGenerator:
         
         self.engine = PDFGenerationEngine(verbose=verbose)
         verbose_print("PDFGenerationEngine initialized", self.verbose)
-        
-        verbose_print("PDFReportGenerator initialization complete", self.verbose)
     
     def generate_pdf_report(self, detection_result: DetectionResult) -> Optional[str]:
         verbose_print("Delegating PDF report generation to engine", self.verbose)

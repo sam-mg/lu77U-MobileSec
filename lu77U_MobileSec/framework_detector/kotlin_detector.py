@@ -6,17 +6,11 @@ import os
 class KotlinDetector:
     def __init__(self, verbose=False):
         self.verbose = verbose
-        verbose_print("KotlinDetector initialized", self.verbose)
         self.framework_name = "Kotlin"
-
+    
     def detect(self, input_path: str):
-        verbose_print(f"Detecting Kotlin framework in: {input_path}", self.verbose)
-        verbose_print(f"Input type: {'APK' if input_path.endswith('.apk') else 'Directory'}", self.verbose)
-        
         if input_path.endswith('.apk'):
-            verbose_print("Starting APK-based Kotlin detection", self.verbose)
             path_lower = input_path.lower()
-            verbose_print(f"Checking APK path for Kotlin keywords: {path_lower}", self.verbose)
             
             if 'kotlin' in path_lower:
                 verbose_print("Kotlin APK detected by path pattern", self.verbose)
@@ -25,8 +19,6 @@ class KotlinDetector:
                     'indicators': ['APK path contains Kotlin'],
                     'confidence': 0.9
                 }
-            else:
-                verbose_print("No Kotlin keywords found in APK path", self.verbose)
         else:
             verbose_print("Starting directory-based Kotlin detection", self.verbose)
             kotlin_indicators = []
@@ -138,5 +130,4 @@ class KotlinDetector:
             else:
                 verbose_print("No Kotlin indicators found, returning None", self.verbose)
         
-        verbose_print("No Kotlin indicators found.", self.verbose)
         return None

@@ -2,7 +2,7 @@
 
 **The Only Mobile Security Tool Which You Need**
 
-A comprehensive mobile security analysis framework that provides advanced APK analysis, multi-framework detection, and professional PDF reporting capabilities.
+A comprehensive mobile security analysis framework that provides advanced APK analysis, multi-framework detection, and professional reporting — driven from a **local web dashboard** in your browser.
 
 ## Installation
 
@@ -12,35 +12,21 @@ pip install lu77U-MobileSec
 
 ## Usage
 
+`lu77U-MobileSec` is a local web application. Running it starts a server on `127.0.0.1` and opens the dashboard in your default browser — there is no terminal menu anymore.
+
 ```bash
-# Basic usage - launches interactive interface
+# Launch the web dashboard
 lu77U-MobileSec
 
-# With verbose mode for detailed logging
+# Same, but also stream verbose analysis logs to the terminal
 lu77U-MobileSec -V
 
 # Show help
-lu77U-MobileSec --help
+lu77U-MobileSec -h
 
 # Show version
 lu77U-MobileSec -v
 ```
-
-### Analysis Workflow
-
-1. **Target Selection**: GUI file picker or manual path input
-2. **Framework Detection**: Java, Kotlin, Flutter, React Native, Native
-3. **APK Analysis**: Structure and metadata extraction
-4. **Report Generation**: PDF reports with findings
-
-## Features
-
-- **Multi-Framework Detection**: Java, Kotlin, Flutter, React Native, Native Android
-- **APK Analysis**: Complete APK structure and metadata extraction using androguard
-- **AndroidManifest.xml Parsing**: Permissions, activities, services analysis
-- **PDF Report Generation**: Professional formatted reports
-- **GUI File Picker**: Easy target selection interface
-- **Cross-Platform**: Windows, macOS, and Linux support
 
 ## License
 

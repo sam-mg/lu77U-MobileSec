@@ -1,38 +1,43 @@
-"""Command line argument parser for lu77U-MobileSec"""
+"""Command line argument parser for lu77U-MobileSec."""
 
 import argparse
+
 from lu77U_MobileSec import __version__
-from lu77U_MobileSec.utils import verbose_print
 
 def create_parser():
     """Create and configure the argument parser"""
     parser = argparse.ArgumentParser(
         prog='lu77U-MobileSec',
-        description='The Only Mobile Security Tool Which You Need',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description=(
+            'The Only Mobile Security Tool Which You Need.\n\n'
+            'Running "lu77U-MobileSec" starts the local web dashboard and opens\n'
+            'it in your default browser. Use -V to also stream logs to the\n'
+            'terminal.'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument(
         '-v', '--version',
         action='version',
-        version=f'lu77U-MobileSec {__version__}'
+        version=f'lu77U-MobileSec {__version__}',
     )
-    
+
     parser.add_argument(
         '-V', '--verbose',
         action='store_true',
-        help='Enable Verbose Mode'
+        help='Stream verbose analysis logs to the terminal (also shown in the web UI)',
     )
-    
+
+    # Developer/advanced options (hidden from normal help output).
+    parser.add_argument('--port', type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument('--no-browser', action='store_true', help=argparse.SUPPRESS)
+
     return parser
 
 def parse_args(args=None):
     """Parse command line arguments"""
     parser = create_parser()
     parsed_args = parser.parse_args(args)
-    
-    verbose_print("Arguments parsed successfully", parsed_args.verbose)
-    verbose_print(f"Parsed arguments: {vars(parsed_args)}", parsed_args.verbose)
-    verbose_print(f"Verbose mode enabled: {parsed_args.verbose}", parsed_args.verbose)
-    
+
     return parsed_args

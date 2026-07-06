@@ -1,125 +1,134 @@
 """Java Framework Detector for lu77U-MobileSec"""
 
 from ..utils.verbose import verbose_print
+from ..config.constants import (
+    FRAMEWORK_JAVA,
+    FRAMEWORK_FLUTTER,
+    FRAMEWORK_REACT_NATIVE,
+    FRAMEWORK_UNITY,
+    FRAMEWORK_UNREAL,
+    TECH_DETECTION_MAP
+)
 import os
+import zipfile
 
 class JavaDetector:
     def __init__(self, verbose=False):
         self.verbose = verbose
-        verbose_print("JavaDetector initialized", self.verbose)
-        self.framework_name = "Java"
-
+        self.framework_name = FRAMEWORK_JAVA
+    
     def detect(self, input_path: str):
-        verbose_print(f"Detecting Java framework in: {input_path}", self.verbose)
-        verbose_print(f"Input type: {'APK' if input_path.endswith('.apk') else 'Directory'}", self.verbose)
         
         if input_path.endswith('.apk'):
-            verbose_print("Starting APK-based Java detection", self.verbose)
-            path_lower = input_path.lower()
-            verbose_print(f"Checking APK path: {path_lower}", self.verbose)
-            
-            if 'java' in path_lower or input_path.endswith('.apk'):
-                verbose_print("Java APK detected by path pattern", self.verbose)
-                return {
-                    'framework': self.framework_name,
-                    'indicators': ['APK file format (Java/Kotlin base)'],
-                    'confidence': 0.8
-                }
+            return self._detect_in_apk(input_path)
         else:
-            verbose_print("Starting directory-based Java detection", self.verbose)
-            indicators = []
-            confidence = 0.0
-            
-            if os.path.isdir(input_path):
-                verbose_print(f"Input path is a valid directory: {input_path}", self.verbose)
+            return self._detect_in_project(input_path)
+    
+    def _detect_in_apk(self, apk_path: str):
+        """Detect Java/Kotlin in APK by analyzing DEX files and structure"""
+        try:
+            with zipfile.ZipFile(apk_path, 'r') as zipObject:
+                file_names = zipObject.namelist()
                 
-                android_structure = [
-                    'AndroidManifest.xml', 'src/main/java', 'app/src/main/java',
-                    'res/', 'app/src/main/res'
-                ]
-                build_files = [
-                    'build.gradle', 'app/build.gradle', 
-                    'build.gradle.kts', 'app/build.gradle.kts',
-                    'gradle.properties'
-                ]
+                dex_files = [f for f in file_names if f.startswith('classes') and f.endswith('.dex')]
                 
-                verbose_print(f"Checking {len(android_structure)} Android structure indicators", self.verbose)
-                for indicator in android_structure:
-                    full_path = os.path.join(input_path, indicator)
-                    verbose_print(f"Checking Android structure: {full_path}", self.verbose)
-                    if os.path.exists(full_path):
-                        indicators.append(indicator)
-                        confidence += 0.3
-                        verbose_print(f"Found Android structure indicator: {indicator} (confidence +0.3)", self.verbose)
-                    else:
-                        verbose_print(f"Android structure not found: {indicator}", self.verbose)
+                flutter_indicators = TECH_DETECTION_MAP[FRAMEWORK_FLUTTER]
+                has_flutter = any(indicator in f for f in file_names for indicator in flutter_indicators)
                 
-                verbose_print(f"Checking {len(build_files)} build file indicators", self.verbose)
-                for build_file in build_files:
-                    full_path = os.path.join(input_path, build_file)
-                    verbose_print(f"Checking build file: {full_path}", self.verbose)
-                    if os.path.exists(full_path):
-                        indicators.append(build_file)
-                        confidence += 0.2
-                        verbose_print(f"Found build file: {build_file} (confidence +0.2)", self.verbose)
-                    else:
-                        verbose_print(f"Build file not found: {build_file}", self.verbose)
+                rn_indicators = TECH_DETECTION_MAP[FRAMEWORK_REACT_NATIVE]
+                has_react_native = any(indicator in f for f in file_names for indicator in rn_indicators)
                 
-                verbose_print("Searching for Java source files", self.verbose)
-                java_files_found = []
-                search_dirs = [
-                    os.path.join(input_path, 'src/main/java'),
-                    os.path.join(input_path, 'app/src/main/java')
-                ]
+                unity_indicators = TECH_DETECTION_MAP[FRAMEWORK_UNITY]
+                has_unity = any(indicator in f for f in file_names for indicator in unity_indicators)
                 
-                for search_dir in search_dirs:
-                    verbose_print(f"Searching for .java files in: {search_dir}", self.verbose)
-                    if os.path.exists(search_dir):
-                        verbose_print(f"Directory exists, walking: {search_dir}", self.verbose)
-                        file_count = 0
-                        for root, dirs, files in os.walk(search_dir):
-                            for file in files:
-                                if file.endswith('.java'):
-                                    java_files_found.append(file)
-                                    file_count += 1
-                                    verbose_print(f"Found Java file: {file}", self.verbose)
-                                    if len(java_files_found) >= 3:
-                                        verbose_print("Reached Java file limit (3), stopping search", self.verbose)
-                                        break
-                            if len(java_files_found) >= 3:
-                                break
-                        verbose_print(f"Found {file_count} Java files in {search_dir}", self.verbose)
-                    else:
-                        verbose_print(f"Search directory does not exist: {search_dir}", self.verbose)
+                unreal_indicators = TECH_DETECTION_MAP[FRAMEWORK_UNREAL]
+                has_unreal = any(indicator in f for f in file_names for indicator in unreal_indicators)
                 
-                if java_files_found:
-                    source_indicator = f'Java source files: {", ".join(java_files_found[:3])}{"..." if len(java_files_found) > 3 else ""}'
-                    indicators.append(source_indicator)
-                    confidence += 0.5
-                    verbose_print(f"Added Java source files indicator (confidence +0.5): {source_indicator}", self.verbose)
-                else:
-                    verbose_print("No Java source files found", self.verbose)
+                if dex_files and not (has_flutter or has_react_native or has_unity or has_unreal):
+                    indicators = [f'DEX files: {len(dex_files)} found']
                     
-            else:
-                verbose_print(f"Input path is not a valid directory: {input_path}", self.verbose)
-            
-            verbose_print(f"Java detection summary - Indicators found: {len(indicators)}", self.verbose)
-            verbose_print(f"Raw confidence score: {confidence}", self.verbose)
-            
-            if indicators:
-                confidence = min(confidence, 1.0)
-                verbose_print(f"Final confidence (capped): {confidence}", self.verbose)
-                verbose_print(f"Java indicators found: {indicators}, confidence: {confidence}", self.verbose)
+                    has_kotlin = any('kotlin' in f.lower() for f in file_names)
+                    if has_kotlin:
+                        indicators.append('Kotlin runtime detected')
+                    
+                    verbose_print(f"Java/Kotlin APK detected with {len(dex_files)} DEX files", self.verbose)
+                    
+                    return {
+                        'framework': self.framework_name,
+                        'indicators': indicators,
+                        'confidence': 0.8
+                    }
                 
-                result = {
-                    'framework': self.framework_name,
-                    'indicators': indicators,
-                    'confidence': confidence
-                }
-                verbose_print(f"Returning Java detection result: {result}", self.verbose)
-                return result
-            else:
-                verbose_print("No Java indicators found, returning None", self.verbose)
+                return None
+                
+        except (FileNotFoundError, zipfile.BadZipFile) as e:
+            verbose_print(f"Error reading APK: {e}", self.verbose)
+            return None
+    
+    def _detect_in_project(self, input_path: str):
+        """Detect Java in project directory"""
+        indicators = []
+        confidence = 0.0
         
-        verbose_print("No Java indicators found.", self.verbose)
+        if os.path.isdir(input_path):
+            
+            android_structure = [
+                'AndroidManifest.xml', 'src/main/java', 'app/src/main/java',
+                'res/', 'app/src/main/res'
+            ]
+            build_files = [
+                'build.gradle', 'app/build.gradle', 
+                'build.gradle.kts', 'app/build.gradle.kts',
+                'gradle.properties'
+            ]
+            
+            for indicator in android_structure:
+                full_path = os.path.join(input_path, indicator)
+                if os.path.exists(full_path):
+                    indicators.append(indicator)
+                    confidence += 0.3
+                    verbose_print(f"Found Android structure indicator: {indicator}", self.verbose)
+            
+            for build_file in build_files:
+                full_path = os.path.join(input_path, build_file)
+                if os.path.exists(full_path):
+                    indicators.append(build_file)
+                    confidence += 0.2
+                    verbose_print(f"Found build file: {build_file}", self.verbose)
+            
+            java_files_found = []
+            search_dirs = [
+                os.path.join(input_path, 'src/main/java'),
+                os.path.join(input_path, 'app/src/main/java')
+            ]
+            
+            for search_dir in search_dirs:
+                if os.path.exists(search_dir):
+                    file_count = 0
+                    for root, dirs, files in os.walk(search_dir):
+                        for file in files:
+                            if file.endswith('.java'):
+                                java_files_found.append(file)
+                                file_count += 1
+                                if len(java_files_found) >= 3:
+                                    break
+                        if len(java_files_found) >= 3:
+                            break
+            
+            if java_files_found:
+                source_indicator = f'Java source files: {", ".join(java_files_found[:3])}{"..." if len(java_files_found) > 3 else ""}'
+                indicators.append(source_indicator)
+                confidence += 0.5
+                verbose_print(f"Found {len(java_files_found)} Java source files", self.verbose)
+        
+        if indicators:
+            confidence = min(confidence, 1.0)
+            verbose_print(f"Java indicators found: {len(indicators)}, confidence: {confidence}", self.verbose)
+            
+            return {
+                'framework': self.framework_name,
+                'indicators': indicators,
+                'confidence': confidence
+            }
+        
         return None

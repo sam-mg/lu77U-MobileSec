@@ -2,6 +2,8 @@
 
 from ...utils.verbose import verbose_print
 from ...ui.colors import Colors
+from ...config.settings import ANDROGUARD_LOGGING
+from ...config.constants import ANDROGUARD_LOGGERS
 
 try:
     from androguard.util import set_log
@@ -12,45 +14,78 @@ except ImportError as e:
 
 def setup_androguard_logging(verbose=False):
     """Setup androguard logging with custom formatting and colors"""
-    verbose_print("Starting androguard logging configuration", verbose)
+    verbose_print("setup_androguard_logging called", verbose)
+    verbose_print(f"Androguard available: {ANDROGUARD_AVAILABLE}", verbose)
+    verbose_print(f"ANDROGUARD_LOGGING setting: {ANDROGUARD_LOGGING}", verbose)
+    verbose_print(f"Verbose mode: {verbose}", verbose)
     
     if not ANDROGUARD_AVAILABLE:
-        verbose_print("Androguard not available - skipping logging setup", verbose)
+        verbose_print("Androguard not available - skipping logging configuration", verbose)
         return
+    
+    import logging
+    verbose_print("Setting up androguard logging with Python logging module", verbose)
+    
+    if not ANDROGUARD_LOGGING:
+        verbose_print("ANDROGUARD_LOGGING is False - disabling androguard loggers", verbose)
+        verbose_print(f"Configuring {len(ANDROGUARD_LOGGERS)} logger(s) to CRITICAL level", verbose)
+        for logger_name in ANDROGUARD_LOGGERS:
+            logger = logging.getLogger(logger_name)
+            logger.setLevel(logging.CRITICAL)
+            logger.handlers.clear()
+            logger.propagate = False
+            logger.disabled = True
+            verbose_print(f"Logger '{logger_name}' disabled and set to CRITICAL", verbose)
         
-    verbose_print("Androguard is available, proceeding with logging setup", verbose)
+        try:
+            import sys
+            # Redirect androguard's set_log to use CRITICAL level (50)
+            set_log(50, sys.stderr)
+            verbose_print("Androguard global log level set to CRITICAL", verbose)
+        except Exception as e:
+            verbose_print(f"Androguard logging setup note: {e}", verbose)
+    else:
+        log_level_num = 20  # INFO level
+        verbose_print(f"ANDROGUARD_LOGGING is True - enabling androguard loggers at INFO", verbose)
+        verbose_print(f"Configuring {len(ANDROGUARD_LOGGERS)} logger(s) to INFO level", verbose)
+        
+        for logger_name in ANDROGUARD_LOGGERS:
+            logger = logging.getLogger(logger_name)
+            logger.setLevel(log_level_num)
+            logger.propagate = True
+            logger.disabled = False
+            verbose_print(f"Logger '{logger_name}' enabled and set to INFO", verbose)
+        
+        try:
+            import sys
+            set_log(log_level_num, sys.stderr)
+            verbose_print(f"Androguard global log level set to INFO", verbose)
+        except Exception as e:
+            verbose_print(f"Androguard logging setup note: {e}", verbose)
     
     try:
-        verbose_print("Attempting to import loguru", verbose)
         from loguru import logger
-        verbose_print("Loguru imported successfully", verbose)
-        
-        verbose_print("Removing existing loguru handlers", verbose)
         logger.remove()
         
         if verbose:
-            verbose_print("Setting up verbose logging configuration", verbose)
             def colored_sink(message):
                 record = message.record
                 name = record["name"]
+                if name.startswith('androguard') and not ANDROGUARD_LOGGING:
+                    return
                 function = record["function"]
                 line = record["line"]
                 msg = record["message"]
-                formatted_msg = f"[VERBOSE] {name}:{function}:{line} - {msg}"
-                print(f"{Colors.VERBOSE}{formatted_msg}{Colors.RESET}")
+                
+                if name.startswith('androguard') and ANDROGUARD_LOGGING:
+                    formatted_msg = f"[VERBOSE] {msg}"
+                    print(f"{Colors.VERBOSE}{formatted_msg}{Colors.RESET}")
+                else:
+                    formatted_msg = f"[VERBOSE] {name}:{function}:{line} - {msg}"
+                    print(f"{Colors.VERBOSE}{formatted_msg}{Colors.RESET}")
             
-            verbose_print("Adding verbose colored sink with DEBUG level", verbose)
-            logger.add(
-                colored_sink,
-                level="DEBUG"
-            )
-            verbose_print("Androguard logging configured with VERBOSE color and simplified formatting", verbose)
+            logger.add(colored_sink, level="DEBUG")
         else:
-            verbose_print("Setting up silent logging configuration", verbose)
             logger.add(lambda msg: None, level="CRITICAL")
-            verbose_print("Androguard logging configured to suppress all messages", verbose)
-            
-    except ImportError as e:
-        verbose_print(f"Loguru import failed: {e}", verbose)
-        if verbose:
-            verbose_print("Loguru not available, androguard logs will use default format", verbose)
+    except ImportError:
+        verbose_print("Loguru not available - skipping loguru configuration", verbose)

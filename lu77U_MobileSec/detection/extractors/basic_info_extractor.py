@@ -41,9 +41,6 @@ class BasicInfoExtractor:
     
     def _extract_from_apk(self, apk_path: str, basic_info: BasicInfoResult):
         """Extract data from APK file using androguard"""
-        verbose_print(f"Starting APK extraction for: {apk_path}", self.verbose)
-        
-        verbose_print("Calculating APK file size", self.verbose)
         basic_info.file_size = os.path.getsize(apk_path)
         verbose_print(f"APK file size: {basic_info.file_size} bytes", self.verbose)
         
@@ -53,6 +50,8 @@ class BasicInfoExtractor:
             basic_info.app_name = "Unknown (androguard required)"
             return
         try:
+            from .logging_config import setup_androguard_logging
+            setup_androguard_logging(self.verbose)
             verbose_print("Loading APK with androguard", self.verbose)
             apk, _, _ = AnalyzeAPK(apk_path)
             verbose_print("APK loaded successfully", self.verbose)

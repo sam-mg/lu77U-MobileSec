@@ -1,5 +1,13 @@
 include README.md
 include LICENSE
+
 recursive-include lu77U_MobileSec *.py
+
+recursive-include lu77U_MobileSec/web/static *
+
+prune lu77U_MobileSec/frontend
+prune Samples
+prune scripts
+
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
