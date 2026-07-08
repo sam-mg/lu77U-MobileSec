@@ -1,6 +1,6 @@
 """lu77U-MobileSec - The Only Mobile Security Tool Which You Need"""
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 __author__ = "Sam MG Harish"
 __email__ = "sammgharish@gmail.com"
 

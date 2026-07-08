@@ -133,15 +133,13 @@ async def download_report(request: Request, scan_id: str, fmt: str):
                         headers={"Content-Disposition": f'attachment; filename="{base}.html"'})
 
     # PDF: render HTML → PDF in a temp file, stream, delete.
-    try:
-        from weasyprint import HTML
-    except Exception:
-        raise HTTPException(503, "PDF export is unavailable (weasyprint not installed)")
+    from ...report_generator.pdf_generation_engine import convert_html_to_pdf
+
     tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
     tmp.close()
-    try:
-        await asyncio.to_thread(lambda: HTML(string=html_str).write_pdf(tmp.name))
-    except Exception:
+    converted = await asyncio.to_thread(
+        convert_html_to_pdf, html_str, tmp.name, False)
+    if not converted:
         Path(tmp.name).unlink(missing_ok=True)
         raise HTTPException(500, "Failed to generate PDF")
     return FileResponse(tmp.name, media_type=_REPORT_MEDIA["pdf"], filename=f"{base}.pdf",

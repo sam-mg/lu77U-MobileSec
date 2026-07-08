@@ -1,12 +1,28 @@
 """Core PDF Generation Engine"""
 
 import platform
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
 from typing import Optional
 from lu77U_MobileSec.detection.results import DetectionResult
 from .html_content_builder import HTMLContentBuilder
 from .pdf_styles import PDFStyleManager, WEASYPRINT_AVAILABLE, WEASYPRINT_ERROR
 from .path_utils import ReportPathManager
 from ..utils.verbose import verbose_print
+
+_EDGE_CANDIDATES = (
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+)
+
+def _find_edge_executable() -> Optional[str]:
+    """Locate Microsoft Edge for headless PDF printing on Windows."""
+    for candidate in _EDGE_CANDIDATES:
+        if Path(candidate).exists():
+            return candidate
+    return shutil.which("msedge")
 
 try:
     from weasyprint import HTML
@@ -30,8 +46,6 @@ class PDFGenerationEngine:
         self.html_builder = HTMLContentBuilder(verbose=verbose)
 
         self.path_manager = ReportPathManager(verbose=verbose)
-
-        self.style_manager = PDFStyleManager(verbose=verbose)
 
         verbose_print("PDFGenerationEngine initialization complete", self.verbose)
     
@@ -77,6 +91,13 @@ class PDFGenerationEngine:
     def _check_dependencies(self) -> bool:
         """Check if required dependencies are available"""
 
+        if platform.system() == "Windows":
+            if _find_edge_executable() is None:
+                verbose_print("Microsoft Edge not found. Cannot generate PDF.", self.verbose)
+                verbose_print("Install Microsoft Edge or ensure msedge.exe is on PATH.", self.verbose)
+                return False
+            return True
+
         if not WEASYPRINT_AVAILABLE or not WEASYPRINT_HTML_AVAILABLE:
 
             if self.verbose:
@@ -90,14 +111,7 @@ class PDFGenerationEngine:
                 verbose_print("Installation instructions:", self.verbose)
                 system = platform.system()
                 verbose_print(f"Detected platform: {system}", self.verbose)
-                if system == "Windows":
-                    verbose_print("For Windows:", self.verbose)
-                    verbose_print("1. Install MSYS2: https://www.msys2.org/", self.verbose)
-                    verbose_print("2. Run: pacman -S mingw-w64-x86_64-pango", self.verbose)
-                    verbose_print("3. Set: set WEASYPRINT_DLL_DIRECTORIES=C:\\msys64\\mingw64\\bin", self.verbose)
-                    verbose_print("4. Restart your terminal and try again", self.verbose)
-                    verbose_print("5. Alternative: Use WSL (Windows Subsystem for Linux)", self.verbose)
-                elif system == "Darwin":
+                if system == "Darwin":
                     verbose_print("For macOS:", self.verbose)
                     verbose_print("1. Install Homebrew: https://brew.sh/", self.verbose)
                     verbose_print("2. Run: brew install weasyprint", self.verbose)
@@ -184,18 +198,81 @@ class PDFGenerationEngine:
         (fonts, colors, layout) and must be rendered with this off, or the
         legacy Arial/blue rules would fight its design.
         """
+        return convert_html_to_pdf(html_content, filepath, apply_default_css, verbose=self.verbose)
+
+
+def convert_html_to_pdf(html_content: str, filepath: str, apply_default_css: bool = True, verbose: bool = False) -> bool:
+    """Render ``html_content`` to a PDF at ``filepath``.
+
+    Uses headless Microsoft Edge on Windows, since WeasyPrint's native
+    Pango/GTK libraries have no reliable pip-installable wheel there.
+    WeasyPrint is used on all other platforms. Shared by both the CLI report
+    generator and the web app's on-demand PDF export route.
+    """
+    try:
+        if platform.system() == "Windows":
+            return _convert_to_pdf_windows(html_content, filepath, apply_default_css, verbose)
+
+        stylesheets = [PDFStyleManager.get_pdf_css(verbose=verbose)] if apply_default_css else []
+
+        html_doc = HTML(string=html_content)
+
+        html_doc.write_pdf(filepath, stylesheets=stylesheets)
+
+        return True
+    except Exception as e:
+        verbose_print(f"Error during PDF conversion: {str(e)}", verbose)
+        if verbose:
+            import traceback
+            verbose_print("PDF conversion traceback:", verbose)
+            traceback.print_exc()
+        return False
+
+
+def _convert_to_pdf_windows(html_content: str, filepath: str, apply_default_css: bool, verbose: bool) -> bool:
+    """Render HTML to PDF via headless Microsoft Edge.
+
+    Edge ships with Windows and supports the same --print-to-pdf headless
+    mode used on other OSes' CI runners, so it needs no extra install step.
+    """
+    edge = _find_edge_executable()
+    if edge is None:
+        verbose_print("Microsoft Edge not found for PDF conversion", verbose)
+        return False
+
+    if apply_default_css:
+        css = PDFStyleManager._get_css_content(verbose=verbose)
+        style_tag = f"<style>{css}</style>"
+        if "</head>" in html_content:
+            html_content = html_content.replace("</head>", f"{style_tag}</head>", 1)
+        else:
+            html_content = f"{style_tag}{html_content}"
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        html_path = Path(tmp_dir) / "report.html"
+        html_path.write_text(html_content, encoding="utf-8")
+
         try:
-            stylesheets = [self.style_manager.get_pdf_css(verbose=self.verbose)] if apply_default_css else []
-
-            html_doc = HTML(string=html_content)
-
-            html_doc.write_pdf(filepath, stylesheets=stylesheets)
-
-            return True
-        except Exception as e:
-            verbose_print(f"Error during PDF conversion: {str(e)}", self.verbose)
-            if self.verbose:
-                import traceback
-                verbose_print("PDF conversion traceback:", self.verbose)
-                traceback.print_exc()
+            result = subprocess.run(
+                [
+                    edge,
+                    "--headless",
+                    "--disable-gpu",
+                    f"--print-to-pdf={filepath}",
+                    "--no-pdf-header-footer",
+                    html_path.as_uri(),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        except subprocess.TimeoutExpired:
+            verbose_print("Edge PDF conversion timed out", verbose)
             return False
+
+        verbose_print(f"Edge exit code: {result.returncode}", verbose)
+        if result.returncode != 0:
+            verbose_print(f"Edge stderr: {result.stderr}", verbose)
+            return False
+
+        return Path(filepath).exists()

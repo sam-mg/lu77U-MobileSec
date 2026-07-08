@@ -136,11 +136,9 @@ class ComprehensiveReportBuilder:
         system = platform.system()
         if system == "Windows":
             verbose_print(f"{Colors.GREEN}Windows Setup:{Colors.RESET}", self.verbose)
-            verbose_print("   1. Install MSYS2: https://www.msys2.org/", self.verbose)
-            verbose_print("   2. Run: pacman -S mingw-w64-x86_64-pango", self.verbose)
-            verbose_print("   3. Set: set WEASYPRINT_DLL_DIRECTORIES=C:\\msys64\\mingw64\\bin", self.verbose)
-            verbose_print("   4. Restart your terminal and try again", self.verbose)
-            
+            verbose_print("   PDF generation on Windows uses headless Microsoft Edge.", self.verbose)
+            verbose_print("   Install Microsoft Edge or ensure msedge.exe is on PATH.", self.verbose)
+
         elif system == "Darwin":
             verbose_print(f"{Colors.GREEN}macOS Setup:{Colors.RESET}", self.verbose)
             verbose_print("   brew install weasyprint", self.verbose)
