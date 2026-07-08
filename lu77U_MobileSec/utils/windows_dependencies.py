@@ -631,6 +631,27 @@ def auto_install_windows_dependencies(verbose: bool = False):
     verbose_print(f"Returning from auto_install_windows_dependencies with: {success}", verbose)
     return success
 
+def install_dependencies_silently(verbose: bool = False) -> bool:
+    """Non-interactive dependency install for the web server (no stdin available).
+
+    Skips the y/n prompt used by the CLI installer since a server process has
+    no console to read from; installs unconditionally when deps are missing.
+    """
+    installer = WindowsDependencyInstaller(verbose=verbose)
+    if not installer.is_windows():
+        return True
+    try:
+        import weasyprint
+        weasyprint.HTML(string="<html><body></body></html>").write_pdf()
+        verbose_print("WeasyPrint is already working correctly", verbose)
+        return True
+    except Exception as e:
+        verbose_print(f"WeasyPrint not functional yet: {e}", verbose)
+    verbose_print("Installing Windows PDF dependencies in the background...", verbose)
+    success = installer.install_all_dependencies()
+    verbose_print(f"Background dependency install finished with success: {success}", verbose)
+    return success
+
 def check_and_install_windows_dependencies(verbose=False):
     """Check and install Windows dependencies if needed"""
     if platform.system().lower() != "windows":

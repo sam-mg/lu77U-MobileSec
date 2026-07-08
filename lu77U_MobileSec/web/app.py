@@ -1,6 +1,7 @@
 """FastAPI application factory."""
 
 import asyncio
+import platform
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -52,6 +53,9 @@ def create_app(verbose: bool = False) -> FastAPI:
         app.state._log_sink = _sink
         verbose_mod.register_sink(_sink)
 
+        if platform.system().lower() == "windows":
+            asyncio.create_task(_ensure_pdf_deps(app.state.verbose))
+
     @app.on_event("shutdown")
     async def _on_shutdown():
         app.state.jobs.cancel_all_active()
@@ -66,6 +70,12 @@ def create_app(verbose: bool = False) -> FastAPI:
 
     _mount_spa(app)
     return app
+
+async def _ensure_pdf_deps(verbose: bool) -> None:
+    """Install WeasyPrint's native Windows deps in the background, off the request path."""
+    from ..utils.windows_dependencies import install_dependencies_silently
+
+    await asyncio.to_thread(install_dependencies_silently, verbose)
 
 def _mount_spa(app: FastAPI) -> None:
     """Serve the built SPA; fall back to index.html for client-side routes."""
