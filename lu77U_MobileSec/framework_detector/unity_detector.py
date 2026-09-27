@@ -1,4 +1,19 @@
-"""Unity Framework Detector for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.framework_detector.unity_detector
+
+Purpose:
+    Recognise a Unity game, whose logic is in compiled C# assemblies or IL2CPP-generated native code rather than in Dalvik bytecode, so that the right decompiler and analyzer are chosen for it.
+
+Responsibilities:
+    Detect the framework in an APK by its bundled artifacts, and in a project by its directory layout.
+
+Dependencies:
+    zipfile, pathlib, ..config.constants for the indicator tables.
+
+Implementation notes:
+    Unity is recognised by the artifacts its runtime always ships -- the engine native library and the asset bundles -- which are present regardless of how the game itself was built. That makes detection reliable even though the code the game is written in is never Java. The indicator tables live in config rather than here, so adding a marker for a new version of the framework is a data change.
+"""
 
 import os
 import zipfile
@@ -11,9 +26,33 @@ from ..config.constants import (
 )
 
 class UnityDetector:
-    """Detector for Unity game engine framework"""
-    
+    """
+    Purpose:
+        Detects Unity in an APK or a project.
+
+    Attributes:
+        verbose: Whether detection is traced.
+        framework_name: The framework name reported.
+        apk_indicators: Markers looked for among APK entry names.
+        project_indicators: Directories looked for in a project.
+
+    Invariants:
+        Returns None rather than a zero-confidence result when nothing matched.
+
+    Thread-safety:
+        Holds no per-detection state; safe to reuse.
+    """
     def __init__(self, verbose=False):
+        """
+        Purpose:
+            Construct the detector and bind its indicator tables.
+
+        Parameters:
+            verbose: Enables tracing.
+
+        Implementation notes:
+            The APK indicator table is assigned twice from the same constant, which is redundant but harmless.
+        """
         self.verbose = verbose
         self.framework_name = "Unity"
         self.apk_indicators = UNITY_APK_INDICATORS
@@ -21,7 +60,19 @@ class UnityDetector:
         self.project_indicators = UNITY_PROJECT_INDICATORS
     
     def detect(self, input_path: str):
-        """Detect Unity framework in APK or project directory"""
+        """
+        Purpose:
+            Detect Unity in an APK or a project.
+
+        Parameters:
+            input_path: Path to an APK or a project directory.
+
+        Returns:
+            A detection dict with framework, indicators and confidence, or None.
+
+        Implementation notes:
+            The directory case is tested before the extension, so a directory is never misrouted to the archive path.
+        """
         if os.path.isdir(input_path):
             return self._detect_in_project(input_path)
         elif input_path.endswith('.apk'):
@@ -31,7 +82,22 @@ class UnityDetector:
             return None
     
     def _detect_in_project(self, project_path: str):
-        """Detect Unity framework in project directory"""
+        """
+        Purpose:
+            Detect a Unity project by the directories a project of that kind contains.
+
+        Parameters:
+            project_path: Path to the project root.
+
+        Returns:
+            A detection dict, or None when no indicator was found.
+
+        Side effects:
+            Stats the candidate paths.
+
+        Implementation notes:
+            Confidence starts at a base and rises with each additional indicator, capped below certainty. Finding one marker is suggestive; finding several together is what makes the identification safe, and no combination reaches absolute certainty because a project can be a template or a partial checkout. Indicators must be directories rather than merely existing paths, so a file that happens to share a name with a Unity directory does not count. Failures are swallowed and reported as no detection, so an unreadable project costs this framework's detection rather than the whole scan.
+        """
         verbose_print(f"Scanning project directory for Unity indicators", self.verbose)
         
         try:
@@ -82,7 +148,25 @@ class UnityDetector:
             return None
     
     def _detect_in_apk(self, apk_path: str):
-        """Detect Unity framework in APK file"""
+        """
+        Purpose:
+            Detect Unity by the artifacts its runtime bundles into an APK.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            A detection dict, or None when no indicator was found.
+
+        Side effects:
+            Opens the APK as a zip archive.
+
+        Implementation notes:
+            Only the archive's entry names are read; nothing is extracted. That keeps detection cheap enough to run every detector over every APK, and avoids writing attacker-controlled content to disk during detection. Confidence rises with each marker found, because the Unity runtime ships several distinctive artifacts together and seeing more of them makes a coincidental name match progressively less likely.
+
+        Security considerations:
+            A malformed archive is caught and reported as no detection rather than propagating.
+        """
         verbose_print(f"Scanning APK file for Unity indicators", self.verbose)
         
         try:

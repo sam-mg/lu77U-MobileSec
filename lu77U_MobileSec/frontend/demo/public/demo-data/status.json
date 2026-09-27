@@ -1,0 +1,8 @@
+{
+  "jadx_configured": true,
+  "ollama_configured": true,
+  "blutter_configured": false,
+  "hermes_decomp_configured": false,
+  "rn_decompiler_configured": false,
+  "ready_for_analysis": true
+}

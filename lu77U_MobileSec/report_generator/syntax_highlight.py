@@ -1,4 +1,22 @@
-"""Line-oriented syntax highlighting for code blocks in reports."""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.report_generator.syntax_highlight
+
+Purpose:
+    Render code excerpts in reports with syntax highlighting, so a reader can see the vulnerable construct rather than a wall of monospace text.
+
+Responsibilities:
+    Map lexer token types to stylesheet classes, pick a lexer from a filename, and highlight a block of lines.
+
+Dependencies:
+    Pygments when installed.
+
+Implementation notes:
+    Pygments is optional. Without it, lines are HTML-escaped and returned unhighlighted, which is plainer but entirely correct -- highlighting is presentation, and a report must not depend on it. Tokens are mapped to a small set of stylesheet classes rather than inline colours, so the report's own theme controls the appearance and the PDF and HTML renderings agree.
+
+Security considerations:
+    The code being highlighted comes from a decompiled untrusted app. Every path escapes its output -- the fallback explicitly, and the Pygments path through its own HTML formatting -- because this text goes straight into a report page.
+"""
 
 import html as _html
 from typing import List
@@ -13,6 +31,19 @@ except Exception:
     PYGMENTS_AVAILABLE = False
 
 def _token_css_class(ttype) -> str:
+    """
+    Purpose:
+        Map a lexer token type to a stylesheet class.
+
+    Parameters:
+        ttype: The Pygments token type.
+
+    Returns:
+        The class name.
+
+    Implementation notes:
+        Token types are tested by membership rather than equality, so a subtype such as a documentation comment still maps through its parent. The set of classes is deliberately small: a report needs code to be readable, not to look like an editor.
+    """
     if ttype in Keyword:
         return "tok-kw"
     if ttype in Comment:
@@ -30,6 +61,19 @@ def _token_css_class(ttype) -> str:
     return ""
 
 def _lexer_for(filename: str):
+    """
+    Purpose:
+        Choose a lexer from a filename.
+
+    Parameters:
+        filename: The source filename.
+
+    Returns:
+        A lexer, or None when one cannot be determined.
+
+    Implementation notes:
+        Newline and whitespace stripping are disabled, because the lines being highlighted are numbered and aligned against a reported line number -- losing or adding one would point the reader at the wrong line. An unrecognised filename returns None rather than falling back to a guessed lexer, since highlighting a file as the wrong language is more confusing than not highlighting it.
+    """
     if not filename or not PYGMENTS_AVAILABLE:
         return None
     try:
@@ -40,10 +84,28 @@ def _lexer_for(filename: str):
         return None
 
 def highlight_lines(lines: List[str], filename: str = "") -> List[str]:
-    """Return one HTML-safe (escaped + colorized) string per input line.
+    """
+    Purpose:
+        Highlight a block of source lines for inclusion in a report.
 
-    Falls back to plain HTML-escaped lines if Pygments or a matching lexer
-    isn't available, so callers never need a separate no-highlight path.
+    Parameters:
+        lines: The source lines.
+        filename: Filename used to select a lexer.
+
+    Returns:
+        One HTML-safe string per input line.
+
+    Postconditions:
+        The output has exactly as many entries as the input, so line numbering stays aligned on every path.
+
+    Complexity:
+        O(n) in the total length of the lines.
+
+    Implementation notes:
+        The lines are joined and lexed as one block rather than line by line, because a lexer needs surrounding context -- a multi-line string or comment highlighted per line would be mis-tokenised at every boundary.
+
+    Security considerations:
+        Both paths produce escaped output. The unhighlighted fallback escapes explicitly; nothing reaches the report as raw decompiled text.
     """
     if not lines:
         return []

@@ -1,4 +1,22 @@
-"""Flutter Framework Detector for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.framework_detector.flutter_detector
+
+Purpose:
+    Recognise a Flutter app, whose logic is compiled into a Dart AOT snapshot rather than into Dalvik bytecode, so that the Blutter path is taken instead of JADX.
+
+Responsibilities:
+    Detect Flutter in an APK by its runtime artifacts, and in a project by its manifest of dependencies and its layout.
+
+Dependencies:
+    zipfile, yaml when installed, ..config.constants.
+
+Implementation notes:
+    Detecting Flutter matters more than most. A Flutter APK contains a perfectly ordinary Java shell that JADX will decompile happily, producing a clean report about generated plugin bindings while the entire application sits unexamined in libapp.so. A missed Flutter detection therefore yields a confident, worthless analysis.
+
+Security considerations:
+    The Dart snapshot is attacker-controlled binary content. Detection only names the entries; recovering code from them is the decompiler's job.
+"""
 
 from ..utils.verbose import verbose_print
 from ..config.constants import FRAMEWORK_FLUTTER, TECH_DETECTION_MAP
@@ -6,20 +24,66 @@ import os
 import zipfile
 
 class FlutterDetector:
+    """
+    Purpose:
+        Detects Flutter in an APK or a project.
+
+    Attributes:
+        verbose: Whether detection is traced.
+        framework_name: The framework name reported.
+        apk_indicators: Markers from the shared detection table.
+
+    Invariants:
+        Returns None when nothing matched.
+
+    Thread-safety:
+        Holds no per-detection state; safe to reuse.
+    """
     def __init__(self, verbose=False):
+        """
+        Purpose:
+            Construct the detector and bind its indicator table.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         self.framework_name = FRAMEWORK_FLUTTER
         self.apk_indicators = TECH_DETECTION_MAP[FRAMEWORK_FLUTTER]
     
     def detect(self, input_path: str):
-        
+        """
+        Purpose:
+            Detect Flutter in an APK or a project.
+
+        Parameters:
+            input_path: Path to an APK or a project directory.
+
+        Returns:
+            A detection dict with framework, indicators and confidence, or None.
+        """
         if input_path.endswith('.apk'):
             return self._detect_in_apk(input_path)
         else:
             return self._detect_in_project(input_path)
     
     def _detect_in_apk(self, apk_path: str):
-        """Detect Flutter in APK by checking for libflutter.so"""
+        """
+        Purpose:
+            Detect Flutter by the runtime artifacts its build embeds in an APK.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            A detection dict, or None when no indicator was found.
+
+        Side effects:
+            Opens the APK as a zip archive.
+
+        Implementation notes:
+            Three independent artifacts are looked for: the engine native library, the bundled asset directory, and the VM snapshot files. Each is distinctive on its own, which is why confidence starts high rather than accumulating from a low base. The count of architectures the engine library ships for is recorded in the indicator text, since that is useful context for the decompilation step which has to pick one. Only entry names are read; nothing is extracted.
+        """
         try:
             with zipfile.ZipFile(apk_path, 'r') as zipObject:
                 file_names = zipObject.namelist()
@@ -58,7 +122,22 @@ class FlutterDetector:
             return None
     
     def _detect_in_project(self, input_path: str):
-        """Detect Flutter in project directory"""
+        """
+        Purpose:
+            Detect a Flutter project by its dependency manifest and layout.
+
+        Parameters:
+            input_path: Path to the project root.
+
+        Returns:
+            A detection dict, or None when no primary indicator was found.
+
+        Side effects:
+            Stats candidate paths and may read pubspec.yaml.
+
+        Implementation notes:
+            Indicators are split into primary and secondary and weighted accordingly. A pubspec or a Dart entry point is definitive; an Android or iOS host directory merely corroborates, since every cross-platform framework has those. Detection requires at least one primary indicator. Secondary indicators alone would match any React Native or Cordova project equally well. The pubspec is parsed to confirm the Flutter dependency, but the result only produces a trace line -- it does not change the confidence or the verdict. A project with a pubspec and no Flutter dependency is a plain Dart package, and this detector still reports Flutter for it. yaml is treated as optional, so its absence costs the confirmation trace rather than the detection.
+        """
         primary_indicators = [
             'pubspec.yaml', 'lib/main.dart'
         ]

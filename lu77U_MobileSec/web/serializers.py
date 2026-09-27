@@ -1,13 +1,45 @@
-"""Build the JSON result the SPA renders from the engine's outputs."""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.web.serializers
+
+Purpose:
+    Shape a completed scan into the JSON the dashboard and the stored result share, so that what the browser renders and what is written to disk are the same document.
+
+Responsibilities:
+    Build the result payload from the detection output and analyzer results, with fallbacks for the parts that failed, and build the dynamic session payload.
+
+Dependencies:
+    The detection result types.
+
+Implementation notes:
+    Every builder returns a complete structure with explicit defaults rather than omitting keys, so the frontend can render without defensive checks and a partial scan still produces a renderable document.
+
+Security considerations:
+    The payload carries APK-derived strings. JSON encoding makes it safe to transport; escaping is the renderer's responsibility.
+"""
 
 import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from ..detection.results.detection_results import DetectionResult
+from ..utils.scoring import (
+    calculate_security_score, grade_for, weighted_finding_count)
 
 def _fallback_framework(detection_result: Optional[DetectionResult]) -> Dict[str, Any]:
-    """Minimal framework_detection block when the engine JSON is unavailable."""
+    """
+    Purpose:
+        Build the framework section, including the case where detection produced nothing.
+
+    Parameters:
+        detection_result: Detection output, possibly None.
+
+    Returns:
+        The framework section, always fully formed.
+
+    Implementation notes:
+        An absent result yields a section marked as not detected rather than an omitted key, so the dashboard shows "Unknown" rather than a blank panel. The confidence is taken from the top-ranked framework, and several are carried so the UI can show what else was considered.
+    """
     fr = getattr(detection_result, "framework_results", None)
     if not fr:
         return {"detected": False, "primary_framework": "Unknown",
@@ -25,6 +57,19 @@ def _fallback_framework(detection_result: Optional[DetectionResult]) -> Dict[str
     }
 
 def _fallback_app_info(detection_result: Optional[DetectionResult]) -> Dict[str, Any]:
+    """
+    Purpose:
+        Build the application information section from the detection output.
+
+    Parameters:
+        detection_result: Detection output, possibly None.
+
+    Returns:
+        The application section, empty when no information was extracted.
+
+    Implementation notes:
+        Returns an empty mapping rather than placeholder values, leaving the distinction between unknown and absent to the caller that merges this with the richer export.
+    """
     info = getattr(detection_result, "basic_info", None)
     if not info:
         return {}
@@ -44,6 +89,35 @@ def _fallback_app_info(detection_result: Optional[DetectionResult]) -> Dict[str,
         "providers": info.providers,
     }
 
+def _analysis_alias(analyzer_results: Dict[str, Any], supported: bool,
+                    framework_name: str) -> Dict[str, Any]:
+    """
+    Purpose:
+        Present the analyzer results under the names the dashboard reads.
+
+    Parameters:
+        analyzer_results: Raw analyzer output.
+        supported: Whether this framework is deeply analysable.
+        framework_name: The detected framework.
+
+    Returns:
+        The analysis section.
+
+    Implementation notes:
+        Success is derived from the decompilation status rather than trusted as a separate flag, so the summary cannot claim success for a scan whose decompilation failed. The alias layer exists so the analyzer output can change its internal key names without breaking the frontend.
+    """
+    return {
+        "supported": supported,
+        "success": analyzer_results.get("decompilation_status") == "Successful",
+        "files_analyzed": analyzer_results.get("files_analyzed", 0),
+        "analysis_time": analyzer_results.get("analysis_time", 0),
+        "framework": analyzer_results.get("framework", framework_name),
+        "decompilation_status": analyzer_results.get("decompilation_status"),
+        "unsupported_framework": analyzer_results.get("unsupported_framework", False),
+        "error": analyzer_results.get("error"),
+    }
+
+
 def build_result(
     *,
     json_path: Optional[str],
@@ -53,13 +127,23 @@ def build_result(
     framework_name: str,
     dynamic_session: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Merge the engine JSON with analysis metadata + report availability.
+    """
+    Purpose:
+        Assemble the complete scan result for the dashboard and for storage.
 
-    ``dynamic_session`` summarizes Phase 2 (dynamic verification of the static
-    findings) for the merged single-scan flow: whether it ran, the device used,
-    install/Frida status, and verified/total counts — or, when it didn't run,
-    why (setting disabled, no device, install failure, ...). ``None`` when the
-    framework isn't supported for deep analysis at all.
+    Parameters:
+        json_path: Path to the exported JSON, when one was written.
+        detection_result: Detection output.
+        analyzer_results: Analyzer output.
+        supported: Whether the framework is deeply analysable.
+        framework_name: The detected framework.
+        dynamic_session: Dynamic analysis results, when a session ran.
+
+    Returns:
+        The result payload.
+
+    Implementation notes:
+        The exported JSON is preferred as the source when it exists, with the fallback builders filling in only what it lacks. That keeps the dashboard and the stored file showing the same thing rather than two separately-assembled views that can disagree. The dynamic session is attached rather than merged, so a reader can tell a runtime observation from a static one.
     """
     data: Dict[str, Any] = {}
     if json_path and Path(json_path).exists():
@@ -68,7 +152,6 @@ def build_result(
         except Exception:
             data = {}
 
-    # Back-fill the core blocks if the JSON export failed for any reason.
     data.setdefault("framework_detection", _fallback_framework(detection_result))
     data.setdefault("application_info", _fallback_app_info(detection_result))
     data.setdefault(
@@ -83,27 +166,18 @@ def build_result(
          "vulnerability_scan_complete": supported,
          "total_vulnerabilities": data["vulnerability_analysis"].get("total_vulnerabilities", 0),
          "critical_count": 0, "high_count": 0, "medium_count": 0, "low_count": 0,
-         "security_score": 100.0},
+         "security_score": None},
     )
 
-    data["analysis"] = {
-        "supported": supported,
-        "success": analyzer_results.get("decompilation_status") == "Successful",
-        "files_analyzed": analyzer_results.get("files_analyzed", 0),
-        "analysis_time": analyzer_results.get("analysis_time", 0),
-        "framework": analyzer_results.get("framework", framework_name),
-        "decompilation_status": analyzer_results.get("decompilation_status"),
-        "unsupported_framework": analyzer_results.get("unsupported_framework", False),
-        "error": analyzer_results.get("error"),
-    }
-    # HTML/PDF are generated on demand at export time from this result, so all
-    # three formats are always offered (no on-disk paths to track).
-    data["reports"] = {"json": True, "html": True, "pdf": True}
+    data["analysis"] = _analysis_alias(analyzer_results, supported, framework_name)
+    from ..config import user_settings
+
+    data["reports"] = {"json": True, "html": True,
+                       "pdf": user_settings.get_pdf_generation()}
     data["dynamic_session"] = dynamic_session
     return data
 
 _SEV_BUCKETS = ["critical", "high", "medium", "low", "info"]
-_SEV_WEIGHTS = {"critical": 20, "high": 10, "medium": 5, "low": 2, "info": 0}
 
 def build_dynamic_result(
     *,
@@ -117,18 +191,29 @@ def build_dynamic_result(
     reports: Dict[str, Optional[str]],
     detection_result: Optional[DetectionResult] = None,
 ) -> Dict[str, Any]:
-    """Build the SPA-renderable result DTO for a dynamic-analysis scan.
+    """
+    Purpose:
+        Assemble the dynamic session payload.
 
-    Keeps the same top-level blocks the static ``build_result`` produces (so the
-    Scans list and Scan Detail render unchanged) and folds runtime findings into
-    the ``vulnerability_analysis`` severity buckets, then adds a ``dynamic_analysis``
-    block with the device/session detail.
+    Parameters:
+        device: The device tested.
+        app_package: The package under test.
+        env_checks: Outcomes of the environment checks.
+        actions: Interactions performed.
+        runtime_findings: Findings derived from the session.
+        network_captures: Captured traffic summaries.
+        frida_traces: Instrumentation output.
+        reports: Paths to the reports written for this session, by format.
+        detection_result: Detection output for the app, when it could be read from the device.
 
-    ``detection_result`` is the (best-effort) static detection run against the
-    installed APK pulled from the device — when present it drives the real
-    ``framework_detection``/``application_info`` blocks via the same
-    ``_fallback_framework``/``_fallback_app_info`` helpers the static path uses;
-    both already degrade gracefully to "Unknown"/empty when it's ``None``.
+    Returns:
+        The dynamic session payload.
+
+    Implementation notes:
+        The environment check outcomes are carried in full, including the failures. A session where interception could not be established produced different evidence from one where it worked, and the report has to say which.
+
+    Security considerations:
+        Network captures and instrumentation traces can contain credentials observed at runtime. They are carried here as the session recorded them and are stored with the scan.
     """
     buckets: Dict[str, list] = {sev: [] for sev in _SEV_BUCKETS}
     by_severity = {sev: 0 for sev in _SEV_BUCKETS}
@@ -149,12 +234,18 @@ def build_dynamic_result(
             "recommendation": finding.get("recommendation", ""),
             "cwe": finding.get("cwe", ""),
             "owasp_mobile": finding.get("owasp_mobile") or finding.get("owasp", ""),
+            "vuln_class": finding.get("vuln_class", ""),
+            "gate_result": finding.get("gate_result"),
+            "chain": finding.get("chain"),
+            "chained_into": finding.get("chained_into") or [],
+            "related_findings": finding.get("related_findings") or [],
+            "source": finding.get("source", ""),
+            "surface": finding.get("surface", ""),
         })
         by_severity[sev] += 1
 
     total = sum(by_severity.values())
-    score = 100 - sum(by_severity[s] * _SEV_WEIGHTS[s] for s in _SEV_BUCKETS)
-    score = max(0, min(100, score))
+    score = calculate_security_score(by_severity)
 
     framework_detection = _fallback_framework(detection_result)
     application_info = _fallback_app_info(detection_result)
@@ -195,6 +286,8 @@ def build_dynamic_result(
             "medium_count": by_severity["medium"],
             "low_count": by_severity["low"],
             "security_score": float(score),
+            "weighted_finding_count": weighted_finding_count(by_severity),
+            "security_grade": grade_for(score),
         },
         "analysis": {
             "supported": True,

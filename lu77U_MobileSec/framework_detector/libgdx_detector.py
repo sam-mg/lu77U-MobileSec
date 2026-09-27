@@ -1,4 +1,19 @@
-"""LibGDX Framework Detector for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.framework_detector.libgdx_detector
+
+Purpose:
+    Recognise a LibGDX game, which is Java but built on a game framework with its own native backends, so that the right decompiler and analyzer are chosen for it.
+
+Responsibilities:
+    Detect the framework in an APK by its bundled artifacts, and in a project by its directory layout.
+
+Dependencies:
+    zipfile, pathlib, ..config.constants for the indicator tables.
+
+Implementation notes:
+    LibGDX is the awkward case among the game frameworks: the game logic genuinely is Java and decompiles normally, so recognising it changes how the app is described and which code is treated as application rather than framework, not which decompiler runs. The indicator tables live in config rather than here, so adding a marker for a new version of the framework is a data change.
+"""
 
 import os
 import zipfile
@@ -11,19 +26,50 @@ from ..config.constants import (
 from ..utils.verbose import verbose_print
 
 class LibGDXDetector:
-    """Detector for LibGDX game framework"""
-    
+    """
+    Purpose:
+        Detects LibGDX in an APK or a project.
+
+    Attributes:
+        verbose: Whether detection is traced.
+        framework_name: The framework name reported.
+        apk_indicators: Markers looked for among APK entry names.
+        project_indicators: Directories looked for in a project.
+
+    Invariants:
+        Returns None rather than a zero-confidence result when nothing matched.
+
+    Thread-safety:
+        Holds no per-detection state; safe to reuse.
+    """
     def __init__(self, verbose=False):
+        """
+        Purpose:
+            Construct the detector and bind its indicator tables.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         self.framework_name = "LibGDX"
-        # Import LibGDX indicators from constants
         self.apk_indicators = LIBGDX_APK_INDICATORS
         self.project_indicators = LIBGDX_PROJECT_INDICATORS
         self.gradle_keywords = LIBGDX_GRADLE_KEYWORDS
     
     def detect(self, input_path: str):
-        """Detect LibGDX framework in APK or project directory"""
-        # Check if input is a directory (project) or file (APK)
+        """
+        Purpose:
+            Detect LibGDX in an APK or a project.
+
+        Parameters:
+            input_path: Path to an APK or a project directory.
+
+        Returns:
+            A detection dict with framework, indicators and confidence, or None.
+
+        Implementation notes:
+            The directory case is tested before the extension, so a directory is never misrouted to the archive path.
+        """
         if os.path.isdir(input_path):
             return self._detect_in_project(input_path)
         elif input_path.endswith('.apk'):
@@ -33,14 +79,28 @@ class LibGDXDetector:
             return None
     
     def _detect_in_project(self, project_path: str):
-        """Detect LibGDX framework in project directory"""
+        """
+        Purpose:
+            Detect a LibGDX project by the directories a project of that kind contains.
+
+        Parameters:
+            project_path: Path to the project root.
+
+        Returns:
+            A detection dict, or None when no indicator was found.
+
+        Side effects:
+            Stats the candidate paths.
+
+        Implementation notes:
+            Confidence starts at a base and rises with each additional indicator, capped below certainty. Finding one marker is suggestive; finding several together is what makes the identification safe, and no combination reaches absolute certainty because a project can be a template or a partial checkout. Indicators must be directories. The per-indicator increment is smaller than the other game detectors use, because LibGDX project layouts overlap heavily with ordinary Gradle multi-module projects and each individual marker is weaker evidence. Failures are swallowed and reported as no detection, so an unreadable project costs this framework's detection rather than the whole scan.
+        """
         verbose_print(f"Scanning project directory for LibGDX indicators", self.verbose)
         
         try:
             found_indicators = []
             project_root = Path(project_path)
             
-            # Check for LibGDX project structure (multi-module layout)
             for indicator in self.project_indicators:
                 indicator_path = project_root / indicator.rstrip('/')
                 
@@ -48,7 +108,6 @@ class LibGDXDetector:
                     found_indicators.append(indicator)
                     verbose_print(f"Found LibGDX indicator: {indicator}", self.verbose)
             
-            # Check build.gradle files for LibGDX dependencies
             gradle_files = list(project_root.rglob("build.gradle*"))
             for gradle_file in gradle_files:
                 try:
@@ -65,7 +124,6 @@ class LibGDXDetector:
                 except Exception as e:
                     verbose_print(f"Error reading gradle file {gradle_file.name}: {e}", self.verbose)
             
-            # Check for gdx-setup tool files
             verbose_print(f"Checking for gradle wrapper files", self.verbose)
             gradlew_path = project_root / "gradlew"
             gradlew_bat_path = project_root / "gradlew.bat"
@@ -92,7 +150,25 @@ class LibGDXDetector:
             return None
     
     def _detect_in_apk(self, apk_path: str):
-        """Detect LibGDX framework in APK file"""
+        """
+        Purpose:
+            Detect LibGDX by the artifacts its runtime bundles into an APK.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            A detection dict, or None when no indicator was found.
+
+        Side effects:
+            Opens the APK as a zip archive.
+
+        Implementation notes:
+            Only the archive's entry names are read; nothing is extracted. That keeps detection cheap enough to run every detector over every APK, and avoids writing attacker-controlled content to disk during detection. Markers are the framework's native backend libraries and its bundled asset conventions, both of which survive obfuscation of the game's own Java code.
+
+        Security considerations:
+            A malformed archive is caught and reported as no detection rather than propagating.
+        """
         verbose_print(f"Scanning APK file for LibGDX indicators", self.verbose)
         
         try:

@@ -1,33 +1,73 @@
-"""Java/Kotlin APK Analysis Module for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.analyzers.java_kotlin_analyzer
 
-import re
+Purpose:
+    Analyse a conventional Android app: decompile it with JADX, build a graph over the result, and run the rule engine and the AI agent across it.
+
+Responsibilities:
+    Check that JADX is configured, decompile, gather the files worth analysing, and orchestrate the analysis phases.
+
+Dependencies:
+    The JADX decompiler, the agent package, the rule engine.
+
+Implementation notes:
+    This is the default path and the one most scans take, so it is the most developed: it has a real code graph, region fan-out, and a legacy whole-source fallback for providers that cannot drive the tool loop.
+
+Security considerations:
+    Decompiles and reads an untrusted APK. Paths cited in findings are resolved within the decompiled tree by the base class, not joined blindly.
+"""
+
+import threading
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Tuple
 
+from .agent.profiles import JAVA_KOTLIN
+from .base import BaseAnalyzer
 from ..ai.provider_factory import get_active_provider
 from ..utils.cancellation import ScanCancelled
-from ..utils.verbose import verbose_print
+from ..utils.verbose import plural, verbose_print
 from ..utils.response_parser import ResponseParser
 from ..utils.xml_utils import filter_strings_xml_file, is_framework_layout_file
 from ..utils.display_utils import display_vulnerabilities
 from ..utils.output_manager import OutputManager
-from ..report_generator.syntax_highlight import highlight_lines
 from lu77U_MobileSec.decompiler.java_kotlin_decompiler import JavaKotlinDecompiler
 
-CONTEXT_PADDING_LINES = 4
+class JavaKotlinAnalyzer(BaseAnalyzer):
+    """
+    Purpose:
+        Analyses conventional Java and Kotlin Android apps.
 
-class JavaKotlinAnalyzer:
-    
-    def __init__(self, verbose=False, progress=None):
-        """Initialize Java/Kotlin analyzer.
+    Attributes:
+        framework_label: The framework name used in prompts and reports.
+        profile: The framework profile selecting prompts and heuristics.
+        jadx_output_dir: Where the decompiled source was written.
+        apk_base: The APK's filename stem, used for naming.
 
-        ``progress`` is an optional ``(phase, percent, message) -> None`` callback
-        used by the web job runner to surface fine-grained phase events (decompile
-        vs. agentic analysis) beyond the coarse phases AnalysisService emits.
+    Invariants:
+        Produces a result in the standard shape whether or not decompilation succeeded.
+
+    Thread-safety:
+        One instance per scan; the agent phase fans out internally.
+    """
+    framework_label = "Java/Kotlin"
+    profile = JAVA_KOTLIN
+
+    def __init__(self, verbose=False, progress=None, is_cancelled=None):
         """
-        self.verbose = verbose
-        self._progress = progress or (lambda *a, **kw: None)
+        Purpose:
+            Construct the analyzer.
+
+        Parameters:
+            verbose: Enables tracing and preserves working files.
+            progress: Reports phase progress.
+            is_cancelled: Polled between phases.
+
+        Postconditions:
+            No APK is loaded and no output directory exists yet.
+        """
+        super().__init__(verbose=verbose, progress=progress, is_cancelled=is_cancelled)
 
         self.apk_base = None
         self.apk_dir = None
@@ -37,19 +77,63 @@ class JavaKotlinAnalyzer:
         self.output_manager = OutputManager(verbose=verbose)
 
         self.java_kotlin_decompiler = JavaKotlinDecompiler(verbose=self.verbose)
-        self.ai_provider = None
         self.response_parser = ResponseParser(verbose=self.verbose)
 
-    def progress(self, phase: str, percent: int, message: str = "") -> None:
-        try:
-            self._progress(phase, percent, message)
-        except ScanCancelled:
-            raise
-        except Exception:
-            pass
+    def preflight(self) -> Tuple[bool, str]:
+        """
+        Purpose:
+            Check that JADX is configured.
+
+        Returns:
+            A readiness flag and, when not ready, the reason.
+
+        Implementation notes:
+            JADX is required rather than optional here: without it there is no source to analyse, and this is the path a standard Android app takes.
+        """
+        from ..tools_checker.jadx_checker import check_jadx_configured
+        if not check_jadx_configured(verbose=self.verbose):
+            return False, ("JADX is not configured. Set the JADX executable path "
+                           "in Settings.")
+        return True, ""
+
+    def analyze(self, apk_path: str, defer_cleanup: bool = False) -> dict:
+        """
+        Purpose:
+            Analyse an APK.
+
+        Parameters:
+            apk_path: Path to the APK.
+            defer_cleanup: Keep the decompiled output for a later phase to read.
+
+        Returns:
+            The analysis results.
+        """
+        return self.analyze_java_kotlin_apk(apk_path, defer_cleanup=defer_cleanup)
+
+    def source_prefixes(self) -> List[str]:
+        """
+        Purpose:
+            Path prefixes to try when resolving a model-cited file.
+
+        Returns:
+            The prefixes JADX writes under.
+
+        Implementation notes:
+            JADX splits its output into a sources tree and a resources tree, and a model citing a path relative to the package root would otherwise fail to resolve against either.
+        """
+        return ["sources", "resources"]
 
     def _count_source_files(self) -> int:
-        """Count decompiled .java/.kt files (for report stats in the agentic path)."""
+        """
+        Purpose:
+            Count the decompiled source files, for the report's coverage figures.
+
+        Returns:
+            The number of Java and Kotlin files.
+
+        Implementation notes:
+            Counted from the tree rather than taken from JADX's own output, which reports classes processed rather than files written and diverges on an app where decompilation partly failed.
+        """
         if not self.jadx_output_dir:
             return 0
         import os
@@ -58,122 +142,23 @@ class JavaKotlinAnalyzer:
             count += sum(1 for n in filenames if n.endswith((".java", ".kt")))
         return count
 
-    def _resolve_source_path(self, file_rel: str) -> Optional[Path]:
-        """Best-effort resolution of an AI-reported ``file`` value to a real
-        path inside the (still on-disk, pre-cleanup) JADX output tree. The
-        model is never given a strict path contract, so this tries the
-        common shapes before falling back to a basename search."""
-        if not file_rel or not self.jadx_output_dir:
-            return None
-        file_rel = file_rel.strip().lstrip('/')
-        for candidate in (
-            self.jadx_output_dir / file_rel,
-            self.jadx_output_dir / "sources" / file_rel,
-            self.jadx_output_dir / "resources" / file_rel,
-        ):
-            if candidate.is_file():
-                return candidate
-        basename = Path(file_rel).name
-        if not basename:
-            return None
-        try:
-            return next(self.jadx_output_dir.rglob(basename), None)
-        except Exception:
-            return None
-
-    @staticmethod
-    def _anchor_line(snippet_lines: List[str]) -> Optional[str]:
-        """Pick a snippet line specific enough to locate reliably in the
-        source file (skips bare braces and other near-universal lines)."""
-        for line in snippet_lines:
-            stripped = line.strip()
-            if len(stripped) >= 6 and stripped not in ('{', '}', '};', '});'):
-                return stripped
-        return snippet_lines[0].strip() if snippet_lines else None
-
-    def _locate_snippet_span(self, source_lines: List[str], code_snippet: str) -> Optional[tuple]:
-        """Fallback locator when no usable line number was provided: find the
-        AI's ``code_snippet`` in the source by its most specific line. Returns
-        a 1-based inclusive ``(start, end)`` span, or ``None``."""
-        snippet_lines = [l for l in code_snippet.splitlines() if l.strip()]
-        anchor = self._anchor_line(snippet_lines)
-        if not anchor:
-            return None
-        for idx, line in enumerate(source_lines):
-            if anchor in line:
-                start = idx + 1
-                end = min(len(source_lines), start + max(1, len(snippet_lines)) - 1)
-                return (start, end)
-        return None
-
-    def _build_code_context(self, source_lines: List[str], start: int, end: int, filename: str) -> Dict:
-        """Build the ``code_context`` block for a 1-based inclusive span
-        ``(start, end)``: ±``CONTEXT_PADDING_LINES`` of real source, the raw
-        lines, per-line syntax-highlighted HTML (so the website can colorize
-        without running Pygments), and the vulnerable span text as ``snippet``."""
-        n = len(source_lines)
-        start = max(1, min(start, n))
-        end = max(start, min(end, n))
-        ctx_start = max(1, start - CONTEXT_PADDING_LINES)
-        ctx_end = min(n, end + CONTEXT_PADDING_LINES)
-        window = source_lines[ctx_start - 1:ctx_end]
-        return {
-            'start_line': ctx_start,
-            'end_line': ctx_end,
-            'highlight_start': start,
-            'highlight_end': end,
-            'lines': window,
-            'lines_html': highlight_lines(window, filename),
-            'snippet': "\n".join(source_lines[start - 1:end]),
-        }
-
-    def _enrich_vulnerabilities_with_context(self, vulnerabilities: List[Dict]) -> None:
-        """Attach a ``code_context`` block (±``CONTEXT_PADDING_LINES`` real
-        source lines around the vulnerable span, with syntax-highlighted HTML)
-        to each finding, while the decompiled tree is still on disk — it's
-        deleted right after this runs.
-
-        Primary path uses the AI-cited line span (``line_number``/``line_end``)
-        to read the exact source; the AI no longer needs to echo code. A
-        finding is left untouched if its file can't be resolved or no line can
-        be determined, so reports degrade gracefully."""
-        for vuln in vulnerabilities:
-            try:
-                file_rel = vuln.get('file', '')
-                if not file_rel:
-                    continue
-                source_path = self._resolve_source_path(file_rel)
-                if not source_path:
-                    continue
-                source_lines = source_path.read_text(encoding='utf-8', errors='ignore').splitlines()
-                if not source_lines:
-                    continue
-
-                start = int(vuln.get('line_number') or 0)
-                end = int(vuln.get('line_end') or 0) or start
-
-                if start <= 0:
-                    span = self._locate_snippet_span(source_lines, vuln.get('code_snippet', ''))
-                    if span is None:
-                        continue
-                    start, end = span
-
-                if end < start:
-                    start, end = end, start
-
-                context = self._build_code_context(source_lines, start, end, source_path.name)
-                vuln['code_snippet'] = context.pop('snippet')
-                vuln['code_context'] = context
-                verbose_print(
-                    f"Attached code context for '{vuln.get('vulnerability_type', vuln.get('title', 'finding'))}': "
-                    f"{source_path.name} lines {context['start_line']}-{context['end_line']} "
-                    f"(highlight {context['highlight_start']}-{context['highlight_end']})", self.verbose)
-            except Exception as e:
-                verbose_print(f"Could not enrich vulnerability with source context: {e}", self.verbose)
-
     def decompile_apk(self, apk_path: str) -> bool:
-        """Decompile APK using JADX wrapper"""
-        # Use the output manager's JADX directory
+        """
+        Purpose:
+            Decompile the APK with JADX.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            True when decompilation produced output.
+
+        Side effects:
+            Runs JADX, which can take several minutes, and writes the decompiled tree.
+
+        Implementation notes:
+            Success is whatever JADX actually wrote, not its exit status -- it exits non-zero on most obfuscated apps while still producing a usable tree.
+        """
         jadx_dir = self.output_manager.get_jadx_output_dir()
         result = self.java_kotlin_decompiler.jadx_decompile(apk_path, output_dir=jadx_dir)
         if result:
@@ -182,7 +167,19 @@ class JavaKotlinAnalyzer:
         return False
     
     def extract_files_for_analysis(self) -> Dict[str, str]:
-        """Extract specific Android files for vulnerability analysis (Java, XML, Manifest)"""
+        """
+        Purpose:
+            Gather the files worth analysing: the manifest, the developer-written source, the user-defined strings and the app's own layouts.
+
+        Returns:
+            The gathered content, grouped by kind.
+
+        Side effects:
+            Reads the decompiled tree.
+
+        Implementation notes:
+            Framework and generated code is excluded, and resource strings are filtered to the ones a developer wrote. A decompiled app is overwhelmingly library code, and handing that to a model wastes both the budget and its attention. Grouped by kind rather than returned flat, because the prompt treats them differently -- the manifest is context, the source is the subject.
+        """
         verbose_print("Extracting files for vulnerability analysis...", self.verbose)
         
         files_content = {
@@ -387,7 +384,22 @@ class JavaKotlinAnalyzer:
         return files_content
 
     def analyze_files_for_vulnerabilities(self, files_content: Dict[str, str]) -> List[Dict]:
-        """AI ANALYSIS: Analyze extracted files for vulnerabilities using AI"""
+        """
+        Purpose:
+            Run the legacy whole-source analysis, for providers that cannot drive the agentic tool loop.
+
+        Parameters:
+            files_content: The gathered files.
+
+        Returns:
+            The findings.
+
+        Side effects:
+            Makes provider requests.
+
+        Implementation notes:
+            This is the fallback path. It sends the gathered source in one request rather than letting the model navigate, which works for a small app and systematically under-reports a large one because the source exceeds the context window. Retained because a provider without usable tool-calling would otherwise produce nothing at all.
+        """
         verbose_print("Analyzing files for security vulnerabilities...", self.verbose)
             
         if files_content['java_files']:
@@ -426,7 +438,14 @@ class JavaKotlinAnalyzer:
         
         estimated_tokens = len(analysis_prompt) // 4
         verbose_print(f"Estimated tokens: ~{estimated_tokens:,}", self.verbose)
-                    
+
+        unavailable = getattr(self.ai_provider, "unavailable", None)
+        if unavailable:
+            verbose_print(
+                f"AI provider unavailable ({unavailable}); skipping the non-agentic "
+                "fallback analysis", self.verbose)
+            return []
+
         try:
             verbose_print(f"Sending request to active provider ({self.ai_provider.name})...", self.verbose)
             ai_response_dict = self.ai_provider.analyze(analysis_prompt)
@@ -478,24 +497,31 @@ class JavaKotlinAnalyzer:
 
 
     def analyze_java_kotlin_apk(self, apk_path: str, defer_cleanup: bool = False) -> dict:
-        """Main function to analyze Java/Kotlin APK.
+        """
+        Purpose:
+            Run the full Java and Kotlin analysis: decompile, build the graph, run the rule engine and the agent, and merge the results.
 
-        ``defer_cleanup`` keeps the decompiled JADX tree on disk after a
-        successful analysis instead of deleting it — set this when a dynamic-
-        verification phase will follow and needs to read the same sources. The
-        caller is then responsible for deleting ``jadx_output_dir`` (returned in
-        the result dict) once it's done with it.
+        Parameters:
+            apk_path: Path to the APK.
+            defer_cleanup: Keep the decompiled output for a later phase to read.
+
+        Returns:
+            The analysis results.
+
+        Side effects:
+            Decompiles the APK, makes provider requests, and removes working files unless deferred.
+
+        Implementation notes:
+            The APK-level analysis that feeds the code graph is started in the background while JADX is still running, since the two read different things and the graph work would otherwise be pure added latency on an already slow stage. The rule engine and the agent run over the same decompiled tree and their findings are merged, which is what makes cross-engine agreement available as a confidence signal downstream. Cleanup is deferrable because dynamic verification reads the same sources afterwards.
         """
         verbose_print("Starting Java/Kotlin APK Analysis...", self.verbose)
         
-        # Create output directory structure
         output_dir = self.output_manager.create_output_directory(apk_path)
         
         if not self.apk_base or not self.apk_dir:
             apk_path_obj = Path(apk_path)
             self.apk_base = apk_path_obj.stem
             self.apk_dir = Path("analysis_output") / self.apk_base
-            # Get the directory where the APK is located for saving logs
             self.apk_parent_dir = apk_path_obj.parent
         
         verbose_print("Initializing active AI provider with output directory", self.verbose)
@@ -505,55 +531,121 @@ class JavaKotlinAnalyzer:
             apk_name=self.apk_base
         )
         
+        cp = getattr(self, "checkpoint", None)
+
         try:
             analysis_start_time = time.time()
-            
-            self.progress("decompiling", 45, "Running JADX decompiler…")
-            verbose_print("Decompiling APK...", self.verbose)
-            if not self.decompile_apk(apk_path):
-                verbose_print("JADX decompilation failed - cannot continue analysis", self.verbose)
-                return False
-            self.progress("decompiling", 58, "JADX decompilation complete")
 
-            # Default: agentic, tool-using analysis that navigates the JADX tree
-            # itself instead of flattening every file into one prompt. Falls back
-            # to the legacy full-dump if the provider can't drive the loop.
+            from .agent.code_graph import analyze_apk_for_code_graph
+            preloaded_apk: Dict[str, Any] = {}
+
+            def _prefetch_apk_analysis():
+                """
+                Purpose:
+                    Compute the APK-level analysis the code graph needs, on a background thread.
+
+                Side effects:
+                    Parses the APK and stores the result for the caller.
+
+                Implementation notes:
+                    Runs concurrently with JADX because the two are independent -- one reads the archive's bytecode, the other writes source -- and doing them in sequence would add minutes to every scan of a large app.
+                """
+                preloaded_apk["result"] = analyze_apk_for_code_graph(apk_path, self.verbose)
+
+            apk_prefetch_thread = threading.Thread(
+                target=_prefetch_apk_analysis, name="androguard-prefetch", daemon=True)
+            apk_prefetch_thread.start()
+
+            resumed_decompile = False
+            if cp is not None and cp.reached("decompiled"):
+                prior = cp.get("jadx_output_dir")
+                if prior and Path(prior).is_dir():
+                    self.jadx_output_dir = Path(prior)
+                    resumed_decompile = True
+                    self.progress("decompiling", 58, "Reusing the decompiled sources from before the interruption")
+                    verbose_print(f"Resume: skipping JADX, reusing {prior}", self.verbose)
+
+            if not resumed_decompile:
+                self.progress("decompiling", 45, "Running JADX decompiler…")
+                verbose_print("Decompiling APK...", self.verbose)
+                if not self.decompile_apk(apk_path):
+                    verbose_print("JADX decompilation failed - cannot continue analysis", self.verbose)
+                    return False
+                self.progress("decompiling", 58, "JADX decompilation complete")
+                if cp is not None:
+                    cp.mark("decompiled", jadx_output_dir=str(self.jadx_output_dir))
+
+            sast_vulns: List[Dict] = []
+            leads = []
+            from .agent.leads import leads_from_findings
+            if cp is not None and cp.reached("sast_done"):
+                sast_vulns = list(cp.get("sast_vulns", []) or [])
+                leads = leads_from_findings(sast_vulns)
+                self.progress("sast", 60, "Reusing deterministic scanner findings from before the interruption")
+                verbose_print(f"Resume: skipping scanners, reusing {plural(len(sast_vulns), 'finding')}", self.verbose)
+            else:
+                self.progress("sast", 60, "Running deterministic scanners…")
+                try:
+                    sast_vulns = self.run_sast(self.jadx_output_dir, apk_path=apk_path)
+                    leads = leads_from_findings(sast_vulns)
+                    if leads:
+                        verbose_print(
+                            f"SAST-first: {plural(len(leads), 'lead')} handed to the "
+                            "agent as a worklist", self.verbose)
+                except ScanCancelled:
+                    raise
+                except Exception as e:
+                    verbose_print(f"Deterministic scanners failed ({e}); no leads for the agent", self.verbose)
+                if cp is not None:
+                    cp.mark("sast_done", sast_vulns=sast_vulns)
+
             vulnerabilities = None
             files_analyzed = 0
             static_transcript = ""
             code_graph = None
             try:
-                from .agent.agent_loop import run_agent_analysis
                 from .agent.code_graph import build_code_graph
-                self.progress("agentic_start", 62, "Agentic process beginning — AI is navigating the decompiled source…")
+                self.progress("agentic_start", 62, "Agentic process beginning - AI is navigating the decompiled source…")
 
-                # Build a security-annotated code map from the APK (androguard,
-                # already a dependency) so the model gets a real map of the app's
-                # own classes — their roles, sink APIs, and hardcoded strings —
-                # instead of a flat file tree it navigates poorly. Best-effort:
-                # None on any failure → the loop falls back to the file tree.
+                apk_prefetch_thread.join()
                 code_graph = build_code_graph(
-                    apk_path, jadx_output_dir=self.jadx_output_dir, verbose=self.verbose)
+                    apk_path, jadx_output_dir=self.jadx_output_dir, verbose=self.verbose,
+                    preloaded=preloaded_apk.get("result"), leads=leads)
                 if code_graph is not None:
                     self.progress("agentic_start", 64,
-                                  f"Code map built — {len(code_graph.nodes)} app class(es)")
+                                  f"Code map built - {plural(len(code_graph.nodes), 'app class', 'app classes')}")
 
-                verbose_print("Running agentic (tool-using) analysis...", self.verbose)
-                agent_vulns, completed_ok, transcript = run_agent_analysis(
-                    self.ai_provider,
-                    self.jadx_output_dir,
-                    {"framework": "Java/Kotlin (native Android)"},
-                    code_graph=code_graph,
-                    verbose=self.verbose,
-                )
-                if completed_ok:
-                    vulnerabilities = agent_vulns
-                    files_analyzed = self._count_source_files()
-                    static_transcript = transcript
-                    verbose_print(f"Agentic analysis produced {len(agent_vulns)} finding(s)", self.verbose)
-                    self.progress("agentic_done", 82, f"Agentic process completed — {len(agent_vulns)} finding(s)")
+                if cp is not None and cp.reached("agents_done"):
+                    vulnerabilities = list(cp.get("agents_vulns", []) or [])
+                    files_analyzed = int(cp.get("agents_files_analyzed", 0) or 0)
+                    static_transcript = str(cp.get("agents_transcript", "") or "")
+                    self.progress("agentic_done", 82,
+                                  f"Reusing {plural(len(vulnerabilities), 'finding')} from before the interruption")
+                    verbose_print(
+                        f"Resume: skipping the agent phase, reusing "
+                        f"{plural(len(vulnerabilities), 'finding')}", self.verbose)
                 else:
-                    verbose_print("Agentic loop unsupported by provider; using full-dump fallback", self.verbose)
+                    verbose_print("Running agentic (tool-using) analysis...", self.verbose)
+                    agent_kwargs = dict(
+                        framework_label="Java/Kotlin (native Android)", leads=leads)
+                    if cp is not None:
+                        agent_kwargs["checkpoint"] = cp
+                    agent_vulns, completed_ok, transcript = self.run_agent(
+                        self.jadx_output_dir, code_graph, **agent_kwargs)
+                    if completed_ok:
+                        vulnerabilities = agent_vulns
+                        files_analyzed = self._count_source_files()
+                        static_transcript = transcript
+                        verbose_print(f"Agentic analysis produced {plural(len(agent_vulns), 'finding')}", self.verbose)
+                        self.progress("agentic_done", 82, f"Agentic process completed - {plural(len(agent_vulns), 'finding')}")
+                        if cp is not None:
+                            cp.mark("agents_done", agents_vulns=vulnerabilities,
+                                   agents_files_analyzed=files_analyzed,
+                                   agents_transcript=static_transcript)
+                    else:
+                        verbose_print("Agentic loop unsupported by provider; using full-dump fallback", self.verbose)
+            except ScanCancelled:
+                raise
             except Exception as e:
                 verbose_print(f"Agentic analysis error: {e}; using full-dump fallback", self.verbose)
 
@@ -565,12 +657,15 @@ class JavaKotlinAnalyzer:
                     return False
                 vulnerabilities = self.analyze_files_for_vulnerabilities(files_content)
                 files_analyzed = len(files_content.get('java_files', {}))
-                self.progress("agentic_done", 82, f"Analysis completed — {len(vulnerabilities)} finding(s)")
+                self.progress("agentic_done", 82, f"Analysis completed - {plural(len(vulnerabilities), 'finding')}")
+
+            self.progress("agentic_done", 84, "Merging deterministic scanner findings…")
+            vulnerabilities = self.merge_findings(vulnerabilities, sast_vulns)
 
             analysis_time = time.time() - analysis_start_time
-            
+
             if vulnerabilities:
-                self._enrich_vulnerabilities_with_context(vulnerabilities)
+                self.enrich_vulnerabilities(vulnerabilities, self.jadx_output_dir)
                 display_vulnerabilities(vulnerabilities, self.verbose)
             else:
                 verbose_print("No vulnerabilities found!", self.verbose)
@@ -602,9 +697,13 @@ class JavaKotlinAnalyzer:
                 'framework': 'Java/Kotlin',
                 'output_manager': self.output_manager,
                 'jadx_output_dir': self.jadx_output_dir,
+                'source_root': self.jadx_output_dir,
                 'static_transcript': static_transcript,
                 'code_graph': code_graph,
+                'agent_coverage': getattr(self, 'agent_coverage', {}),
             }
+        except ScanCancelled:
+            raise
         except Exception as e:
             verbose_print(f"Java/Kotlin analysis failed: {e}", self.verbose)
             verbose_print(f"Exception details: {e}", self.verbose)

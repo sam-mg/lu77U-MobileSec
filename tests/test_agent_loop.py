@@ -1,0 +1,712 @@
+#!/usr/bin/env python3
+"""
+Module: test_agent_loop
+
+Purpose:
+    The phase-one agent loop: how many turns it takes, how it is stopped, how findings recorded along the way survive, and what it says while it runs.
+
+Responsibilities:
+    Pin the unbounded default and the opt-in step limit, cancellation, the handling of findings recorded mid-investigation, the conversation session a capable provider keeps, the one-shot prompt that asks the model to record as it goes, the turn numbers the log reports, and the narration of every request and response.
+
+Dependencies:
+    pytest, the agent loop, the agent tool surface, the verbose helpers and the cancellation exception.
+
+Implementation notes:
+    The loop has no fixed call ceiling by default; it runs until the model reports, the provider fails, or the scan is cancelled. Every provider here is a scripted fake, so nothing reaches the network or a real model.
+"""
+
+import pytest
+
+from lu77U_MobileSec.analyzers.agent.agent_loop import run_agent_analysis
+from lu77U_MobileSec.utils.cancellation import ScanCancelled
+
+_VEC = "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+_LIST = '{"action":"list_files","path":""}'
+
+
+def _finding(title, file, line):
+    """
+    Purpose:
+        Build one finding as the model would return it, as a JSON fragment.
+
+    Parameters:
+        title: The finding title.
+        file: The file the finding is attributed to.
+        line: The line the finding is attributed to.
+
+    Returns:
+        The finding as a JSON object string.
+
+    Implementation notes:
+        The file, line and description are all present because the response parser drops any finding missing them, so a fixture without them would test the parser rather than the loop.
+    """
+    return (f'{{"title":"{title}","file":"{file}","line":"{line}",'
+            f'"description":"demo","cvss_vector":"{_VEC}"}}')
+
+
+_REPORT = '{"action":"report","vulnerabilities":[' + _finding("H", "a.java", "1") + "]}"
+
+
+def _action(name, findings):
+    """
+    Purpose:
+        Build a turn carrying a list of findings.
+
+    Parameters:
+        name: The action, either recording findings or submitting the report.
+        findings: The findings as JSON fragments.
+
+    Returns:
+        The action as a JSON object string.
+    """
+    return f'{{"action":"{name}","vulnerabilities":[{",".join(findings)}]}}'
+
+
+class ScriptedProvider:
+    """
+    Purpose:
+        A provider that plays queued turns and, once they run out, keeps asking to list files so it never reports on its own.
+
+    Attributes:
+        actions: The turns still to be played.
+        calls: How many turns were requested.
+    """
+    def __init__(self, actions):
+        """
+        Purpose:
+            Build the provider with its script.
+
+        Parameters:
+            actions: The turns to play in order.
+        """
+        self.actions = list(actions)
+        self.calls = 0
+
+    def analyze(self, prompt, system_message=None, schema=None, max_tokens=None, session_key=None):
+        """
+        Purpose:
+            Play the next scripted turn, falling back to a listing action once the script is spent.
+
+        Parameters:
+            prompt: The turn prompt.
+            system_message: The system prompt, unused here.
+            schema: The requested response schema, unused here.
+            max_tokens: The response limit, unused here.
+            session_key: The conversation key, which marks the region this turn belongs to.
+
+        Returns:
+            The turn's response.
+
+        Side effects:
+            Increments the call count.
+        """
+        self.calls += 1
+        action = self.actions.pop(0) if self.actions else _LIST
+        return {"response": action}
+
+
+class SessionAwareScriptedProvider(ScriptedProvider):
+    """
+    Purpose:
+        A scripted provider that also keeps a conversation session the way a subscription-CLI provider does, and records every prompt it was sent.
+
+    Attributes:
+        prompts: Every prompt received, in order.
+
+    Implementation notes:
+        It implements the session interface itself rather than merely accepting the session argument, so the loop's behaviour is exercised against something that really holds a conversation. The recorded prompts are what let a test show that the first turn carries the full context and later turns do not.
+    """
+    def __init__(self, actions):
+        """
+        Purpose:
+            Build the provider with its script, no recorded prompts and no open sessions.
+
+        Parameters:
+            actions: The turns to play in order.
+        """
+        super().__init__(actions)
+        self.prompts = []
+        self._sessions = set()
+
+    def has_session(self, session_key):
+        """
+        Purpose:
+            Report whether a conversation is open for a region.
+
+        Parameters:
+            session_key: The region's conversation key.
+
+        Returns:
+            True while that conversation is open.
+        """
+        return session_key in self._sessions
+
+    def close_session(self, session_key):
+        """
+        Purpose:
+            Close a region's conversation.
+
+        Parameters:
+            session_key: The region's conversation key.
+
+        Side effects:
+            Forgets that conversation.
+        """
+        self._sessions.discard(session_key)
+
+    def analyze(self, prompt, system_message=None, schema=None, max_tokens=None, session_key=None):
+        """
+        Purpose:
+            Record the prompt, open the region's conversation if it is not already open, and play the next scripted turn.
+
+        Parameters:
+            prompt: The turn prompt.
+            system_message: The system prompt, unused here.
+            schema: The requested response schema, unused here.
+            max_tokens: The response limit, unused here.
+            session_key: The conversation key, which marks the region this turn belongs to.
+
+        Returns:
+            The turn's response.
+
+        Side effects:
+            Records the prompt and may open a conversation.
+        """
+        self.prompts.append(prompt)
+        if session_key:
+            self._sessions.add(session_key)
+        return super().analyze(prompt, system_message, schema, max_tokens, session_key)
+
+
+@pytest.fixture
+def src(tmp_path):
+    """
+    Purpose:
+        Build a minimal source tree with one file in it.
+
+    Parameters:
+        tmp_path: Directory the tree is written into.
+
+    Returns:
+        The tree root.
+    """
+    (tmp_path / "a.java").write_text("class A {}\n")
+    return tmp_path
+
+
+def test_loop_runs_past_the_old_30_call_cap(src):
+    """
+    Purpose:
+        Pin that the loop runs well past the ceiling it once had and returns on the model's own report.
+
+    Parameters:
+        src: The source tree.
+
+    Implementation notes:
+        The exact call count distinguishes the two outcomes: the model's own report on its turn, rather than a forced report the loop asked for after cutting it off.
+    """
+    prov = ScriptedProvider([_LIST] * 35 + [_REPORT])
+    vulns, completed_ok, _ = run_agent_analysis(prov, str(src), verbose=False)
+    assert completed_ok is True
+    assert prov.calls == 36
+    assert isinstance(vulns, list)
+
+
+def test_explicit_max_steps_still_caps_and_forces_a_report(src):
+    """
+    Purpose:
+        Pin that an explicit step limit still stops the loop and spends one further call asking for a report.
+
+    Parameters:
+        src: The source tree.
+
+    Implementation notes:
+        The forced call is what keeps a cut-off region from returning nothing at all when the model had found things it had not yet written up.
+    """
+    prov = ScriptedProvider([_LIST] * 100)
+    vulns, completed_ok, _ = run_agent_analysis(
+        prov, str(src), max_steps=5, verbose=False)
+    assert completed_ok is True
+    assert prov.calls == 6
+    assert isinstance(vulns, list)
+
+
+def test_cancellation_interrupts_the_unbounded_loop(src):
+    """
+    Purpose:
+        Pin that a model which never reports is still stoppable, and stops promptly.
+
+    Parameters:
+        src: The source tree.
+
+    Implementation notes:
+        With no step limit this is the only thing that ends such a run, so the call count is asserted as well as the exception: a loop that raised only after a hundred more turns would be no use to someone who pressed stop.
+    """
+    prov = ScriptedProvider([_LIST] * 100000)
+    checks = {"n": 0}
+
+    def is_cancelled():
+        """
+        Purpose:
+            Report the scan as cancelled after a few polls.
+
+        Returns:
+            False for the first few calls and True afterwards.
+
+        Side effects:
+            Counts the polls.
+        """
+        checks["n"] += 1
+        return checks["n"] > 3
+
+    with pytest.raises(ScanCancelled):
+        run_agent_analysis(prov, str(src), is_cancelled=is_cancelled, verbose=False)
+    assert prov.calls <= 4
+
+
+def test_add_finding_survives_hitting_the_budget_with_no_report(src):
+    """
+    Purpose:
+        Pin that a finding recorded mid-investigation survives the budget running out, and that no extra call is spent trying to reconstruct it.
+
+    Parameters:
+        src: The source tree.
+
+    Implementation notes:
+        This is the failure seen on a real application: the model records a real finding part way through and then never submits a clean report before the budget ends. A region that already has recorded findings skips the forced report entirely, because that path used to ask the model to reconstruct them blind from a transcript that never held the finding bodies.
+    """
+    add = _action("add_finding", [_finding("BridgeLeak", "a.java", "1")])
+    prov = ScriptedProvider([add] + [_LIST] * 20)
+    vulns, completed_ok, _ = run_agent_analysis(
+        prov, str(src), max_steps=4, verbose=False)
+    assert completed_ok is True
+    titles = [(v.get("title") or v.get("vulnerability_type")) for v in vulns]
+    assert "BridgeLeak" in titles
+    assert prov.calls == 4
+
+
+def test_add_finding_then_report_merges_and_dedups(src):
+    """
+    Purpose:
+        Pin that a finding recorded during the run and repeated in the final report is kept once, while new ones in the report are added.
+
+    Parameters:
+        src: The source tree.
+    """
+    add = _action("add_finding", [_finding("A", "a.java", "1")])
+    report = _action("report", [_finding("A", "a.java", "1"), _finding("B", "b.java", "2")])
+    prov = ScriptedProvider([add, report])
+    vulns, completed_ok, _ = run_agent_analysis(prov, str(src), verbose=False)
+    assert completed_ok is True
+    titles = sorted((v.get("title") or v.get("vulnerability_type")) for v in vulns)
+    assert titles == ["A", "B"]
+
+
+def test_add_finding_does_not_end_the_loop(src):
+    """
+    Purpose:
+        Pin that recording a finding keeps the investigation going and only the report ends it.
+
+    Parameters:
+        src: The source tree.
+    """
+    add = _action("add_finding", [_finding("A", "a.java", "1")])
+    prov = ScriptedProvider([add, add, _REPORT])
+    vulns, completed_ok, _ = run_agent_analysis(prov, str(src), verbose=False)
+    assert completed_ok is True
+    assert prov.calls == 3
+    titles = {(v.get("title") or v.get("vulnerability_type")) for v in vulns}
+    assert titles == {"A", "H"}
+
+
+class TestSessionAwareProviders:
+    """
+    Purpose:
+        What the loop sends to a provider that can hold the region's conversation itself.
+
+    Implementation notes:
+        Such a provider already has the opening context and every earlier turn once its conversation is open, so re-sending them on every later turn would undo the entire point of keeping one.
+    """
+    def test_only_the_first_turn_carries_the_full_context(self, src):
+        """
+        Purpose:
+            Pin that the opening turn carries the full context and the turns after it do not.
+
+        Parameters:
+            src: The source tree.
+
+        Implementation notes:
+            The first turn has no conversation to resume yet, so it must carry the real context, which for this fixture is the file tree since no code graph is built.
+        """
+        prov = SessionAwareScriptedProvider([_LIST, _LIST, _REPORT])
+        run_agent_analysis(prov, str(src), verbose=False)
+        assert len(prov.prompts) == 3
+        assert "Decompiled file tree" in prov.prompts[0]
+        assert "Decompiled file tree" not in prov.prompts[1]
+        assert "Decompiled file tree" not in prov.prompts[2]
+
+    def test_a_provider_with_no_session_support_gets_full_context_every_turn(self, src):
+        """
+        Purpose:
+            Pin that a provider without a conversation is driven exactly as before.
+
+        Parameters:
+            src: The source tree.
+
+        Implementation notes:
+            Every provider but the subscription-CLI ones takes this path, so it is the behaviour that must not change.
+        """
+        prov = ScriptedProvider([_LIST, _LIST, _REPORT])
+        run_agent_analysis(prov, str(src), verbose=False)
+        assert prov.calls == 3
+
+    def test_the_session_is_closed_when_the_region_finishes(self, src):
+        """
+        Purpose:
+            Pin that the region's conversation is closed once it is done.
+
+        Parameters:
+            src: The source tree.
+
+        Implementation notes:
+            A conversation left open holds the whole region's context on the provider's side, and a scan runs several regions.
+        """
+        prov = SessionAwareScriptedProvider([_LIST, _REPORT])
+        run_agent_analysis(prov, str(src), verbose=False)
+        assert prov.has_session("single") is False
+
+    def test_a_resumed_turn_is_just_the_latest_observation_plus_the_tail(self, src):
+        """
+        Purpose:
+            Pin that a resumed turn carries only the newest observation and the closing instruction, without the framing that introduces a full transcript.
+
+        Parameters:
+            src: The source tree.
+
+        Implementation notes:
+            That framing only makes sense when the whole transcript is being re-sent, which is exactly what a resumed turn avoids.
+        """
+        prov = SessionAwareScriptedProvider([_LIST, _LIST, _REPORT])
+        run_agent_analysis(prov, str(src), verbose=False)
+        assert "## Investigation so far" not in prov.prompts[1]
+        assert "Respond with the next action JSON" in prov.prompts[1]
+
+
+class TestAddFindingNudge:
+    """
+    Purpose:
+        The one-shot prompt that asks a model to record findings as it goes rather than saving them all for the end.
+
+    Implementation notes:
+        A real scan recorded nothing in 57 turns and produced all six of its findings through the forced report at the end, which is fragile: a long scan's rolling transcript drops its oldest turns, so a finding confirmed early and never recorded can disappear entirely.
+    """
+    def test_a_one_shot_nudge_fires_after_several_reads_with_nothing_recorded(self, src):
+        """
+        Purpose:
+            Pin that the prompt appears once after several turns with nothing recorded, and not once per turn thereafter.
+
+        Parameters:
+            src: The source tree.
+        """
+        from lu77U_MobileSec.analyzers.agent.agent_loop import _ADD_FINDING_NUDGE_AFTER
+
+        prov = ScriptedProvider([_LIST] * (_ADD_FINDING_NUDGE_AFTER + 2) + [_REPORT])
+        _, completed_ok, transcript = run_agent_analysis(prov, str(src), verbose=False)
+        assert completed_ok is True
+        assert "add_finding" in transcript and "SYSTEM NUDGE" in transcript
+        assert transcript.count("You have investigated several files") == 1
+
+    def test_no_nudge_once_a_finding_has_been_recorded(self, src):
+        """
+        Purpose:
+            Pin that a model already recording findings is not prompted.
+
+        Parameters:
+            src: The source tree.
+        """
+        add_action = _action("add_finding", [_finding("H", "a.java", "1")])
+        prov = ScriptedProvider([add_action] + [_LIST] * 10 + [_REPORT])
+        _, _, transcript = run_agent_analysis(prov, str(src), verbose=False)
+        assert "You have investigated several files" not in transcript
+
+    def test_no_nudge_for_a_short_investigation(self, src):
+        """
+        Purpose:
+            Pin that a short investigation is not prompted.
+
+        Parameters:
+            src: The source tree.
+
+        Implementation notes:
+            A model a few turns in has usually not seen enough to record anything, so prompting there would just spend context telling it to do something premature.
+        """
+        prov = ScriptedProvider([_LIST] * 2 + [_REPORT])
+        _, _, transcript = run_agent_analysis(prov, str(src), verbose=False)
+        assert "You have investigated several files" not in transcript
+
+
+class TestStepLoggingIsOneBased:
+    """
+    Purpose:
+        That the turn numbers in the log are the ones a reader would count.
+
+    Implementation notes:
+        A real scan's log reported each event one turn short of what had actually happened, because the internal counter starts at zero and, for a resumed region, does not include the turns a previous run already spent.
+    """
+    def test_the_add_finding_nudge_reports_the_turn_it_fired_on(self, src, capsys):
+        """
+        Purpose:
+            Pin that the prompt is logged against the turn it actually fired on.
+
+        Parameters:
+            src: The source tree.
+            capsys: Captures the printed output.
+        """
+        from lu77U_MobileSec.analyzers.agent.agent_loop import _ADD_FINDING_NUDGE_AFTER
+
+        prov = ScriptedProvider([_LIST] * _ADD_FINDING_NUDGE_AFTER + [_REPORT])
+        run_agent_analysis(prov, str(src), verbose=True)
+        out = capsys.readouterr().out
+        assert f"Add-finding nudge at step {_ADD_FINDING_NUDGE_AFTER}:" in out
+
+    def test_agent_finished_reports_the_number_of_turns_actually_taken(self, src, capsys):
+        """
+        Purpose:
+            Pin that the closing line reports as many turns as the provider was actually asked for.
+
+        Parameters:
+            src: The source tree.
+            capsys: Captures the printed output.
+        """
+        prov = ScriptedProvider([_LIST, _LIST, _REPORT])
+        run_agent_analysis(prov, str(src), verbose=True)
+        out = capsys.readouterr().out
+        assert f"Agent finished at step {prov.calls} with" in out
+
+
+class TestActionNarration:
+    """
+    Purpose:
+        What each turn says in the live log.
+
+    Implementation notes:
+        The log is the only window into a run that can spend twenty minutes waiting on a model, so every turn states what was asked for and what was handed back.
+    """
+    def test_each_action_reads_as_a_sentence(self):
+        """
+        Purpose:
+            Pin the exact wording for each kind of request.
+        """
+        from lu77U_MobileSec.analyzers.agent.agent_loop import _describe_request
+
+        assert _describe_request("read_file", "sources/a/B.java", [], "", None) == (
+            "The LLM is requesting to read `sources/a/B.java`.")
+        assert _describe_request("list_files", "sources", [], "", None) == (
+            "The LLM is requesting to list all the files in `sources` directory.")
+        assert _describe_request("search_code", "", [], "loadUrl", None) == (
+            "The LLM is requesting to search the code for `loadUrl`.")
+        assert _describe_request("inspect_native", "lib/x.so", [], "", None) == (
+            "The LLM is requesting to inspect the native library `lib/x.so`.")
+
+    def test_a_batched_read_names_the_first_files_and_counts_the_rest(self):
+        """
+        Purpose:
+            Pin that a request for several files names the first few and counts the remainder.
+
+        Implementation notes:
+            A batch can name dozens of files, and listing them all would push everything else in the log off the screen.
+        """
+        from lu77U_MobileSec.analyzers.agent.agent_loop import _describe_request
+
+        line = _describe_request("read_file", "", ["a", "b", "c", "d", "e"], "", None)
+        assert "`a`, `b`, `c`" in line and "2 other files" in line
+
+    def test_a_paged_read_says_where_it_resumes(self):
+        """
+        Purpose:
+            Pin that a continued read says which line it resumes from.
+        """
+        from lu77U_MobileSec.analyzers.agent.agent_loop import _describe_request
+
+        assert "from line 200" in _describe_request("read_file", "A.java", [], "", 200)
+
+    def test_the_response_says_what_was_handed_over(self):
+        """
+        Purpose:
+            Pin that a response line states how much was handed to the model.
+        """
+        from lu77U_MobileSec.analyzers.agent.agent_loop import _describe_response
+
+        assert _describe_response("read_file", "A.java", [], "l1\nl2\nl3") == (
+            "Giving read access to `A.java` (3 lines sent to the LLM).")
+        assert "1 entry)" in _describe_response("list_files", "sources", [], "one")
+
+    def test_an_error_is_stated_not_swallowed(self):
+        """
+        Purpose:
+            Pin that a failed request is reported with the reason it failed.
+
+        Implementation notes:
+            A failed read that logged nothing looks exactly like a file the model chose not to use, which hides a whole class of wasted turn.
+        """
+        from lu77U_MobileSec.analyzers.agent.agent_loop import _describe_response
+
+        line = _describe_response("read_file", "nope", [], "ERROR: not a file: nope")
+        assert line.startswith("Could not satisfy that request")
+        assert "not a file: nope" in line
+
+    def test_the_loop_narrates_every_turn(self, tmp_path):
+        """
+        Purpose:
+            Pin end to end that the loop narrates each request and each response through the real logging path.
+
+        Parameters:
+            tmp_path: Directory the source tree is written into.
+
+        Side effects:
+            Registers a log sink for the duration of the test and removes it afterwards.
+        """
+        import json
+        from lu77U_MobileSec.analyzers.agent.agent_loop import run_agent_analysis
+        from lu77U_MobileSec.utils import verbose as vmod
+
+        (tmp_path / "sources").mkdir()
+        (tmp_path / "sources" / "A.java").write_text("class A {}\n")
+
+        lines = []
+        vmod.register_sink(lines.append)
+        try:
+            steps = [{"action": "list_files", "path": "sources"},
+                     {"action": "read_file", "path": "sources/A.java"},
+                     {"action": "report", "vulnerabilities": []},
+                     {"action": "report", "vulnerabilities": []}]
+
+            class P:
+                """
+                Purpose:
+                    A provider that plays a fixed sequence of turns, repeating the last one once the sequence is spent.
+
+                Attributes:
+                    i: How many turns have been played.
+                """
+                def __init__(self):
+                    """
+                    Purpose:
+                        Build the provider at the start of the sequence.
+                    """
+                    self.i = 0
+
+                def analyze(self, *a, **k):
+                    """
+                    Purpose:
+                        Play the next turn in the sequence, or repeat the last one once it is spent.
+
+                    Parameters:
+                        a: Positional arguments, ignored.
+                        k: Keyword arguments, ignored.
+
+                    Returns:
+                        The turn's response.
+
+                    Side effects:
+                        Advances through the sequence.
+                    """
+                    s = steps[min(self.i, len(steps) - 1)]; self.i += 1
+                    return {"response": json.dumps(s)}
+
+            run_agent_analysis(P(), tmp_path, {"framework": "Java/Kotlin"})
+        finally:
+            vmod.unregister_sink(lines.append)
+
+        assert any("requesting to list all the files" in l for l in lines)
+        assert any("requesting to read `sources/A.java`" in l for l in lines)
+        assert any("Giving read access" in l for l in lines)
+
+    def test_walking_the_tree_emits_no_per_file_noise(self, tmp_path):
+        """
+        Purpose:
+            Pin that walking the tree logs nothing per file.
+
+        Parameters:
+            tmp_path: Directory the source tree is written into.
+
+        Side effects:
+            Registers a log sink for the duration of the test and removes it afterwards.
+
+        Implementation notes:
+            The framework check used to log twice for every candidate file on every walk, which is hundreds of lines that drowned the scan log, and it appeared even with verbose output off because sinks receive regardless.
+        """
+        from lu77U_MobileSec.analyzers.agent.tools import AgentTools
+        from lu77U_MobileSec.utils import verbose as vmod
+
+        src = tmp_path / "sources" / "com" / "app"
+        src.mkdir(parents=True)
+        for i in range(50):
+            (src / f"C{i}.java").write_text("class C {}\n")
+
+        lines = []
+        vmod.register_sink(lines.append)
+        try:
+            tools = AgentTools(tmp_path)
+            tools.search_code("class")
+            tools.file_tree()
+            tools.app_source_files()
+        finally:
+            vmod.unregister_sink(lines.append)
+
+        assert not [l for l in lines if "is_framework_layout_file" in l
+                    or "is app-specific" in l], lines[:5]
+
+    def test_a_java_path_skips_the_resource_only_checks(self):
+        """
+        Purpose:
+            Pin that a source path is not put through the checks that can only match resources, while a resource path still is.
+
+        Implementation notes:
+            Those checks can only ever match under the resource directory, so running them over every decompiled source file was pure waste on a tree of thousands.
+        """
+        from lu77U_MobileSec.analyzers.agent.tools import AgentTools
+
+        tools = AgentTools("/nonexistent")
+        assert not tools._is_framework("sources/com/app/abc_MainActivity.java")
+        assert tools._is_framework("resources/res/layout/abc_action_bar.xml")
+
+
+class TestPluralisation:
+    """
+    Purpose:
+        That counts in log lines read as English.
+    """
+    def test_counts_read_as_english(self):
+        """
+        Purpose:
+            Pin the singular and plural forms, including a word whose plural is irregular.
+        """
+        from lu77U_MobileSec.utils.verbose import plural
+
+        assert plural(1, "finding") == "1 finding"
+        assert plural(0, "finding") == "0 findings"
+        assert plural(3, "finding") == "3 findings"
+        assert plural(1, "class", "classes") == "1 class"
+        assert plural(19, "class", "classes") == "19 classes"
+
+    def test_no_shipped_log_line_still_says_s_in_brackets(self):
+        """
+        Purpose:
+            Pin that no shipped log line, progress message or title writes a plural as a bracketed suffix.
+
+        Implementation notes:
+            A bracketed plural in the middle of a sentence reads like a form field rather than a report, and the helper above exists precisely so none is needed.
+        """
+        import re
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1] / "lu77U_MobileSec"
+        offenders = []
+        for path in root.rglob("*.py"):
+            for n, line in enumerate(path.read_text(encoding="utf-8",
+                                                    errors="ignore").splitlines(), 1):
+                if re.search(r"\(e?s\)", line) and re.search(
+                        r"verbose_print|progress\(|title=f|f\"", line):
+                    offenders.append(f"{path.name}:{n}")
+        assert not offenders, offenders

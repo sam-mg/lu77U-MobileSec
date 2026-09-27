@@ -1,0 +1,6 @@
+{
+  "provider": "ollama",
+  "models": [
+    "glm-4.6:cloud"
+  ]
+}

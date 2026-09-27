@@ -1,0 +1,9 @@
+{
+  "provider": "claude_cli",
+  "models": [
+    "opus",
+    "sonnet",
+    "fable",
+    "haiku"
+  ]
+}

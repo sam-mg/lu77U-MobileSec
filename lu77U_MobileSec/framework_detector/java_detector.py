@@ -1,4 +1,22 @@
-"""Java Framework Detector for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.framework_detector.java_detector
+
+Purpose:
+    Recognise a conventional Android app -- one whose logic is in Dalvik bytecode rather than in a cross-platform runtime -- so that the standard JADX decompilation path is chosen.
+
+Responsibilities:
+    Detect by exclusion in an APK, and by project layout in a source tree.
+
+Dependencies:
+    zipfile, ..config.constants for the framework marker tables.
+
+Implementation notes:
+    This detector works by exclusion, which is what makes it different from the others. Every cross-platform framework also ships DEX files -- a Flutter or React Native app has a Java shell around its runtime -- so the presence of DEX proves nothing on its own. What identifies a conventional app is DEX with none of the other frameworks' markers present. That is also why it reads the marker tables for the other frameworks rather than having its own: if a new framework is added to the shared table, this detector stops misclaiming those apps without any change here.
+
+Security considerations:
+    Reads the APK as a plain archive through zipfile rather than parsing it, so it is cheap and has a small attack surface. It never extracts an entry.
+"""
 
 from ..utils.verbose import verbose_print
 from ..config.constants import (
@@ -13,19 +31,64 @@ import os
 import zipfile
 
 class JavaDetector:
+    """
+    Purpose:
+        Detects a conventional Java or Kotlin Android app.
+
+    Attributes:
+        verbose: Whether detection is traced.
+        framework_name: The framework name reported.
+
+    Invariants:
+        Returns None rather than a zero-confidence result when nothing matched, so a caller can test the result directly.
+
+    Thread-safety:
+        Holds no per-detection state; safe to reuse.
+    """
     def __init__(self, verbose=False):
+        """
+        Purpose:
+            Construct the detector.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         self.framework_name = FRAMEWORK_JAVA
     
     def detect(self, input_path: str):
-        
+        """
+        Purpose:
+            Detect a conventional Android app in an APK or a project.
+
+        Parameters:
+            input_path: Path to an APK or a project directory.
+
+        Returns:
+            A detection dict with framework, indicators and confidence, or None.
+        """
         if input_path.endswith('.apk'):
             return self._detect_in_apk(input_path)
         else:
             return self._detect_in_project(input_path)
     
     def _detect_in_apk(self, apk_path: str):
-        """Detect Java/Kotlin in APK by analyzing DEX files and structure"""
+        """
+        Purpose:
+            Detect a conventional Android app by finding DEX files and no cross-platform framework markers.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            A detection dict, or None when DEX is absent or another framework was recognised.
+
+        Side effects:
+            Opens the APK as a zip archive.
+
+        Implementation notes:
+            The exclusion check is the whole logic. Reporting Java for a Flutter app would route it to JADX, which would decompile the thin Java shell and find nothing, while the actual application logic sits untouched in the Dart snapshot. Confidence is a flat high value rather than accumulated, because the conclusion is categorical: either DEX is present without other markers or it is not. The Kotlin runtime is noted as an indicator but does not change the result, since both languages compile to the same bytecode and take the same decompilation path. Only the entry names are read -- no entry is extracted -- which keeps this cheap enough to run on every scan.
+        """
         try:
             with zipfile.ZipFile(apk_path, 'r') as zipObject:
                 file_names = zipObject.namelist()
@@ -66,7 +129,22 @@ class JavaDetector:
             return None
     
     def _detect_in_project(self, input_path: str):
-        """Detect Java in project directory"""
+        """
+        Purpose:
+            Detect an Android project by its layout and build files.
+
+        Parameters:
+            input_path: Path to the project root.
+
+        Returns:
+            A detection dict, or None when nothing matched.
+
+        Side effects:
+            Walks parts of the project tree.
+
+        Implementation notes:
+            Confidence accumulates across three kinds of evidence, weighted by how conclusive each is: directory layout, then build files, then actual source files. Finding real Java sources weighs most because layout alone can be an empty scaffold. The source walk stops after a few files. It only needs to establish that Java sources exist, and walking an entire project to count them would be wasted work. The total is capped at one, since the weights are chosen to reach certainty before every indicator is found.
+        """
         indicators = []
         confidence = 0.0
         

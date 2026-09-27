@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#
+# Refuses a push unless the comment-style checker and the full test suite both pass. Enable it with:  git config core.hooksPath .githooks
+#
+# Bypass is possible with --no-verify; CI runs the same two gates, so a bypassed push still fails there.
+
+set -uo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root" || exit 1
+
+if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
+    PY="${VIRTUAL_ENV}/bin/python"
+elif [ -x ".venv/bin/python" ]; then
+    PY=".venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PY="python3"
+else
+    PY="python"
+fi
+
+bold=""; red=""; green=""; reset=""
+if [ -t 1 ]; then
+    bold="$(printf '\033[1m')"; red="$(printf '\033[31m')"
+    green="$(printf '\033[32m')"; reset="$(printf '\033[0m')"
+fi
+
+failed=0
+
+printf '%s[1/2]%s comment style\n' "$bold" "$reset"
+if "$PY" scripts/check_comment_style.py; then
+    printf '      %sok%s\n' "$green" "$reset"
+else
+    printf '      %sfailed%s\n' "$red" "$reset"
+    failed=1
+fi
+
+printf '%s[2/2]%s tests\n' "$bold" "$reset"
+if "$PY" -m pytest -q; then
+    printf '      %sok%s\n' "$green" "$reset"
+else
+    printf '      %sfailed%s\n' "$red" "$reset"
+    failed=1
+fi
+
+if [ "$failed" -ne 0 ]; then
+    printf '\n%spush refused.%s Fix the failures above, then push again.\n' "$red" "$reset"
+    printf 'Run the same checks locally with: %sscripts/preflight.sh%s\n' "$bold" "$reset"
+    printf 'See CONTRIBUTING.md for the standard.\n'
+    exit 1
+fi
+
+printf '\n%sall checks passed.%s\n' "$green" "$reset"
+exit 0

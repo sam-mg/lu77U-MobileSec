@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lu77U-MobileSec"
-version = "0.1.4"
+version = "0.1.5"
 description = "The Only Mobile Security Tool Which You Need"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -26,6 +26,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
     "Environment :: Console",
     "Natural Language :: English",
@@ -52,11 +53,20 @@ dependencies = [
     "defusedxml>=0.7.1",
     "Pygments>=2.17.0",
     "json_repair>=0.30",
+    "semgrep>=1.100.0",
 ]
 
 [project.optional-dependencies]
 claude = ["anthropic>=0.40.0"]
-all = ["anthropic>=0.40.0"]
+dev = ["pytest>=8.0"]
+all = ["anthropic>=0.40.0", "pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "ignore:.*httpx2.*",
+]
 
 [project.urls]
 Homepage = "https://github.com/sam-mg/lu77U-MobileSec"
@@ -69,4 +79,5 @@ where = ["."]
 include = ["lu77U_MobileSec*"]
 
 [tool.setuptools.package-data]
+"lu77U_MobileSec" = ["skills/*.md", "rules/semgrep/*/*.yml", "rules/semgrep/*/*.yaml"]
 "lu77U_MobileSec.web" = ["static/**/*", "static/*"]

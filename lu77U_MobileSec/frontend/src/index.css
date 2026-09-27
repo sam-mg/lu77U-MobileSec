@@ -4,6 +4,13 @@
 
 :root {
   color-scheme: dark;
+
+  /* Spring-like easing for summoned layers (the mobile nav drawer). A
+     critically-damped spring reads as a strong ease-out; the enter curve
+     starts fast and settles long, the small-move curve is for hover/slide.
+     No overshoot - the drawer is opened, not thrown. */
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 html,
@@ -12,54 +19,172 @@ body,
   height: 100%;
 }
 
+/* A long package name, file path or code line must never widen the page.
+   `clip` (not `hidden`) so it does not become a scroll container and break
+   the sidebar's position: sticky. */
+#root {
+  overflow-x: clip;
+}
+
 body {
-  @apply bg-ink-950 text-slate-200 antialiased;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Pure black ground; Menlo, the single voice of the app. */
+  @apply bg-black text-slate-200 antialiased;
+  font-family: Menlo, ui-monospace, SFMono-Regular, Monaco, monospace;
+  /* Body copy sits near-zero tracking; monospace already carries its rhythm. */
+  letter-spacing: 0;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Typography - tracking is size-specific (skill §15): tighten as text grows,
+   never one value for all sizes. Leading tightens inversely with size. */
+h1, .text-2xl, .text-3xl {
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+h2, .text-xl, .text-lg {
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+/* Uppercase micro-labels want a touch of positive tracking to stay legible. */
+.label, .uppercase {
+  letter-spacing: 0.04em;
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #334155 transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 
 @layer components {
+  /* Surfaces are the same black, lifted a hair and made of translucent white
+     film + blur - a material layer, not a new colour (skill §12). */
   .card {
-    @apply rounded-xl border border-ink-800 bg-ink-900/70 backdrop-blur;
+    @apply rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl;
   }
+
+  /* Every control gives feedback on the press itself, instantly (skill §1). */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium;
+    transition: transform 120ms cubic-bezier(0.2, 0, 0, 1), background-color 140ms ease-out, border-color 140ms ease-out, opacity 140ms ease-out;
   }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+  /* Primary = solid white on black: the highest-contrast, most-committed action. */
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-500;
+    @apply btn bg-white text-black hover:bg-white/90;
   }
+  /* Ghost = a hairline material, for secondary actions. */
   .btn-ghost {
-    @apply btn border border-ink-700 bg-ink-800/60 text-slate-200 hover:bg-ink-700;
+    @apply btn border border-white/[0.12] bg-white/[0.04] text-slate-200 hover:bg-white/[0.08];
   }
+  /* Danger keeps a red foreground - colour carries the warning (skill §16). */
   .btn-danger {
-    @apply btn border border-rose-900/60 bg-rose-950/40 text-rose-300 hover:bg-rose-900/40;
+    @apply btn border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20;
   }
+
   .input {
-    @apply w-full rounded-lg border border-ink-700 bg-ink-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
+    @apply w-full rounded-lg border border-white/[0.12] bg-black px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-white/40 focus:outline-none focus:ring-1 focus:ring-white/40;
+    transition: border-color 140ms ease-out, box-shadow 140ms ease-out;
   }
   .label {
-    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-400;
+    @apply mb-1.5 block text-xs font-medium uppercase text-slate-400;
+  }
+
+  /* Touch input needs a 44px hit area even where the visual is smaller
+     (skill §3). The .btn/.input paddings above land near 36px on a mouse
+     UI, which is fine - this only bumps them on a coarse pointer. */
+  @media (pointer: coarse) {
+    .btn,
+    .input {
+      min-height: 44px;
+    }
+    .btn {
+      @apply px-4;
+    }
+  }
+
+  /* Scroll-edge chrome: a translucent black bar with blur, content passing
+     underneath (skill §12) - no hard 1px divider. */
+  .chrome {
+    @apply bg-black/70 backdrop-blur-xl;
   }
 }
 
-.tok-kw { color: #C792EA; font-weight: 600; }
-.tok-str { color: #7EE787; }
-.tok-cm { color: #8B949E; font-style: italic; }
-.tok-num { color: #FFA657; }
-.tok-fn { color: #79C0FF; }
-.tok-op { color: #C9D1D9; }
+/* Interactive surfaces get the same instant press response as buttons. */
+a:active,
+button:active,
+[role="button"]:active {
+  transform: scale(0.98);
+}
+
+/* Syntax tokens - muted, meaningful colour on black. Kept because code
+   colour is information, not decoration. */
+.tok-kw { color: #d2a8ff; font-weight: 600; }
+.tok-str { color: #7ee787; }
+.tok-cm { color: #6e7681; font-style: italic; }
+.tok-num { color: #ffa657; }
+.tok-fn { color: #a5d6ff; }
+.tok-op { color: #c9d1d9; }
+
+/* Accessibility (skill §14). Reduced motion → no spring/slide, gentle fade
+   only, and no press-scale. Reduced transparency → solid black surfaces. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .btn:active,
+  a:active,
+  button:active,
+  [role="button"]:active {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .card {
+    @apply border-white/[0.15] bg-neutral-950;
+    backdrop-filter: none;
+  }
+  .chrome {
+    @apply bg-black;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .card {
+    @apply border-white/25;
+  }
+  .input {
+    @apply border-white/30;
+  }
+}

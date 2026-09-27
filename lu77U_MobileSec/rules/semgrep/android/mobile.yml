@@ -1,0 +1,144 @@
+# Android rules for lu77U-MobileSec, run against decompiled Java.
+#
+# Deliberately small and high-signal. Every match is handed to the model as
+# something to confirm, so a noisy rule does not merely add a false positive --
+# it spends the verification budget that the real findings need. Broad community
+# rulesets can be layered on separately by pointing the runner at another rules
+# directory; these are the patterns tied to this project's own vulnerability
+# classes and to chain detection.
+#
+# metadata.vuln_class must be a code from lu77U_MobileSec/validation/taxonomy.py.
+# metadata.chain_tag is what the chain builder pairs on when assembling
+# deep-link-to-WebView chains.
+
+rules:
+  - id: lu77u.android.webview.loadurl-from-intent
+    message: >-
+      WebView.loadUrl() receives a URL derived from an Intent extra or Uri. If
+      the host Activity is exported or deep-linked, an attacker controls what
+      loads into an authenticated WebView.
+    severity: WARNING
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: $WV.loadUrl((String) $I.getStringExtra(...));
+          - pattern: $WV.loadUrl($I.getStringExtra(...));
+          - pattern: $WV.loadUrl($I.getData().toString());
+          - pattern: $WV.loadUrl($I.getData().getQueryParameter(...));
+    metadata:
+      vuln_class: PLATFORM-02
+      chain_tag: deeplink_to_webview
+      cwe: "CWE-939"
+      owasp_mobile: "M4: Insufficient Input/Output Validation"
+
+  - id: lu77u.android.webview.js-interface-added
+    message: >-
+      addJavascriptInterface exposes a Java object to web content. If this
+      WebView ever loads an attacker-controlled URL, every @JavascriptInterface
+      method becomes remotely callable.
+    severity: WARNING
+    languages: [java]
+    pattern: $WV.addJavascriptInterface($OBJ, $NAME);
+    metadata:
+      vuln_class: PLATFORM-04
+      chain_tag: js_bridge
+      cwe: "CWE-749"
+      owasp_mobile: "M4: Insufficient Input/Output Validation"
+
+  - id: lu77u.android.webview.universal-file-access
+    message: >-
+      setAllowUniversalAccessFromFileURLs(true) lets content loaded from file://
+      read any origin, defeating the same-origin policy.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: $S.setAllowUniversalAccessFromFileURLs(true);
+      - pattern: $S.setAllowFileAccessFromFileURLs(true);
+    metadata:
+      vuln_class: PLATFORM-05
+      chain_tag: webview_file_access
+      cwe: "CWE-200"
+      owasp_mobile: "M8: Security Misconfiguration"
+
+  - id: lu77u.android.intent.redirect
+    message: >-
+      An Intent is extracted from an incoming Intent and started. Classic intent
+      redirection: an attacker reaches non-exported components through this app.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: |
+          $I = (Intent) $SRC.getParcelableExtra(...);
+          ...
+          startActivity($I);
+      - pattern: |
+          $I = $SRC.getParcelableExtra(..., Intent.class);
+          ...
+          startActivity($I);
+    metadata:
+      vuln_class: PLATFORM-03
+      cwe: "CWE-940"
+      owasp_mobile: "M4: Insufficient Input/Output Validation"
+
+  - id: lu77u.android.ssl.bypass-handler-proceed
+    message: >-
+      onReceivedSslError() calls handler.proceed(), silently accepting invalid
+      TLS certificates. Traffic in this WebView can be intercepted.
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      public void onReceivedSslError(WebView $V, SslErrorHandler $H, SslError $E) {
+        ...
+        $H.proceed();
+        ...
+      }
+    metadata:
+      vuln_class: NETWORK-01
+      cwe: "CWE-295"
+      owasp_mobile: "M5: Insecure Communication"
+
+  - id: lu77u.android.crypto.weak-algorithm
+    message: >-
+      A broken or deprecated cryptographic primitive is requested. MD5/SHA-1 are
+      not collision-resistant; DES/RC4 and ECB mode are not confidential.
+    severity: WARNING
+    languages: [java]
+    pattern-either:
+      - pattern: MessageDigest.getInstance("MD5")
+      - pattern: MessageDigest.getInstance("SHA-1")
+      - pattern: Cipher.getInstance("DES")
+      - pattern: Cipher.getInstance("RC4")
+      - pattern: Cipher.getInstance("=~/.*ECB.*/")
+    metadata:
+      vuln_class: CRYPTO-01
+      cwe: "CWE-327"
+      owasp_mobile: "M10: Insufficient Cryptography"
+
+  - id: lu77u.android.pendingintent.mutable-implicit
+    message: >-
+      A PendingIntent is created without FLAG_IMMUTABLE. On API < 31 it defaults
+      to mutable, letting another app fill in the blanks and act as this app.
+    severity: WARNING
+    languages: [java]
+    pattern-either:
+      - pattern: PendingIntent.getActivity($C, $R, $I, 0)
+      - pattern: PendingIntent.getService($C, $R, $I, 0)
+      - pattern: PendingIntent.getBroadcast($C, $R, $I, 0)
+    metadata:
+      vuln_class: PLATFORM-08
+      cwe: "CWE-927"
+      owasp_mobile: "M3: Insecure Authentication/Authorization"
+
+  - id: lu77u.android.storage.world-accessible-prefs
+    message: >-
+      SharedPreferences opened in MODE_WORLD_READABLE/WRITEABLE is readable by
+      other apps. These modes were deprecated and are unsafe for any app data.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: $C.getSharedPreferences($N, Context.MODE_WORLD_READABLE)
+      - pattern: $C.getSharedPreferences($N, Context.MODE_WORLD_WRITEABLE)
+    metadata:
+      vuln_class: STORAGE-01
+      cwe: "CWE-732"
+      owasp_mobile: "M9: Insecure Data Storage"

@@ -1,4 +1,19 @@
-"""Device discovery and readiness-check endpoints."""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.web.routes.dynamic
+
+Purpose:
+    Expose the device-facing endpoints: which devices are attached, what is installed on them, and whether a device is ready for a dynamic run.
+
+Responsibilities:
+    Serve device listings and run the readiness checks off the event loop.
+
+Dependencies:
+    The device, instrumentation and interception managers.
+
+Security considerations:
+    The readiness check is not a passive probe: it deploys and starts the instrumentation server and performs a full interception check, which installs a CA on the device. It is exposed as an endpoint because the dashboard needs it before a run, but it changes device state.
+"""
 
 import asyncio
 import threading
@@ -11,26 +26,55 @@ router = APIRouter(prefix="/api", tags=["dynamic"])
 
 @router.get("/devices")
 async def list_devices(request: Request):
+    """
+    Purpose:
+        List the Android devices currently attached and ready.
+
+    Parameters:
+        request: The incoming request.
+
+    Returns:
+        The JSON response body.
+    """
     verbose = bool(getattr(request.app.state, "verbose", False))
     return {"devices": ADBManager(verbose=verbose).list_devices()}
 
 @router.get("/devices/{serial}/apps")
 async def list_device_apps(request: Request, serial: str):
+    """
+    Purpose:
+        List the third-party packages installed on a device, for the app chooser.
+
+    Parameters:
+        request: The incoming request.
+        serial: Device serial.
+
+    Returns:
+        The JSON response body.
+    """
     verbose = bool(getattr(request.app.state, "verbose", False))
     return {"packages": ADBManager(verbose=verbose).list_packages(serial)}
 
 def _run_device_checks(serial: str, verbose: bool) -> dict:
-    """Blocking: run real Root / Frida / HTTPS-intercept checks against a
-    device. Always called via ``asyncio.to_thread`` — a real Frida push/
-    start/verify plus a full HTTPS man-in-the-middle round trip (CA install,
-    proxy, browser navigation) takes several seconds, which would otherwise
-    freeze the whole server (including any in-progress scan's WebSocket)
-    since this is a synchronous, subprocess-heavy call chain.
+    """
+    Purpose:
+        Run the instrumentation and interception readiness checks for a device.
 
-    Frida (``adb forward`` to a device-hashed local port) and the HTTPS check
-    (``adb reverse`` on a fixed port, unrelated device files/settings) don't
-    share any state, so they run concurrently on their own threads rather
-    than back to back — total time is whichever is slower, not the sum.
+    Parameters:
+        serial: Device serial.
+        verbose: Enables tracing.
+
+    Returns:
+        The outcome of each check.
+
+    Side effects:
+        Deploys and starts the instrumentation server, installs an interception CA, and reconfigures the device proxy.
+
+    Implementation notes:
+        Root is established once and passed into the instrumentation check, since both checks depend on it and probing twice would be wasted work on a slow link.
+
+    Security considerations:
+        These checks leave the device modified. The instrumentation server is stopped afterwards; the interception CA remains installed until removed.
     """
     adb = ADBManager(verbose=verbose)
     root_ok = adb.check_root(serial)
@@ -38,6 +82,16 @@ def _run_device_checks(serial: str, verbose: bool) -> dict:
     results: dict = {}
 
     def _run_frida() -> None:
+        """
+        Purpose:
+            Run the instrumentation readiness check and record its outcome.
+
+        Side effects:
+            Deploys and starts the instrumentation server, then stops it again.
+
+        Implementation notes:
+            The server is stopped after the check because this is a readiness probe rather than the start of a session; leaving it running would hold root on the device until something else tore it down.
+        """
         frida = FridaManager(verbose=verbose)
         frida_ok, frida_message = frida.setup_and_verify(adb, serial, root_ok)
         try:
@@ -47,6 +101,16 @@ def _run_device_checks(serial: str, verbose: bool) -> dict:
         results["frida"] = {"ok": frida_ok, "message": frida_message}
 
     def _run_mitm() -> None:
+        """
+        Purpose:
+            Run the interception readiness check and record its outcome.
+
+        Side effects:
+            Installs the interception CA and reconfigures the device proxy.
+
+        Security considerations:
+            A successful check leaves the device trusting the interception CA.
+        """
         mitmproxy = MitmproxyManager(verbose=verbose)
         mitm_ok, mitm_message = mitmproxy.run_https_check(adb, serial)
         results["mitmproxy"] = {"ok": mitm_ok, "message": mitm_message}
@@ -68,14 +132,19 @@ def _run_device_checks(serial: str, verbose: bool) -> dict:
 
 @router.get("/devices/{serial}/checks")
 async def device_checks(request: Request, serial: str):
-    """Per-device readiness: Root, Frida, MitmProxy (HTTPS) — real functional
-    checks against the device, not host tool presence.
+    """
+    Purpose:
+        Run the device readiness checks and return their outcomes.
 
-    These mirror exactly what a real scan does (Frida push/start/verify via
-    frida-ps, a full HTTPS interception round trip with CA installation), so
-    a green check here means the same thing a green check in a completed
-    scan's results does — at the cost of taking noticeably longer than a
-    simple presence check.
+    Parameters:
+        request: The incoming request.
+        serial: Device serial.
+
+    Returns:
+        The JSON response body.
+
+    Implementation notes:
+        The checks are run on a worker thread rather than on the event loop, because they spawn processes and wait on a device for tens of seconds -- doing that inline would block every other request.
     """
     verbose = bool(getattr(request.app.state, "verbose", False))
     return await asyncio.to_thread(_run_device_checks, serial, verbose)

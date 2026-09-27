@@ -1,4 +1,22 @@
-"""AI-vision verification for dynamic analysis."""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.dynamic_analysis.visual_checker
+
+Purpose:
+    Confirm the device's network path is working and not being blocked, by loading a known page and having a vision model describe what is actually on screen.
+
+Responsibilities:
+    Drive the device browser to a reference page, capture a screenshot, and ask the model whether it rendered.
+
+Dependencies:
+    The AI provider layer, the device manager.
+
+Implementation notes:
+    Some failures are only visible on screen. A certificate warning, a captive portal or a blocked connection all leave the device apparently online while nothing the app does actually reaches its server. Looking at the screen is the only check that catches all of them.
+
+Security considerations:
+    A screenshot of the device is sent to the AI provider, and it shows whatever the browser is displaying.
+"""
 
 import json
 import re
@@ -23,14 +41,24 @@ VISUAL_CHECK_SCHEMA = {
 
 VISUAL_CHECK_SYSTEM = (
     "You are looking at a single screenshot taken from an Android device or "
-    "emulator. Answer ONLY with the requested JSON object — no prose, no "
+    "emulator. Answer ONLY with the requested JSON object - no prose, no "
     "markdown, no <think> blocks."
 )
 
 def _extract_json_object(text: str) -> Optional[dict]:
-    """Parse the first complete top-level JSON object in ``text``, tolerating
-    stray text/markdown fences around it (mirrors the parsing already used in
-    ``agent_loop.py``/``ui_automator.py`` for model responses)."""
+    """
+    Purpose:
+        Parse the model's verdict, tolerating a response wrapped in prose.
+
+    Parameters:
+        text: The response text.
+
+    Returns:
+        The parsed object, or None.
+
+    Implementation notes:
+        A direct parse is tried first and a greedy brace match second. The greedy match works here because the expected object is small and flat, unlike the nested action objects elsewhere in the dynamic pipeline.
+    """
     try:
         return json.loads(text)
     except Exception:
@@ -44,8 +72,26 @@ def _extract_json_object(text: str) -> Optional[dict]:
         return None
 
 def run_google_visual_check(adb_manager, device: str, verbose: bool = False) -> Tuple[bool, str]:
-    """Open google.com on the device and ask the active AI provider to confirm
-    it rendered. Returns ``(ok, message)``; never raises.
+    """
+    Purpose:
+        Check that the device can load a known page, judged from a screenshot.
+
+    Parameters:
+        adb_manager: Device control.
+        device: Device serial.
+        verbose: Traces each stage.
+
+    Returns:
+        A success flag and a message.
+
+    Side effects:
+        Opens a URL on the device, captures a screenshot, and makes an AI provider request.
+
+    Implementation notes:
+        Vision support is checked before anything else, so a text-only provider skips the check with a clear message rather than sending an image that will be ignored and getting a confident answer about nothing. Failure to construct a provider is reported rather than raised, since this is a diagnostic step and should not abort the dynamic run.
+
+    Security considerations:
+        The screenshot is transmitted to the configured AI provider. It is taken immediately after loading a known reference page, so it should show only that page -- but whatever else is on screen goes with it.
     """
     try:
         provider = get_active_provider(verbose=verbose)
@@ -62,7 +108,7 @@ def run_google_visual_check(adb_manager, device: str, verbose: bool = False) -> 
     verbose_print(f"Opening {VISUAL_CHECK_URL} in the device browser", verbose)
     if not adb_manager.open_url(device, VISUAL_CHECK_URL):
         return False, "Could not launch the browser on the device."
-    time.sleep(4)  # let the page render before capturing
+    time.sleep(4)
 
     screenshot = adb_manager.capture_screenshot(device)
     if not screenshot:
@@ -75,7 +121,8 @@ def run_google_visual_check(adb_manager, device: str, verbose: bool = False) -> 
         "requested JSON object."
     )
     try:
-        result = provider.analyze(prompt, system_message=VISUAL_CHECK_SYSTEM, schema=VISUAL_CHECK_SCHEMA, images=[screenshot])
+        result = provider.analyze(prompt, system_message=VISUAL_CHECK_SYSTEM, schema=VISUAL_CHECK_SCHEMA,
+                                  images=[screenshot], max_tokens=300)
     except Exception as exc:
         verbose_print(f"Visual check request errored: {exc}", verbose)
         return False, f"Visual check request failed: {exc}"
@@ -93,5 +140,5 @@ def run_google_visual_check(adb_manager, device: str, verbose: bool = False) -> 
     message = f"AI visual check: {description}" if description else (
         "AI confirmed the expected page is visible." if matches
         else "AI did not confirm the expected page is visible.")
-    verbose_print(f"Visual check result: matches={matches} — {message}", verbose)
+    verbose_print(f"Visual check result: matches={matches} - {message}", verbose)
     return matches, message

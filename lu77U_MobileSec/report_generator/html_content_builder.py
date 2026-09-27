@@ -1,19 +1,67 @@
-"""HTML Content Builder for PDF Reports"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.report_generator.html_content_builder
+
+Purpose:
+    Build the detection-only HTML report: what the app is, which framework it uses, what it declares, and what went wrong during analysis.
+
+Responsibilities:
+    Assemble the document from per-section builders.
+
+Dependencies:
+    The metadata module for the product name and version.
+
+Implementation notes:
+    Sections are built independently and concatenated, each returning an empty string when it has nothing to show. That keeps the report free of empty headings for an app that declares no components or produced no warnings. This is the simpler of the two HTML builders; the comprehensive one produces the full findings report.
+
+Security considerations:
+    Values from the analysed APK -- package name, app label, component class names -- are interpolated into HTML here without escaping. An app declaring a label containing markup would have it rendered rather than displayed. Anything reading this report should treat it as generated from untrusted input, and this builder would be the place to add escaping.
+"""
 
 from datetime import datetime
 from typing import Optional
 from lu77U_MobileSec.detection.results import DetectionResult
+from .._metadata import HOMEPAGE
+from ..config.settings import APP_NAME, APP_VERSION
+from ..config.branding import FAVICON_LINK_TAG
 from ..utils.verbose import verbose_print
 
 class HTMLContentBuilder:
-    """Builds HTML content for PDF reports from analysis results"""
-    
+    """
+    Purpose:
+        Builds the detection-only HTML report.
+
+    Attributes:
+        verbose: Whether building is traced.
+
+    Thread-safety:
+        Holds no per-report state.
+    """
     def __init__(self, verbose: bool = False):
+        """
+        Purpose:
+            Construct the builder.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         verbose_print("HTMLContentBuilder initialized", self.verbose)
     
     def build_html_content(self, detection_result: DetectionResult) -> str:
-        """Build enhanced HTML content for PDF report"""
+        """
+        Purpose:
+            Assemble the complete report document.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The report HTML.
+
+        Implementation notes:
+            Sections are appended in reading order -- overview, framework, application detail, issues -- so the reader meets the app's identity before the detail.
+        """
         verbose_print("Starting HTML content building", self.verbose)
         verbose_print(f"Building report for target: {detection_result.target_path}", self.verbose)
         
@@ -39,7 +87,16 @@ class HTMLContentBuilder:
         return html
     
     def _build_html_header(self) -> str:
-        """Build HTML document header"""
+        """
+        Purpose:
+            Build the document head and the report banner.
+
+        Returns:
+            The opening HTML.
+
+        Implementation notes:
+            Carries the generation timestamp, so a printed or saved report states when it was produced rather than being undatable.
+        """
         verbose_print("Building HTML document header", self.verbose)
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         verbose_print(f"Generated timestamp: {timestamp}", self.verbose)
@@ -49,18 +106,34 @@ class HTMLContentBuilder:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>lu77U-MobileSec Analysis Report</title>
+    <title>{APP_NAME} Analysis Report</title>
+    {FAVICON_LINK_TAG}
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📱 lu77U-MobileSec Analysis Report</h1>
+            <h1>📱 {APP_NAME} Analysis Report</h1>
             <p class="subtitle">Mobile Security Analysis Tool</p>
             <p class="timestamp">Generated: {timestamp}</p>
         </div>"""
     
     def _build_overview_section(self, detection_result: DetectionResult) -> str:
-        """Build analysis overview section"""
+        """
+        Purpose:
+            Build the overview section, naming the app and the target analysed of the report.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Implementation notes:
+            A missing package name renders as a placeholder rather than an empty cell, so a report on an app whose manifest could not be read still reads coherently.
+
+        Security considerations:
+            Values interpolated here originate in the analysed APK and are not escaped by this builder; see the module note.
+        """
         verbose_print("Building overview section", self.verbose)
         
         package_name = "N/A"
@@ -103,7 +176,19 @@ class HTMLContentBuilder:
         </div>"""
     
     def _build_framework_section(self, detection_result: DetectionResult) -> str:
-        """Build framework detection results section"""
+        """
+        Purpose:
+            Build the framework detection section of the report.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Security considerations:
+            Values interpolated here originate in the analysed APK and are not escaped by this builder; see the module note.
+        """
         verbose_print("Building framework detection section", self.verbose)
         
         html = """
@@ -123,7 +208,19 @@ class HTMLContentBuilder:
         return html
     
     def _build_framework_summary(self, detection_result: DetectionResult) -> str:
-        """Build framework detection summary"""
+        """
+        Purpose:
+            Build the framework summary, naming the primary framework and how many were detected of the report.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Security considerations:
+            Values interpolated here originate in the analysed APK and are not escaped by this builder; see the module note.
+        """
         primary = detection_result.framework_results.get_primary_framework_name()
         detected_count = len(detection_result.framework_results.detected_frameworks)
         return f"""
@@ -142,7 +239,22 @@ class HTMLContentBuilder:
             </div>"""
     
     def _build_detected_frameworks_list(self, detection_result: DetectionResult) -> str:
-        """Build list of detected frameworks"""
+        """
+        Purpose:
+            Build the list of detected frameworks of the report.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Implementation notes:
+            Entries are read defensively because detectors return both dict and object shapes. Returns empty when nothing was detected, so no heading appears over an empty list.
+
+        Security considerations:
+            Values interpolated here originate in the analysed APK and are not escaped by this builder; see the module note.
+        """
         if not detection_result.framework_results.detected_frameworks:
             return ""
         html = "<h3>Detected Frameworks</h3>"
@@ -159,7 +271,22 @@ class HTMLContentBuilder:
         return html
     
     def _build_confidence_scores(self, detection_result: DetectionResult) -> str:
-        """Build confidence scores section"""
+        """
+        Purpose:
+            Build the per-framework confidence scores of the report.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Implementation notes:
+            Shown as percentages, and every framework considered is listed rather than only the winner, so a reader can see whether the detection was clear-cut.
+
+        Security considerations:
+            Values interpolated here originate in the analysed APK and are not escaped by this builder; see the module note.
+        """
         if not detection_result.framework_results.confidence_scores:
             return ""
         html = "<h3>Confidence Scores</h3>"
@@ -170,7 +297,19 @@ class HTMLContentBuilder:
         return html
     
     def _build_app_info_section(self, detection_result: DetectionResult) -> str:
-        """Build application information section"""
+        """
+        Purpose:
+            Build the application information section of the report.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Security considerations:
+            Values interpolated here originate in the analysed APK and are not escaped by this builder; see the module note.
+        """
         html = """
         <div class="section">
             <h2>📋 Application Information</h2>"""
@@ -183,7 +322,22 @@ class HTMLContentBuilder:
         return html
     
     def _build_basic_info_grid(self, detection_result: DetectionResult) -> str:
-        """Build basic application information grid"""
+        """
+        Purpose:
+            Build the grid of the app's declared identity, versions and SDK levels of the report.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Implementation notes:
+            Each row is emitted only when its value is present, so an app that declares little produces a short grid rather than a column of placeholders.
+
+        Security considerations:
+            Values interpolated here originate in the analysed APK and are not escaped by this builder; see the module note.
+        """
         html = '<div class="info-grid">'
         basic_info = detection_result.basic_info
         if basic_info.app_name:
@@ -229,7 +383,22 @@ class HTMLContentBuilder:
         return html
     
     def _build_components_section(self, detection_result: DetectionResult) -> str:
-        """Build Android components section"""
+        """
+        Purpose:
+            Build the declared components section of the report.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Implementation notes:
+            Returns empty when the app declares no components, which usually means the manifest could not be parsed rather than that the app has none.
+
+        Security considerations:
+            Values interpolated here originate in the analysed APK and are not escaped by this builder; see the module note.
+        """
         basic_info = detection_result.basic_info
         component_count = basic_info.get_component_count()
         if component_count == 0:
@@ -244,7 +413,20 @@ class HTMLContentBuilder:
         return html
     
     def _build_component_list(self, component_type: str, components: list) -> str:
-        """Build a list of all components without truncation"""
+        """
+        Purpose:
+            Build the list for one kind of declared component.
+
+        Parameters:
+            component_type: The component kind, used as the heading.
+            components: The declared class names.
+
+        Returns:
+            The list HTML, empty when there are none.
+
+        Security considerations:
+            Component class names come from the app's manifest and are interpolated without escaping; see the module note.
+        """
         verbose_print(f"Building component list for {component_type}: {len(components)} items", self.verbose)
         
         if not components:
@@ -256,7 +438,7 @@ class HTMLContentBuilder:
         
         for i, component in enumerate(components):
             html += f'<li>{component}</li>'
-            if i == 0:  # Log first component as example
+            if i == 0:
                 verbose_print(f"First {component_type.lower()}: {component}", self.verbose)
         
         html += '</ul>'
@@ -264,7 +446,22 @@ class HTMLContentBuilder:
         return html
     
     def _build_issues_section(self, detection_result: DetectionResult) -> str:
-        """Build analysis issues section"""
+        """
+        Purpose:
+            Build the analysis issues section, listing errors and warnings gathered during detection of the report.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Implementation notes:
+            Returns empty when the scan was clean. Showing these matters: a report that omitted them would present a partial analysis as a complete one.
+
+        Security considerations:
+            Values interpolated here originate in the analysed APK and are not escaped by this builder; see the module note.
+        """
         if not (detection_result.errors or detection_result.warnings):
             return ""
         html = """
@@ -286,11 +483,20 @@ class HTMLContentBuilder:
         return html
     
     def _build_footer(self) -> str:
-        """Build HTML document footer"""
+        """
+        Purpose:
+            Build the report footer.
+
+        Returns:
+            The closing HTML.
+
+        Implementation notes:
+            Carries the tool name, version and timestamp, so a report separated from its scan still states what produced it -- which matters because findings and severities change between versions.
+        """
         return f"""
         <div class="footer">
-            <p>Generated by lu77U-MobileSec v1.0.0 • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            <p>For more information, visit: <a href="https://github.com/sam-mg/lu77U-MobileSec">https://github.com/sam-mg/lu77U-MobileSec</a></p>
+            <p>Generated by {APP_NAME} v{APP_VERSION} &bull; {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p>For more information, visit: <a href="{HOMEPAGE}">{HOMEPAGE}</a></p>
         </div>
     </div>
 </body>

@@ -1,4 +1,22 @@
-"""Native (C/C++) Framework Detector for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.framework_detector.native_detector
+
+Purpose:
+    Recognise native C or C++ components, so that a report can say part of the app is outside the reach of Dalvik decompilation.
+
+Responsibilities:
+    Detect native libraries and architectures in an APK, and native build configuration in a project.
+
+Dependencies:
+    androguard when installed.
+
+Implementation notes:
+    Almost every non-trivial app contains native libraries -- every cross-platform framework ships them, and so do most common SDKs -- so this detector fires constantly. That is why the hybrid arbitrator suppresses its result whenever a specific framework was detected: on its own it would report every Flutter and React Native app as native. Its useful case is the app that has native code and is not one of those: a conventional Android app with an NDK component, where the report should say that part of the logic is not in the DEX.
+
+Security considerations:
+    Native libraries are attacker-controlled binaries. Detection names them without loading or executing anything.
+"""
 
 from ..utils.verbose import verbose_print
 import os
@@ -10,11 +28,42 @@ except ImportError:
     ANDROGUARD_AVAILABLE = False
 
 class NativeDetector:
+    """
+    Purpose:
+        Detects native code components in an APK or a project.
+
+    Attributes:
+        verbose: Whether detection is traced.
+        framework_name: The framework name reported.
+
+    Invariants:
+        Returns None when nothing matched.
+
+    Thread-safety:
+        Holds no per-detection state; safe to reuse.
+    """
     def __init__(self, verbose=False):
+        """
+        Purpose:
+            Construct the detector.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         self.framework_name = "Native (C/C++)"
     
     def detect(self, input_path: str):
+        """
+        Purpose:
+            Detect native components in an APK or a project.
+
+        Parameters:
+            input_path: Path to an APK or a project directory.
+
+        Returns:
+            A detection dict with framework, indicators and confidence, or None.
+        """
         if input_path.endswith('.apk'):
             return self._detect_native_in_apk(input_path)
         else:
@@ -22,11 +71,28 @@ class NativeDetector:
             return self._detect_native_in_project(input_path)
     
     def _detect_native_in_apk(self, apk_path: str):
-        """Detect native libraries in APK file"""
+        """
+        Purpose:
+            Detect native libraries and the architectures they are built for.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            A detection dict, or None when no indicator was found.
+
+        Side effects:
+            Parses the APK with androguard.
+
+        Implementation notes:
+            The library names carry most of the weight, and the architecture list corroborates. Only entries under the library directory with a shared-object extension count, so an unrelated file elsewhere in the archive does not qualify. The architecture list is useful beyond detection: it tells the decompilation stage which build to work from for a framework that ships several. Only the first few library names go into the indicator text, since an app can bundle dozens and the report shows them verbatim. Without androguard, detection falls back to the filename heuristic alone and says so in the indicators, so a reader can see the result is weak.
+
+        Known limitations:
+            The filename check -- matching on the APK path containing a native or NDK hint -- is a corpus-shaped heuristic that contributes confidence for any file happening to be named that way. It is small enough not to reach the reporting threshold on its own.
+        """
         indicators = []
         confidence = 0.0
         
-        # Check APK path for native indicators
         path_lower = apk_path.lower()
         if 'native' in path_lower or 'ndk' in path_lower:
             verbose_print(f"APK path contains native indicator: {path_lower}", self.verbose)
@@ -51,7 +117,6 @@ class NativeDetector:
             setup_androguard_logging(self.verbose)
             apk, dex, dx = AnalyzeAPK(apk_path)
             
-            # Check for native libraries (.so files)
             so_files = []
             for file_path in apk.get_files():
                 if file_path.startswith('lib/') and file_path.endswith('.so'):
@@ -62,7 +127,6 @@ class NativeDetector:
                 confidence += 0.8
                 verbose_print(f"Found {len(so_files)} native libraries", self.verbose)
             
-            # Check for native architectures
             lib_dirs = set()
             for file_path in apk.get_files():
                 if file_path.startswith('lib/') and '/' in file_path[4:]:
@@ -89,15 +153,29 @@ class NativeDetector:
             return None
         
     def _detect_native_in_project(self, input_path: str):
-        """Detect native code in project directory"""
+        """
+        Purpose:
+            Detect native components in a project by its build configuration and source directories.
+
+        Parameters:
+            input_path: Path to the project root.
+
+        Returns:
+            A detection dict, or None when no indicator was found.
+
+        Side effects:
+            Stats the candidate paths.
+
+        Implementation notes:
+            Both the conventional native source directories and the NDK build files are checked, covering the legacy ndk-build layout and the modern CMake one, in both bare and Gradle-module projects. Confidence accumulates per indicator and is capped, since a project with several of these markers is unambiguously using the NDK.
+        """
         verbose_print(f"Starting native detection in project directory: {input_path}", self.verbose)
         indicators = []
         confidence = 0.0
         
-        # Validate directory
         if not os.path.isdir(input_path):
             verbose_print(f"Path is not a directory: {input_path}", self.verbose)
-            return None        # Check for native development directories
+            return None
         verbose_print("Checking for native development directories", self.verbose)
         native_paths = [
             'jni/', 'src/main/cpp', 'src/main/jni', 'app/src/main/cpp'
@@ -115,7 +193,6 @@ class NativeDetector:
             else:
                 verbose_print(f"Native directory not found: {path}", self.verbose)
         
-        # Check for native build files
         verbose_print("Checking for native build files", self.verbose)
         build_files = [
             'ndk-build', 'Android.mk', 'Application.mk', 'CMakeLists.txt'
@@ -133,7 +210,6 @@ class NativeDetector:
             else:
                 verbose_print(f"Build file not found: {build_file}", self.verbose)
         
-        # Search for C/C++ source files
         verbose_print("Searching for C/C++ source files", self.verbose)
         cpp_extensions = ['.cpp', '.c', '.cc', '.cxx', '.h', '.hpp']
         verbose_print(f"Looking for extensions: {cpp_extensions}", self.verbose)

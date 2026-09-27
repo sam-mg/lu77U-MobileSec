@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
-"""Constants that are used in lu77U-MobileSec"""
+"""
+Module: lu77U_MobileSec.config.constants
+
+Purpose:
+    Central table of every fixed value the analysis pipeline shares: framework names, detection signatures, exclusion lists for framework noise, and the regular expressions used to recover findings from unstructured model output.
+
+Responsibilities:
+    Declare data only. No logic, no I/O, no imports beyond typing.
+
+Dependencies:
+    None.
+
+Implementation notes:
+    These values live here rather than beside their users because several of them are shared across package boundaries and must not drift. The framework name constants in particular are written into reports and compared after being read back, so two modules disagreeing about a spelling would be a silent, persistent bug. Keeping the exclusion tables as data means tuning what counts as framework noise is an edit to a list, not a change to the filtering logic.
+
+Security considerations:
+    The detection signatures decide which analyzer runs. An APK can deliberately include a marker for a framework it does not use, so detection is advisory and every analyzer must tolerate input that does not match its expectations.
+"""
 
 DEFAULT_STRING_PREFIXES = [
     "android.",
@@ -149,6 +166,13 @@ TECH_DETECTION_MAP = {
         "assemblies/mscorlib.dll",
         "libmonodroid.so",
         "libmonosgen-2.0.so",
+        "assemblies/assemblies.blob",
+        "assemblies/assemblies.manifest",
+        "lib/arm64-v8a/libassemblies.arm64-v8a.blob.so",
+        "lib/armeabi-v7a/libassemblies.armeabi-v7a.blob.so",
+        "lib/arm64-v8a/libmonodroid.so",
+        "lib/arm64-v8a/libmonosgen-2.0.so",
+        "lib/arm64-v8a/libxamarin-app.so",
     ],
     FRAMEWORK_UNITY: [
         "libunity.so",
@@ -221,6 +245,10 @@ XAMARIN_APK_INDICATORS = [
     'assemblies/Sikur.dll',
     'assemblies/Xamarin.Mobile.dll',
     'assemblies/mscorlib.dll',
+    'assemblies/assemblies.blob',
+    'assemblies/assemblies.manifest',
+    'libassemblies.arm64-v8a.blob.so',
+    'libassemblies.armeabi-v7a.blob.so',
     'libmonodroid.so',
     'libmonosgen-2.0.so',
     'libxamarin-app.so'

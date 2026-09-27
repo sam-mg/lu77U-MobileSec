@@ -1,11 +1,45 @@
-.DS_Store
-*.egg-info/
+# Nested clones - other people's repositories living inside this one.
+# Each has its own .git, so git would otherwise record a broken gitlink.
+etc/
+wiki/
+
+# Python bytecode and caches
 __pycache__/
-.vscode/
+*.py[cod]
 .pytest_cache/
-dist/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging and build output. Deliberately unanchored: these names are build
+# output wherever they appear, including the frontend's default vite dist/.
+# Note that lu77U_MobileSec/web/static/ is NOT build output for git's purposes
+# - it is the built UI that ships inside the wheel, so it stays tracked.
 build/
-.env
-Samples/
+dist/
+demo-dist/
+*.egg-info/
+
+# Environments and dependencies
 .venv/
+venv/
+node_modules/
+
+# Not consumed by anything here: CI and CONTRIBUTING install with pip, so the
+# uv lock is a local convenience rather than a shared input.
+uv.lock
+
+# Secrets. Never commit a real environment file; an example one is fine.
+.env
+.env.*
+!.env.example
+
+# Tool output written into the working tree
 graphify-out/
+brag-output/
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store

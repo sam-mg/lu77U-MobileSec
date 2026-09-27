@@ -1,4 +1,22 @@
-"""Comprehensive HTML Content Builder for Full Analysis Reports"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.report_generator.comprehensive_html_builder
+
+Purpose:
+    Build the full security report: the findings with their evidence, the gate verdicts that shaped them, the chains they form, what the analysis did and did not cover, and the app's identity.
+
+Responsibilities:
+    Assemble every section, render code excerpts with highlighting, and escape everything that came from the APK.
+
+Dependencies:
+    The syntax highlighter, the line-span parser.
+
+Implementation notes:
+    This is the report a reader actually acts on, so it is built to be defensible rather than merely informative: each finding carries its evidence, its verdict and the reason behind that verdict, and the coverage notices state plainly where the analysis was incomplete. The same document is rendered to HTML and to PDF, which is why nothing here references a remote resource.
+
+Security considerations:
+    Every APK-derived value goes through the escape helper before it reaches the document. This matters more here than anywhere else in the tool: a finding's title, file path and code excerpt are all attacker-influenced, and this report is opened in a browser. Any new interpolation added here must be escaped the same way.
+"""
 
 import html as _html
 import os
@@ -7,12 +25,30 @@ from datetime import datetime
 from typing import Optional, Dict, List, Any
 from lu77U_MobileSec.detection.results import DetectionResult
 from ..utils.verbose import verbose_print
-from ..config.settings import APP_VERSION
+from ..utils.scoring import calculate_security_score
+from ..config.settings import APP_NAME, APP_VERSION
+from ..config.branding import FAVICON_LINK_TAG
+from .._metadata import HOMEPAGE
 from ..ai.schema import parse_line_span
 from .syntax_highlight import highlight_lines, SYNTAX_CSS
 
 def _e(value) -> str:
-    """HTML-escape a value; return empty string for None/falsy."""
+    """
+    Purpose:
+        Escape a value for safe inclusion in the report.
+
+    Parameters:
+        value: Any value; coerced to string.
+
+    Returns:
+        The HTML-escaped text, or an empty string for a falsy value.
+
+    Security considerations:
+        This is the single escaping point for the report. Values reaching it come from an untrusted APK -- app labels, class names, code excerpts, model-written descriptions -- and the report is rendered by a browser. Interpolating any such value without it would be stored cross-site scripting in a document the analyst opens.
+
+    Implementation notes:
+        Falsy values become an empty string rather than the text "None" or "0", so an absent field renders as blank. Note that a genuine zero also renders blank, which is acceptable because no numeric field is passed through here.
+    """
     return _html.escape(str(value)) if value else ""
 
 SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
@@ -36,27 +72,78 @@ SEVERITY_DESCRIPTIONS = {
 _SEVERITY_RANK = {name: i for i, name in enumerate(SEVERITY_ORDER)}
 
 def _normalize_severity(value) -> str:
+    """
+    Purpose:
+        Map a severity onto the report's fixed ladder.
+
+    Parameters:
+        value: Severity text, or None.
+
+    Returns:
+        One of the five known severity keys.
+
+    Implementation notes:
+        An unrecognised severity becomes informational rather than raising, because this runs during rendering and an unexpected value must not lose the whole report. The validation upstream is what keeps that case from arising.
+    """
     severity = str(value or "info").strip().lower()
     return severity if severity in _SEVERITY_RANK else "info"
 
 class ComprehensiveHTMLBuilder:
-    """Builds comprehensive HTML content including vulnerability analysis results"""
+    """
+    Purpose:
+        Builds the full security report as a single HTML document.
 
+    Attributes:
+        verbose: Whether building is traced.
+
+    Invariants:
+        The document is self-contained: styles are inlined and no remote resource is referenced, so it renders identically offline and through the PDF engine.
+
+    Thread-safety:
+        Holds no per-report state.
+    """
     def __init__(self, verbose: bool = False):
+        """
+        Purpose:
+            Construct the builder.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         verbose_print("ComprehensiveHTMLBuilder initialized", self.verbose)
 
     def build_comprehensive_report(self, detection_result: DetectionResult, vulnerability_results: Optional[Dict] = None, analyzer_results: Optional[Dict] = None) -> str:
-        """Build comprehensive HTML content for PDF report including vulnerability analysis"""
+        """
+        Purpose:
+            Assemble the complete report document.
 
+        Parameters:
+            detection_result: Detection output.
+            vulnerability_results: Findings from the analysis.
+            analyzer_results: Per-analyzer detail, including coverage.
+
+        Returns:
+            The report HTML.
+
+        Implementation notes:
+            Sections are ordered for a reader working top to bottom: the header and its score, then any coverage caveats, then the statistics, the index, and finally the findings in full. The caveats come before the numbers deliberately -- a reader should know the analysis was incomplete before they read a count.
+        """
         is_unsupported = bool(analyzer_results and analyzer_results.get('unsupported_framework', False))
-        vulnerabilities = self._extract_vulnerabilities(vulnerability_results, is_unsupported)
+        all_vulnerabilities = self._extract_vulnerabilities(vulnerability_results, is_unsupported)
+        vulnerabilities = [v for v in all_vulnerabilities
+                           if not (v.get('gate_result') or {}).get('mechanically_refuted')]
+        refuted_vulnerabilities = [v for v in all_vulnerabilities
+                                   if (v.get('gate_result') or {}).get('mechanically_refuted')]
 
         html = self._build_html_header()
         verbose_print("HTML header built", self.verbose)
 
         html += self._build_report_header(detection_result, vulnerabilities, is_unsupported, analyzer_results)
         verbose_print("Report header built", self.verbose)
+
+        html += self._build_coverage_notice(analyzer_results)
+        html += self._build_scope_notice(analyzer_results)
 
         if is_unsupported:
             html += self._build_unsupported_notice(analyzer_results)
@@ -71,6 +158,9 @@ class ComprehensiveHTMLBuilder:
             html += self._build_vulnerability_details(vulnerabilities)
             verbose_print("Vulnerability details built", self.verbose)
 
+            html += self._build_refuted_section(refuted_vulnerabilities)
+            verbose_print("Refuted section built", self.verbose)
+
         html += self._build_app_info_section(detection_result)
         verbose_print("App info section built", self.verbose)
 
@@ -84,13 +174,36 @@ class ComprehensiveHTMLBuilder:
         return html
 
     def _extract_vulnerabilities(self, vulnerability_results: Optional[Dict], is_unsupported: bool) -> List[Dict]:
+        """
+        Purpose:
+            Pull the finding list out of the results, whichever shape it arrived in.
+
+        Parameters:
+            vulnerability_results: Findings from the analysis.
+            is_unsupported: Whether the framework was one this tool cannot analyse deeply.
+
+        Returns:
+            The findings.
+
+        Implementation notes:
+            An unsupported framework yields no findings rather than an empty analysis presented as a clean result; the accompanying notice explains why.
+        """
         if is_unsupported or not vulnerability_results:
             return []
         vulns = vulnerability_results.get('vulnerabilities')
         return vulns if isinstance(vulns, list) else []
 
     def _build_html_header(self) -> str:
-        """Build HTML document header with enhanced styling"""
+        """
+        Purpose:
+            Build the document head, including the inlined stylesheet.
+
+        Returns:
+            The opening HTML.
+
+        Implementation notes:
+            The stylesheet is inlined rather than linked so the document is a single portable file that renders the same when emailed, archived, or fed to the PDF engine.
+        """
         verbose_print("Building comprehensive HTML document header", self.verbose)
         css_preview = self._get_comprehensive_css()[:120]
         css_preview_oneline = css_preview.replace('\n', ' ')
@@ -101,7 +214,8 @@ class ComprehensiveHTMLBuilder:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>lu77U-MobileSec Analysis Report</title>
+    <title>{APP_NAME} Analysis Report</title>
+    {FAVICON_LINK_TAG}
     <style>
         {self._get_comprehensive_css()}
     </style>
@@ -110,14 +224,22 @@ class ComprehensiveHTMLBuilder:
     <div class="container">"""
 
     def _get_comprehensive_css(self) -> str:
-        """Get CSS for the comprehensive report — an original, monospace-first
-        design (own palette, own typography, own component shapes)."""
+        """
+        Purpose:
+            Return the report's stylesheet.
+
+        Returns:
+            The CSS.
+
+        Implementation notes:
+            Severity colours are defined once here and referenced by class throughout, so the dot in the index and the badge on a finding cannot disagree. Print rules are included alongside the screen ones, so the browser's own print output matches the generated PDF.
+        """
         return """
         @page {
             margin: 0.55in;
             size: A4;
             @bottom-center {
-                content: "lu77U-MobileSec — Page " counter(page);
+                content: "__APP_NAME__ - Page " counter(page);
                 font-family: "Menlo", "SF Mono", Monaco, "DejaVu Sans Mono", monospace;
                 font-size: 7.5pt;
                 color: #9099A8;
@@ -460,6 +582,46 @@ class ComprehensiveHTMLBuilder:
         .dyn-pill.unverified { background: #FBE9E4; color: #7A241D; border: 1px solid #E0654F; text-decoration: line-through; }
         .dyn-pill.notattempted { background: #F1F2F5; color: #4A5160; border: 1px solid #C7CCD4; }
 
+        /* Exploit chains: the one finding type that is worse than it looks,
+           so it is marked in the strongest colour on the page. */
+        .callout.chain { background: #FBE9E4; color: #7A241D; }
+        .callout.chain .callout-label { color: #B3261E; }
+        .chain-components { margin: 0 0 6px 0; font-size: 8.4pt; }
+        .chain-flow { margin: 0; padding-left: 18px; }
+        .chain-flow li { margin-bottom: 3px; }
+        .chain-pill {
+            display: inline-block;
+            font-size: 7.3pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            padding: 2px 7px;
+            border-radius: 10px;
+            margin-left: 8px;
+            vertical-align: middle;
+            background: #FBE9E4;
+            color: #7A241D;
+            border: 1px solid #E0654F;
+        }
+
+        /* Validation verdicts. Deliberately the quietest block on the card:
+           it explains why a finding was demoted, and a demoted finding should
+           not draw the eye away from the ones that were not. */
+        .callout.gate { background: #F1F2F5; color: #4A5160; }
+        .callout.gate .callout-label { color: #6A7280; }
+        .gate-reasons, .gate-warnings { margin: 0; padding-left: 18px; font-size: 8.2pt; }
+        .gate-warnings { margin-top: 5px; color: #6B5205; }
+        .gate-chained { margin: 6px 0 0 0; font-size: 8.2pt; color: #7A241D; }
+        /* Cross-references. Muted on purpose: an unconfirmed pairing must not
+           compete visually with a confirmed chain. */
+        .related-findings { margin: 4px 0 0 0; padding-left: 18px; font-size: 8.2pt; }
+        .related-findings li { margin-bottom: 4px; }
+        .related-loc { color: #5F6368; font-family: monospace; font-size: 7.8pt; }
+        .related-reason { color: #5F6368; font-style: italic; }
+        /* An incomplete scan says so before anything else on the page. */
+        .callout.coverage { background: #FFF4E5; color: #7A4A00; }
+        .callout.coverage .callout-label { color: #B26A00; }
+
         .cvss-pill {
             display: inline-block;
             font-size: 7.3pt;
@@ -499,9 +661,22 @@ class ComprehensiveHTMLBuilder:
         @media print {
             .section, .vuln-item, .stat-cards, .notice-card { page-break-inside: avoid; }
         }
-        """ + SYNTAX_CSS
+        """.replace("__APP_NAME__", APP_NAME) + SYNTAX_CSS
 
     def _build_report_header(self, detection_result: DetectionResult, vulnerabilities: List[Dict], is_unsupported: bool, analyzer_results: Optional[Dict]) -> str:
+        """
+        Purpose:
+            Build the report banner: what was analysed, when, and the headline score.
+
+        Parameters:
+            detection_result: Detection output.
+            vulnerabilities: The findings.
+            is_unsupported: Whether the framework is unsupported.
+            analyzer_results: Per-analyzer detail.
+
+        Returns:
+            The header HTML.
+        """
         verbose_print("Building report header", self.verbose)
 
         counts = self._count_by_severity(vulnerabilities)
@@ -527,9 +702,9 @@ class ComprehensiveHTMLBuilder:
 
         return f"""
         <div class="report-header">
-            <p class="brand">lu77U-MobileSec</p>
+            <p class="brand">{APP_NAME}</p>
             <div class="severity-chips">{chips_html}</div>
-            <p class="tagline">Static application security analysis for Android &amp; iOS apps —
+            <p class="tagline">Static application security analysis for Android &amp; iOS apps -
                 surfacing insecure code paths, unsafe configuration, and hardening gaps
                 before they reach production.</p>
             <h1 class="app-title">{_e(app_name)}</h1>
@@ -537,17 +712,125 @@ class ComprehensiveHTMLBuilder:
         </div>"""
 
     def _target_basename(self, target_path: Optional[str]) -> str:
+        """
+        Purpose:
+            Name the analysed target for display.
+
+        Parameters:
+            target_path: The analysed path.
+
+        Returns:
+            The basename, or a placeholder.
+
+        Implementation notes:
+            Trailing separators are stripped first, so a directory target yields its own name rather than an empty string.
+        """
         if not target_path:
             return "Unknown application"
         return os.path.basename(target_path.rstrip('/')) or target_path
 
     def _count_by_severity(self, vulnerabilities: List[Dict]) -> Dict[str, int]:
+        """
+        Purpose:
+            Count findings per severity.
+
+        Parameters:
+            vulnerabilities: The findings.
+
+        Returns:
+            A count for every severity, including zeros.
+
+        Implementation notes:
+            Every severity is present even at zero, so the statistics section renders a complete row rather than omitting the levels with no findings -- which would make a clean result look like a partial one.
+        """
         counts = {s: 0 for s in SEVERITY_ORDER}
         for vuln in vulnerabilities:
             counts[_normalize_severity(vuln.get('severity'))] += 1
         return counts
 
+    def _build_coverage_notice(self, analyzer_results: Optional[Dict]) -> str:
+        """
+        Purpose:
+            Warn the reader when the AI analysis phase did not finish.
+
+        Parameters:
+            analyzer_results: Per-analyzer detail, carrying coverage.
+
+        Returns:
+            The notice HTML, empty when coverage was complete.
+
+        Implementation notes:
+            This is the most important caveat in the report. An analysis that stopped early produces fewer findings, and without this notice that reads as a safer app rather than a shorter scan. The notice states which part is still trustworthy -- the deterministic scanners ran to completion -- so the reader can calibrate rather than discarding the whole report.
+        """
+        coverage = (analyzer_results or {}).get('agent_coverage') or {}
+        if not coverage or coverage.get('complete', True):
+            return ''
+        reason = _html.escape(str(coverage.get('degraded_reason') or
+                                  'the AI phase did not finish'))
+        incomplete = coverage.get('regions_incomplete', 0)
+        total = coverage.get('regions_total', 0)
+        scope = (f'{incomplete} of {total} code regions were not fully examined'
+                 if total else 'part of the code was not fully examined')
+        return f"""
+        <div class="section">
+            <div class="callout coverage">
+                <span class="callout-label">Incomplete analysis</span>
+                <p>The AI analysis phase stopped early because {reason}, so
+                   {scope}. Findings from the deterministic scanners are
+                   complete; model-sourced findings may be missing.</p>
+            </div>
+        </div>"""
+
+    def _build_scope_notice(self, analyzer_results: Optional[Dict]) -> str:
+        """
+        Purpose:
+            Warn the reader when some cited source could not be located.
+
+        Parameters:
+            analyzer_results: Per-analyzer detail, carrying scope counts.
+
+        Returns:
+            The notice HTML, empty when everything was resolved.
+
+        Implementation notes:
+            Findings whose source could not be found are downgraded rather than dropped, so they appear in the report with a weaker verdict. This notice explains why several findings look under-evidenced.
+        """
+        coverage = (analyzer_results or {}).get('agent_coverage') or {}
+        scope = coverage.get('scope') or {}
+        missing = int(scope.get('source_missing') or 0)
+        checked = int(scope.get('source_checked') or 0)
+        if not missing:
+            return ''
+
+        points = [
+            f'<li><strong>{missing} of {checked}</strong> app classes have no file in '
+            'the decompiled output, so their source could not be reviewed. They remain '
+            'in the call graph - their callers and callees are still correct - but no '
+            'one could read them.</li>']
+        return f"""
+        <div class="section">
+            <div class="callout coverage">
+                <span class="callout-label">Incomplete source</span>
+                <p>The app\'s own code was mapped from the DEX, but part of it was not
+                   readable in the decompiled tree:</p>
+                <ul>{''.join(points)}</ul>
+            </div>
+        </div>"""
+
     def _build_unsupported_notice(self, analyzer_results: Dict) -> str:
+        """
+        Purpose:
+            Explain that the app's framework is not one this tool analyses deeply.
+
+        Parameters:
+            analyzer_results: Per-analyzer detail.
+
+        Returns:
+            The notice HTML.
+
+        Implementation notes:
+            Without this, a report on an unsupported framework shows no findings and reads as a clean bill of health, which is the most misleading output this tool could produce.
+        """
         framework_name = analyzer_results.get('framework', 'this framework')
         return f"""
         <div class="section">
@@ -561,12 +844,25 @@ class ComprehensiveHTMLBuilder:
         </div>"""
 
     def _build_statistics_section(self, vulnerabilities: List[Dict]) -> str:
+        """
+        Purpose:
+            Build the statistics section, showing the severity distribution.
+
+        Parameters:
+            vulnerabilities: The findings to render.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Implementation notes:
+            Presented as a distribution rather than a single total, because the shape of a result set matters more than its size: twenty low findings and one critical are not comparable.
+        """
         verbose_print("Building statistics section", self.verbose)
 
         total = len(vulnerabilities)
         counts = self._count_by_severity(vulnerabilities)
 
-        security_score = max(0, 100 - (counts['critical'] * 25) - (counts['high'] * 10) - (counts['medium'] * 5) - (counts['low'] * 2))
+        security_score = calculate_security_score(counts)
 
         if total == 0:
             return f"""
@@ -598,6 +894,19 @@ class ComprehensiveHTMLBuilder:
         </div>"""
 
     def _group_vulnerabilities_by_title(self, vulnerabilities: List[Dict]) -> List[Dict[str, Any]]:
+        """
+        Purpose:
+            Group findings by title for the index, keeping the worst severity in each group.
+
+        Parameters:
+            vulnerabilities: The findings.
+
+        Returns:
+            Groups with title, severity and count, sorted by severity then by count.
+
+        Implementation notes:
+            Grouping keeps the index readable for an app with the same issue in fifty files, where an ungrouped list would be unusable. A group takes the highest severity of its members rather than the first or the most common, so a critical instance is never hidden behind a group labelled medium. Sorting by severity, then descending count, then title gives a stable order that is also the order a reader wants -- worst first, most widespread first within that.
+        """
         groups: Dict[str, Dict[str, Any]] = {}
         for vuln in vulnerabilities:
             title = vuln.get('title') or vuln.get('vulnerability_type') or 'Security Issue'
@@ -612,6 +921,19 @@ class ComprehensiveHTMLBuilder:
         return rows
 
     def _build_vulnerability_index(self, vulnerabilities: List[Dict]) -> str:
+        """
+        Purpose:
+            Build the index of finding categories.
+
+        Parameters:
+            vulnerabilities: The findings to render.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+
+        Implementation notes:
+            The empty case renders an explicit statement that nothing was found, rather than an empty table -- which a reader cannot distinguish from a rendering failure.
+        """
         verbose_print("Building vulnerability index", self.verbose)
 
         if not vulnerabilities:
@@ -654,13 +976,49 @@ class ComprehensiveHTMLBuilder:
         </div>"""
 
     def _sorted_vulnerabilities(self, vulnerabilities: List[Dict]) -> List[Dict]:
+        """
+        Purpose:
+            Order findings for the detail section.
+
+        Parameters:
+            vulnerabilities: The findings.
+
+        Returns:
+            The findings, worst first.
+
+        Implementation notes:
+            Severity leads and title breaks ties, so two runs over the same app produce the same order and the reports can be diffed.
+        """
         def key(vuln: Dict):
+            """
+            Purpose:
+                Sort key placing the most severe findings first.
+
+            Parameters:
+                vuln: The finding.
+
+            Returns:
+                A comparable key of severity rank and lowercased title.
+
+            Implementation notes:
+                Title is lowercased so ordering does not depend on capitalisation, which varies between the rule engine and model output.
+            """
             severity = _normalize_severity(vuln.get('severity'))
             title = vuln.get('title') or vuln.get('vulnerability_type') or ''
             return (_SEVERITY_RANK[severity], title.lower())
         return sorted(vulnerabilities, key=key)
 
     def _build_vulnerability_details(self, vulnerabilities: List[Dict]) -> str:
+        """
+        Purpose:
+            Build the detailed findings section.
+
+        Parameters:
+            vulnerabilities: The findings to render.
+
+        Returns:
+            The section HTML, empty when there is nothing to show.
+        """
         verbose_print("Building vulnerability details", self.verbose)
 
         if not vulnerabilities:
@@ -674,14 +1032,64 @@ class ComprehensiveHTMLBuilder:
             {items_html}
         </div>"""
 
+    def _build_refuted_section(self, refuted: List[Dict]) -> str:
+        """
+        Purpose:
+            Show the findings that were refuted or set aside, with the reasons.
+
+        Parameters:
+            refuted: The set-aside findings.
+
+        Returns:
+            The section HTML, empty when there were none.
+
+        Implementation notes:
+            These are kept in the report rather than deleted. A reader needs to see what was considered and why it was dismissed -- both to trust the result and to disagree with a dismissal they think is wrong.
+        """
+        if not refuted:
+            return ""
+
+        items_html = "".join(
+            self._format_vulnerability_item(v)
+            for v in self._sorted_vulnerabilities(refuted))
+
+        return f"""
+        <div class="section">
+            <details class="refuted-section" open>
+                <summary><h2 style="display:inline">Refuted Findings ({len(refuted)})</h2></summary>
+                <p class="status-note">The tool's own evidence gate checked each of these
+                   against the code it cited and found none of the construct the title
+                   claims - before any model was asked to weigh in. Kept here, out of
+                   the counts above, so a fabrication is visible rather than silently
+                   discarded.</p>
+                {items_html}
+            </details>
+        </div>"""
+
     def _render_code_table(self, lines: List[str], first_line: int, highlight_start: Optional[int],
                              highlight_end: Optional[int], filename: str,
                              lines_html: Optional[List[str]] = None) -> str:
-        """Render a gutter + syntax-highlighted code table. ``highlight_start``/
-        ``highlight_end`` (inclusive, 1-based) mark the vulnerable span; pass
-        both ``None`` to highlight nothing. ``lines_html`` reuses HTML already
-        colorized by the analyzer (avoids re-running Pygments); computed here
-        when absent."""
+        """
+        Purpose:
+            Render source lines as a numbered table with the vulnerable lines highlighted.
+
+        Parameters:
+            lines: The source lines.
+            first_line: Line number of the first line.
+            highlight_start: First line to highlight, or None.
+            highlight_end: Last line to highlight, or None.
+            filename: Used to select a syntax lexer.
+            lines_html: Pre-highlighted lines, used when supplied and consistent in length.
+
+        Returns:
+            The code block HTML.
+
+        Implementation notes:
+            Real line numbers are shown rather than an offset, so a reader can open the file and go straight to the cited line. Pre-highlighted lines are accepted to avoid re-highlighting, but only when their count matches the source lines -- a mismatch would shift every line number in the block, so the block is re-highlighted instead. Empty lines render a non-breaking space so the table row keeps its height and the numbering stays aligned.
+
+        Security considerations:
+            The lines are escaped by the highlighter on both its paths before reaching this table.
+        """
         if not lines:
             return ""
 
@@ -696,10 +1104,19 @@ class ComprehensiveHTMLBuilder:
         return f"""<div class="code-block"><table class="code-table"><tbody>{rows_html}</tbody></table></div>"""
 
     def _format_code_block(self, vuln: Dict) -> str:
-        """Render the code block for a finding: real ±context source lines
-        when the analyzer resolved them (``code_context``, syntax-highlighted
-        HTML precomputed), else the AI's own ``code_snippet`` with a
-        best-effort highlight parsed from ``location`` (single line or range)."""
+        """
+        Purpose:
+            Render the code evidence for a finding, from whichever form it carries.
+
+        Parameters:
+            vuln: The finding.
+
+        Returns:
+            The code block HTML, empty when the finding carries no code.
+
+        Implementation notes:
+            Structured context is preferred when present, since it carries real line numbers and the surrounding lines that make the cited one intelligible. A bare snippet is the fallback, and its line numbers are derived from the finding's reported line so the numbering is still meaningful rather than starting at one.
+        """
         filename = vuln.get('file', '')
         context = vuln.get('code_context')
 
@@ -730,6 +1147,19 @@ class ComprehensiveHTMLBuilder:
         )
 
     def _cwe_link(self, cwe: Optional[str]) -> Optional[str]:
+        """
+        Purpose:
+            Build a link to the CWE entry for a finding.
+
+        Parameters:
+            cwe: The CWE identifier in any spelling.
+
+        Returns:
+            The URL, or None when no number could be found.
+
+        Implementation notes:
+            The number is extracted by pattern rather than by stripping a prefix, because the identifier arrives in several spellings from the taxonomy and from model output.
+        """
         if not cwe:
             return None
         match = re.search(r'(\d+)', cwe)
@@ -738,7 +1168,19 @@ class ComprehensiveHTMLBuilder:
         return f"https://cwe.mitre.org/data/definitions/{match.group(1)}.html"
 
     def _format_vulnerability_item(self, vuln: Dict) -> str:
-        """Format a single vulnerability finding with code context."""
+        """
+        Purpose:
+            Render one finding in full: its severity, location, description, evidence, verdict and remediation.
+
+        Parameters:
+            vuln: The finding.
+
+        Returns:
+            The finding HTML.
+
+        Security considerations:
+            Every field is escaped. This is where the largest amount of attacker-influenced text -- titles, paths, descriptions and code -- enters the document.
+        """
         title = _e(vuln.get('title', vuln.get('vulnerability_type', 'Security Issue')))
         description = _e(vuln.get('description', 'No description available'))
         severity = _normalize_severity(vuln.get('severity'))
@@ -785,13 +1227,18 @@ class ComprehensiveHTMLBuilder:
             f'<h4>References</h4><ul class="references">{references_items}</ul>' if references_items else ''
         )
 
+        chain_pill_html, chain_html = self._format_chain(vuln)
+        related_html = self._format_related(vuln)
+        gate_html = self._format_gate_result(vuln)
+
         return f"""
             <div class="vuln-item {severity}">
                 <div class="vuln-item-head">
-                    <span class="dot {severity}"></span><span class="vuln-item-title">{title}</span>{cvss_pill_html}{dyn_pill_html}
+                    <span class="dot {severity}"></span><span class="vuln-item-title">{title}</span>{cvss_pill_html}{chain_pill_html}{dyn_pill_html}
                 </div>
                 {cvss_vector_html}
                 {found_in}
+                {chain_html}
                 {code_block}
                 <h4>Vulnerability Description</h4>
                 <p>{description}</p>
@@ -800,16 +1247,154 @@ class ComprehensiveHTMLBuilder:
                 {dyn_callout_html}
                 {recommendation_html}
                 {references_html}
+                {related_html}
+                {gate_html}
             </div>"""
 
+    def _format_related(self, vuln: Dict) -> str:
+        """
+        Purpose:
+            Render the findings related to this one.
+
+        Parameters:
+            vuln: The finding.
+
+        Returns:
+            The related-findings HTML, empty when there are none.
+
+        Implementation notes:
+            Confirmed relationships are distinguished from candidates, so a reader can tell a verified chain partner from a proximity hint.
+        """
+        related = vuln.get('related_findings')
+        if not isinstance(related, list) or not related:
+            return ''
+        rows = []
+        for item in related[:5]:
+            if not isinstance(item, dict):
+                continue
+            ref = item.get('with') or {}
+            where = _html.escape(str(ref.get('file') or ''))
+            line = _html.escape(str(ref.get('line') or ''))
+            label = _html.escape(str(ref.get('title') or 'Related finding'))
+            reason = _html.escape(str(item.get('reason') or ''))
+            locus = f'{where}:{line}' if where and line else where
+            rows.append(
+                f'<li><strong>{label}</strong>'
+                + (f' <span class="related-loc">{locus}</span>' if locus else '')
+                + f'<br><span class="related-reason">{reason}</span></li>')
+        if not rows:
+            return ''
+        return ('<h4>Related findings</h4>'
+                '<ul class="related-findings">' + ''.join(rows) + '</ul>')
+
+    def _format_chain(self, vuln: Dict) -> "tuple[str, str]":
+        """
+        Purpose:
+            Render a chain finding's components and attack path.
+
+        Parameters:
+            vuln: The finding.
+
+        Returns:
+            A pair of HTML fragments for the chain's parts of the item.
+
+        Implementation notes:
+            The attack path is rendered as numbered steps, because the value of a chain finding is that a reader can follow the route through their own code rather than take the conclusion on trust.
+        """
+        chain = vuln.get('chain')
+        if not isinstance(chain, dict):
+            return '', ''
+
+        pill = '<span class="chain-pill">Exploit Chain</span>'
+        parts = []
+        components = [c for c in (chain.get('components') or []) if c]
+        if components:
+            joined = _e(" + ".join(str(c) for c in components))
+            parts.append(f'<p class="chain-components">Combines: {joined}</p>')
+        flow = [str(step) for step in (chain.get('flow') or []) if str(step).strip()]
+        if flow:
+            steps = "".join(f'<li>{_e(step)}</li>' for step in flow)
+            parts.append(f'<ol class="chain-flow">{steps}</ol>')
+        if not parts:
+            return pill, ''
+
+        label = "Exploit chain" + (" - high priority" if chain.get('priority') else "")
+        body = "".join(parts)
+        return pill, (f'<div class="callout chain">'
+                      f'<span class="callout-label">{label}</span>{body}</div>')
+
+    def _format_gate_result(self, vuln: Dict) -> str:
+        """
+        Purpose:
+            Render the verdict a finding received and the reasons behind it.
+
+        Parameters:
+            vuln: The finding.
+
+        Returns:
+            The verdict HTML, empty when there is nothing to show.
+
+        Implementation notes:
+            Showing the reasons is what makes the report auditable. A downgraded or refuted finding with no explanation is indistinguishable from an arbitrary one, and a reader who disagrees needs to see the argument to overrule it.
+        """
+        gate = vuln.get('gate_result')
+        if not isinstance(gate, dict):
+            return ''
+
+        verdict = str(gate.get('verdict') or 'PASS')
+        reasons = [str(r) for r in (gate.get('reasons') or []) if str(r).strip()]
+        warnings = [str(w) for w in (gate.get('warnings') or []) if str(w).strip()]
+        if verdict == 'PASS' and not reasons and not warnings:
+            return ''
+
+        labels = {
+            'CHAIN_REQUIRED': 'Not independently reportable',
+            'FALSE_POSITIVE': 'Reviewed against the source - not confirmed',
+            'INFORMATIONAL': 'Reported as information',
+            'DOWNGRADE': 'Severity reduced',
+        }
+        label = labels.get(verdict, 'Review notes')
+        if verdict == 'FALSE_POSITIVE' and gate.get('mechanically_refuted'):
+            label = 'Refuted mechanically - the cited code does not contain the claimed construct'
+
+        original = str(gate.get('original_severity') or '')
+        final = str(gate.get('final_severity') or '')
+        if original and final and original != final:
+            label += f' - {_e(original)} to {_e(final)}'
+        rule = str(gate.get('weak_class_rule') or '')
+        if rule:
+            label += f' ({_e(rule)})'
+
+        body = ''
+        if reasons:
+            body += '<ul class="gate-reasons">' + "".join(
+                f'<li>{_e(r)}</li>' for r in reasons) + '</ul>'
+        if warnings:
+            body += '<ul class="gate-warnings">' + "".join(
+                f'<li>{_e(w)}</li>' for w in warnings) + '</ul>'
+
+        chained = [str(c) for c in (vuln.get('chained_into') or []) if str(c).strip()]
+        if chained:
+            body += (f'<p class="gate-chained">Confirmed as part of exploit chain '
+                     f'{_e(", ".join(chained))} - see that finding for the full path.</p>')
+
+        return (f'<div class="callout gate"><span class="callout-label">{label}</span>'
+                f'{body}</div>')
+
     def _format_dynamic_verification(self, vuln: Dict) -> "tuple[str, str]":
-        """Return ``(pill_html, callout_html)`` for a finding's dynamic-
-        verification status: a small pill next to the title (green
-        "Verified" / red struck-through "Dynamic" / grey "Not Run"), and a
-        callout spelling out the evidence or the specific reason it wasn't
-        proven at runtime. Both are empty strings when the finding carries no
-        ``dynamic_verification`` (e.g. reports generated before this field
-        existed)."""
+        """
+        Purpose:
+            Render the on-device verdict for a finding.
+
+        Parameters:
+            vuln: The finding.
+
+        Returns:
+            A pair of HTML fragments for the verification parts of the item.
+
+        Implementation notes:
+            A runtime verdict is shown distinctly from the static verdict, because a finding confirmed on a real device is a materially stronger claim and a reader should be able to see which is which. Findings marked not verified carry their reason, so an unverified finding reads as unexamined rather than as disproved.
+        """
         dv = vuln.get('dynamic_verification')
         if not isinstance(dv, dict) or not dv.get('status'):
             return '', ''
@@ -820,12 +1405,12 @@ class ComprehensiveHTMLBuilder:
             evidence = _e(dv.get('evidence', ''))
             callout = (
                 f'<div class="callout dyn-verified">'
-                f'<span class="callout-label">Dynamic Verification — Verified</span>{evidence}</div>'
+                f'<span class="callout-label">Dynamic Verification - Verified</span>{evidence}</div>'
                 if evidence else ''
             )
             return pill, callout
 
-        label = 'Dynamic — Not Run' if status == 'not_attempted' else 'Dynamic — Unverified'
+        label = 'Dynamic - Not Run' if status == 'not_attempted' else 'Dynamic - Unverified'
         pill_cls = 'notattempted' if status == 'not_attempted' else 'unverified'
         pill = f'<span class="dyn-pill {pill_cls}">{label}</span>'
         reason = _e(dv.get('reason', ''))
@@ -839,7 +1424,16 @@ class ComprehensiveHTMLBuilder:
         return pill, callout
 
     def _build_app_info_section(self, detection_result: DetectionResult) -> str:
-        """Build application information section"""
+        """
+        Purpose:
+            Build the application information section.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML.
+        """
         html = """
         <div class="section">
             <h2>Application Information</h2>"""
@@ -854,7 +1448,19 @@ class ComprehensiveHTMLBuilder:
         return html
 
     def _build_basic_info_grid(self, detection_result: DetectionResult) -> str:
-        """Build basic app information grid"""
+        """
+        Purpose:
+            Build the grid of the app's declared identity, versions and SDK levels.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The grid HTML.
+
+        Implementation notes:
+            The target SDK is shown because several findings' severity depends on it; a reader checking a platform-default caveat needs the number in the same document.
+        """
         basic_info = detection_result.basic_info
 
         rows = []
@@ -886,7 +1492,19 @@ class ComprehensiveHTMLBuilder:
         return f'<div class="info-grid">{rows_html}</div>'
 
     def _build_components_section(self, detection_result: DetectionResult) -> str:
-        """Build application components section"""
+        """
+        Purpose:
+            Build the declared components section.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The section HTML, empty when the app declares none.
+
+        Security considerations:
+            Component class names come from the manifest and are escaped before display.
+        """
         basic_info = detection_result.basic_info
 
         groups = [
@@ -912,6 +1530,19 @@ class ComprehensiveHTMLBuilder:
         return html
 
     def _dedupe_frameworks(self, detection_result: DetectionResult) -> List[Dict[str, Any]]:
+        """
+        Purpose:
+            Collapse repeated framework detections for display.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The distinct frameworks with their confidences.
+
+        Implementation notes:
+            Several detectors report the same framework, so an ungrouped list would show it two or three times with different confidences and suggest an ambiguity that does not exist.
+        """
         if not detection_result.framework_results or not detection_result.framework_results.detected_frameworks:
             return []
 
@@ -929,7 +1560,20 @@ class ComprehensiveHTMLBuilder:
         return sorted(by_name.values(), key=lambda x: x['confidence'], reverse=True)
 
     def _build_analysis_details_section(self, detection_result: DetectionResult, analyzer_results: Optional[Dict]) -> str:
-        """Merged framework detection + analyzer info card."""
+        """
+        Purpose:
+            Describe what the analysis actually did -- which analyzers ran, over what, and with what coverage.
+
+        Parameters:
+            detection_result: Detection output.
+            analyzer_results: Per-analyzer detail.
+
+        Returns:
+            The section HTML.
+
+        Implementation notes:
+            This is what lets a reader judge the report's weight. A result set means something different depending on whether the AI pass ran, whether the source resolved, and which analyzers applied, and stating it explicitly is what separates a security report from a list of assertions.
+        """
         verbose_print("Building analysis details section", self.verbose)
 
         frameworks = self._dedupe_frameworks(detection_result)
@@ -972,12 +1616,21 @@ class ComprehensiveHTMLBuilder:
         </div>"""
 
     def _build_footer(self) -> str:
-        """Build report footer"""
+        """
+        Purpose:
+            Build the report footer.
+
+        Returns:
+            The footer HTML.
+
+        Implementation notes:
+            Carries the tool name, version and timestamp, so a report separated from its scan still states what produced it.
+        """
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         return f"""
         <div class="report-footer">
-            <p>Generated by lu77U-MobileSec v{APP_VERSION} &bull; {timestamp}</p>
-            <p><a href="https://github.com/sam-mg/lu77U-MobileSec">https://github.com/sam-mg/lu77U-MobileSec</a></p>
+            <p>Generated by {APP_NAME} v{APP_VERSION} &bull; {timestamp}</p>
+            <p><a href="{HOMEPAGE}">{HOMEPAGE}</a></p>
         </div>
     </div>
 </body>

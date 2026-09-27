@@ -1,4 +1,22 @@
-"""Core PDF Generation Engine"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.report_generator.pdf_generation_engine
+
+Purpose:
+    Turn report HTML into a PDF, using WeasyPrint where its native dependencies are available and headless Microsoft Edge on Windows where they typically are not.
+
+Responsibilities:
+    Check dependencies, locate a renderer, and convert HTML to PDF.
+
+Dependencies:
+    WeasyPrint on POSIX, Microsoft Edge on Windows.
+
+Implementation notes:
+    The two-renderer split is a deployment decision rather than a preference. WeasyPrint needs GTK libraries that Windows users have to install by hand and frequently cannot, whereas Edge is present on every supported Windows install and renders to PDF headlessly. Both consume the same HTML, so the output differs only in typographic detail.
+
+Security considerations:
+    The HTML being rendered contains attacker-derived strings from the APK. Rendering is performed on local content written to a temporary file; no remote resource is fetched.
+"""
 
 import platform
 import shutil
@@ -18,7 +36,16 @@ _EDGE_CANDIDATES = (
 )
 
 def _find_edge_executable() -> Optional[str]:
-    """Locate Microsoft Edge for headless PDF printing on Windows."""
+    """
+    Purpose:
+        Locate Microsoft Edge for headless PDF rendering on Windows.
+
+    Returns:
+        The executable path, or None when Edge cannot be found.
+
+    Implementation notes:
+        Known install locations are checked before falling back to a PATH lookup, because Edge is not normally on PATH despite being installed.
+    """
     for candidate in _EDGE_CANDIDATES:
         if Path(candidate).exists():
             return candidate
@@ -38,9 +65,26 @@ except Exception as e:
     WEASYPRINT_HTML_ERROR = str(e)
 
 class PDFGenerationEngine:
-    """Core engine for PDF generation with separated concerns"""
-    
+    """
+    Purpose:
+        Renders report HTML to PDF.
+
+    Attributes:
+        verbose: Whether generation is traced.
+        html_builder: Builds the detection-only report when no HTML is supplied.
+        path_manager: Resolves output paths.
+
+    Thread-safety:
+        Not intended for concurrent use; the Windows path writes to fixed temporary files.
+    """
     def __init__(self, verbose: bool = False):
+        """
+        Purpose:
+            Construct the engine and its helpers.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
 
         self.html_builder = HTMLContentBuilder(verbose=verbose)
@@ -50,6 +94,22 @@ class PDFGenerationEngine:
         verbose_print("PDFGenerationEngine initialization complete", self.verbose)
     
     def generate_pdf(self, detection_result: DetectionResult) -> Optional[str]:
+        """
+        Purpose:
+            Build the detection-only report and render it to PDF.
+
+        Parameters:
+            detection_result: Detection output.
+
+        Returns:
+            The path written, or None when rendering was not possible.
+
+        Side effects:
+            Writes a PDF.
+
+        Implementation notes:
+            Dependencies are checked before any work is done, so a machine without a renderer fails immediately with a clear message rather than after building the document.
+        """
         verbose_print("Starting PDF generation process", self.verbose)
         
         try:
@@ -89,8 +149,16 @@ class PDFGenerationEngine:
             return None
     
     def _check_dependencies(self) -> bool:
-        """Check if required dependencies are available"""
+        """
+        Purpose:
+            Determine whether a PDF renderer is available on this machine.
 
+        Returns:
+            True when rendering is possible.
+
+        Implementation notes:
+            The check is platform-specific because the requirement is: Edge on Windows, WeasyPrint and its native libraries elsewhere. Both failure paths trace what to install, since the underlying errors name a missing shared library or executable rather than the fix.
+        """
         if platform.system() == "Windows":
             if _find_edge_executable() is None:
                 verbose_print("Microsoft Edge not found. Cannot generate PDF.", self.verbose)
@@ -127,7 +195,23 @@ class PDFGenerationEngine:
         return True
     
     def generate_pdf_report(self, detection_result: DetectionResult, output_path: str) -> str:
-        
+        """
+        Purpose:
+            Build and write a detection-only PDF report to a given path.
+
+        Parameters:
+            detection_result: Detection output.
+            output_path: Where to write the PDF.
+
+        Returns:
+            The path written.
+
+        Raises:
+            Exception: When no renderer is available.
+
+        Side effects:
+            Writes a PDF.
+        """
         try:
             if not self._check_dependencies():
                 verbose_print("Dependency check failed", self.verbose)
@@ -158,7 +242,28 @@ class PDFGenerationEngine:
             raise
 
     def generate_pdf_from_html(self, html_content: str, detection_result: DetectionResult, output_path: str, output_manager=None) -> str:
-        """Generate PDF from custom HTML content"""
+        """
+        Purpose:
+            Render caller-supplied HTML to PDF, which is how the full findings report is produced.
+
+        Parameters:
+            html_content: The report HTML.
+            detection_result: Detection output, used for naming.
+            output_path: Where to write the PDF.
+            output_manager: Supplies the report path.
+
+        Returns:
+            The path written.
+
+        Raises:
+            Exception: When no renderer is available.
+
+        Side effects:
+            Writes a PDF.
+
+        Implementation notes:
+            This is the entry point that keeps the PDF and HTML reports identical: the comprehensive builder produces one document and both outputs render it.
+        """
         verbose_print("Starting PDF generation from custom HTML", self.verbose)
         
         try:
@@ -191,23 +296,40 @@ class PDFGenerationEngine:
             raise
 
     def _convert_to_pdf(self, html_content: str, filepath: str, apply_default_css: bool = True) -> bool:
-        """Render ``html_content`` to a PDF at ``filepath``.
+        """
+        Purpose:
+            Render HTML to a PDF file.
 
-        ``apply_default_css`` layers the legacy stylesheet on top of the
-        document. The comprehensive report ships its own complete stylesheet
-        (fonts, colors, layout) and must be rendered with this off, or the
-        legacy Arial/blue rules would fight its design.
+        Parameters:
+            html_content: The report HTML.
+            filepath: Where to write the PDF.
+            apply_default_css: Whether to apply the print stylesheet.
+
+        Returns:
+            True when the PDF was written.
         """
         return convert_html_to_pdf(html_content, filepath, apply_default_css, verbose=self.verbose)
 
 
 def convert_html_to_pdf(html_content: str, filepath: str, apply_default_css: bool = True, verbose: bool = False) -> bool:
-    """Render ``html_content`` to a PDF at ``filepath``.
+    """
+    Purpose:
+        Render HTML to PDF with whichever renderer this platform provides.
 
-    Uses headless Microsoft Edge on Windows, since WeasyPrint's native
-    Pango/GTK libraries have no reliable pip-installable wheel there.
-    WeasyPrint is used on all other platforms. Shared by both the CLI report
-    generator and the web app's on-demand PDF export route.
+    Parameters:
+        html_content: The report HTML.
+        filepath: Where to write the PDF.
+        apply_default_css: Whether to apply the print stylesheet.
+        verbose: Traces the outcome.
+
+    Returns:
+        True when the PDF was written.
+
+    Side effects:
+        Writes a PDF, and on Windows spawns a browser process.
+
+    Implementation notes:
+        Exposed as a module-level function as well as a method so that callers holding only HTML -- the web layer among them -- can render without constructing an engine.
     """
     try:
         if platform.system() == "Windows":
@@ -230,10 +352,27 @@ def convert_html_to_pdf(html_content: str, filepath: str, apply_default_css: boo
 
 
 def _convert_to_pdf_windows(html_content: str, filepath: str, apply_default_css: bool, verbose: bool) -> bool:
-    """Render HTML to PDF via headless Microsoft Edge.
+    """
+    Purpose:
+        Render HTML to PDF using headless Microsoft Edge.
 
-    Edge ships with Windows and supports the same --print-to-pdf headless
-    mode used on other OSes' CI runners, so it needs no extra install step.
+    Parameters:
+        html_content: The report HTML.
+        filepath: Where to write the PDF.
+        apply_default_css: Whether to inline the print stylesheet.
+        verbose: Traces the outcome.
+
+    Returns:
+        True when the PDF was written.
+
+    Side effects:
+        Writes the HTML to a temporary file and spawns Edge.
+
+    Implementation notes:
+        Edge renders from a file rather than from standard input, so the document is written out first. The print stylesheet is inlined rather than linked, because a linked local stylesheet is subject to the browser's file-access rules and would silently not apply.
+
+    Security considerations:
+        Edge is launched headless with the document as a local file. The document contains APK-derived content, and it is rendered by a full browser engine -- which is why nothing in it references a remote resource.
     """
     edge = _find_edge_executable()
     if edge is None:

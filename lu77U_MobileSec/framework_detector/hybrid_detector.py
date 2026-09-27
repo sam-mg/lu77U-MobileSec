@@ -1,4 +1,19 @@
-"""Hybrid Framework Detector for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.framework_detector.hybrid_detector
+
+Purpose:
+    Run every framework detector over one app and reconcile their answers, so that an app matching several frameworks is described correctly rather than by whichever detector ran first.
+
+Responsibilities:
+    Own the detector set, collect every detection, and suppress the ones that are artifacts of another framework's presence.
+
+Dependencies:
+    Every detector module.
+
+Implementation notes:
+    Reconciliation is the reason this exists. Real apps legitimately match more than one detector -- a Flutter app contains DEX, a React Native app contains native libraries -- and reporting every match would be as useless as reporting only one.
+"""
 
 from ..utils.verbose import verbose_print
 from .java_detector import JavaDetector
@@ -15,7 +30,31 @@ from .libgdx_detector import LibGDXDetector
 from .kony_detector import KonyDetector
 
 class HybridFrameworkDetector:
+    """
+    Purpose:
+        Runs all detectors and reconciles their results.
+
+    Attributes:
+        verbose: Whether detection is traced.
+        detectors: Every detector, in the order they run.
+
+    Invariants:
+        Returns a list, possibly empty. Order of detection is preserved, so the caller ranks by confidence rather than by position.
+
+    Thread-safety:
+        Not safe to share, since the detectors it holds are not.
+    """
     def __init__(self, verbose=False):
+        """
+        Purpose:
+            Construct one instance of every detector.
+
+        Parameters:
+            verbose: Enables tracing and is forwarded to each detector.
+
+        Implementation notes:
+            The enhanced detector runs last. It is the broadest of the set and its results are most useful as corroboration of what the specific detectors already found.
+        """
         self.verbose = verbose
         
         self.detectors = [
@@ -34,7 +73,25 @@ class HybridFrameworkDetector:
         ]
 
     def detect_all_frameworks(self, input_path: str):
-        
+        """
+        Purpose:
+            Detect every framework present and filter out the results that are side effects of another.
+
+        Parameters:
+            input_path: Path to an APK or a project directory.
+
+        Returns:
+            The surviving detections, each with framework, indicators and confidence.
+
+        Side effects:
+            Reads the target repeatedly, once per detector.
+
+        Implementation notes:
+            Every detector is individually guarded, so one failing costs its own result rather than the whole detection stage. The filtering rule is narrow and deliberate: a native-code detection is dropped when Flutter, React Native, Java or Kotlin was detected with high confidence. Every one of those ships native libraries, so the native detector fires on all of them and reporting it would suggest a hand-written native component that does not exist. Nothing else is filtered, because the other combinations are genuinely informative -- a Unity game with a Java wrapper really does have both. The confidence thresholds differ by framework: cross-platform frameworks must be detected strongly before they suppress anything, while Java and Kotlin need only moderate confidence, since their detection is already exclusion-based and rarely fires spuriously. Expo is treated as implying React Native, since it is a distribution of it and the same decompiler applies.
+
+        Known limitations:
+            Each detector reads the APK independently, so a full detection pass opens the archive a dozen times.
+        """
         results = []
         flutter_detected = False
         react_native_detected = False
@@ -86,11 +143,6 @@ class HybridFrameworkDetector:
                     elif react_native_detected:
                         verbose_print("Filtering out Native detection - React Native strongly detected", self.verbose)
                     elif java_or_kotlin_detected:
-                        # Every installable Android APK has a DEX (Java/Kotlin)
-                        # entry point; bundled .so libraries are near-universal
-                        # (crypto, media codecs, ad/analytics SDKs, SQLite,
-                        # ...) and are auxiliary, not evidence the app's
-                        # *primary* framework is native C/C++ development.
                         verbose_print("Filtering out Native detection - Java/Kotlin strongly detected", self.verbose)
                     continue
                 else:

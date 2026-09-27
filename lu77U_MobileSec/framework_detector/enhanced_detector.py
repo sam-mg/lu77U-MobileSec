@@ -1,4 +1,19 @@
-"""Enhanced Framework Detector for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.framework_detector.enhanced_detector
+
+Purpose:
+    A single table-driven sweep for every framework at once, used as a broad second opinion alongside the specific detectors.
+
+Responsibilities:
+    Match the shared marker table against an APK's entry names, and format the result.
+
+Dependencies:
+    zipfile, ..config.constants for the shared marker table.
+
+Implementation notes:
+    Where each specific detector encodes its own knowledge, this one is purely the shared table applied uniformly. That makes it weaker per framework -- it has no notion of a framework's stronger and weaker markers -- but it covers every framework in one archive read, and it picks up a framework whose dedicated detector missed. APKs only. A project has no bundled artifacts to match, and its layout is what the specific detectors read.
+"""
 
 import zipfile
 from typing import List, Dict, Optional
@@ -6,12 +21,42 @@ from ..utils.verbose import verbose_print
 from ..config.constants import TECH_DETECTION_MAP, FRAMEWORK_JAVA
 
 class EnhancedFrameworkDetector:
-    """Detector for additional frameworks using zipfile-based APK inspection"""
+    """
+    Purpose:
+        Detects any framework in the shared marker table from an APK's entry names.
+
+    Attributes:
+        verbose: Whether detection is traced.
+        supported_frameworks: Every framework the shared table covers.
+
+    Invariants:
+        Returns None for anything that is not an APK.
+
+    Thread-safety:
+        Holds no per-detection state; safe to reuse.
+    """
     def __init__(self, verbose=False):
+        """
+        Purpose:
+            Construct the detector from the shared marker table.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         self.supported_frameworks = list(TECH_DETECTION_MAP.keys())
     
     def detect(self, input_path: str) -> Optional[Dict]:
+        """
+        Purpose:
+            Detect frameworks in an APK using the shared table.
+
+        Parameters:
+            input_path: Path to an APK.
+
+        Returns:
+            A detection dict, or None for a non-APK input or when nothing matched.
+        """
         if not input_path.endswith('.apk'):
             verbose_print("Input is not an APK file - enhanced detection skipped", self.verbose)
             return None
@@ -25,6 +70,25 @@ class EnhancedFrameworkDetector:
         return self._format_detection_result(detected_frameworks)
     
     def _detect_frameworks_in_apk(self, apk_path: str) -> List[str]:
+        """
+        Purpose:
+            Find every framework in the shared table whose markers appear in an APK.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            Framework names, in table order; empty on any failure.
+
+        Side effects:
+            Opens the APK as a zip archive.
+
+        Complexity:
+            O(f * i * n) for f frameworks, i indicators each and n entries, with an early exit per indicator.
+
+        Implementation notes:
+            The inner loop breaks on the first entry matching an indicator, so a framework with many matching files costs no more than one with a single match. A framework qualifies on any single indicator, which is why this detector is broad rather than precise. The hybrid arbitrator is what reconciles its results against the specific detectors. Missing files and malformed archives return an empty list rather than raising, so a bad APK costs this detector's opinion rather than the detection stage.
+        """
         detected_frameworks = []
         
         try:
@@ -57,6 +121,19 @@ class EnhancedFrameworkDetector:
         return detected_frameworks
     
     def _format_detection_result(self, detected_frameworks: List[str]) -> Dict:
+        """
+        Purpose:
+            Turn a list of detected framework names into a single detection dict.
+
+        Parameters:
+            detected_frameworks: Framework names found.
+
+        Returns:
+            A detection dict, or None for an empty list.
+
+        Implementation notes:
+            Multiple detections report slightly lower confidence than a single one, since several frameworks matching at once more often means loose markers than a genuinely multi-framework app. The primary framework is simply the first in table order, not the strongest -- this detector has no per-framework weighting to rank by. The rest are carried as additional frameworks so the information is not lost, and the hybrid arbitrator does the real ranking using the specific detectors' confidences.
+        """
         if len(detected_frameworks) == 1:
             framework = detected_frameworks[0]
             verbose_print(f"Single framework detected: {framework}", self.verbose)
@@ -78,6 +155,19 @@ class EnhancedFrameworkDetector:
         return None
     
     def detect_all_frameworks(self, apk_path: str) -> List[str]:
+        """
+        Purpose:
+            List every framework detected in an APK, defaulting to a conventional Android app when none matched.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            Framework names; the Java framework name when nothing matched.
+
+        Implementation notes:
+            The default is the useful part: an APK matching no cross-platform marker is a conventional Android app, which is the correct conclusion rather than an absence of one. A non-APK input returns empty rather than the default, since nothing was examined and no conclusion is warranted.
+        """
         verbose_print(f"Detecting all frameworks in: {apk_path}", self.verbose)
         
         if not apk_path.endswith('.apk'):
@@ -93,6 +183,19 @@ class EnhancedFrameworkDetector:
         return detected
     
     def print_detection_results(self, detected_frameworks: List[str]):
+        """
+        Purpose:
+            Print detected frameworks to the terminal.
+
+        Parameters:
+            detected_frameworks: Framework names to print.
+
+        Side effects:
+            Writes to stdout.
+
+        Implementation notes:
+            Prints unconditionally rather than through the verbose stream, so it is a debugging aid rather than part of the normal output path.
+        """
         if len(detected_frameworks) == 1:
             print(f"App was written in {detected_frameworks[0]}")
         else:

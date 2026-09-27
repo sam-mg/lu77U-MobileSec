@@ -1,4 +1,22 @@
-"""AI-assisted UI interaction using uiautomator2 for dynamic analysis."""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.dynamic_analysis.ui_automator
+
+Purpose:
+    Drive the app under test through its interface so that dynamic analysis observes real behaviour rather than a splash screen, using an AI to decide what to tap from the live view hierarchy.
+
+Responsibilities:
+    Connect to the device's automation service, dump the view hierarchy, recognise a login screen, ask the model for the next action, and execute taps and text input.
+
+Dependencies:
+    uiautomator2 when installed, the AI provider layer.
+
+Implementation notes:
+    An app that is merely launched exercises almost nothing. Most interesting traffic and storage behaviour happens after navigation, so the loop's job is to get past the first screen. Actions are chosen by a model reading the hierarchy rather than by scripted heuristics, because every app's layout is different and a rules-based driver stalls on the first unfamiliar screen.
+
+Security considerations:
+    A login screen is detected specifically so the loop can stop and hand control back rather than typing into it. Automated interaction with an untrusted app can otherwise trigger real actions -- purchases, messages, account changes -- so the loop is bounded and the model is constrained to tapping and typing.
+"""
 
 import json
 import re
@@ -9,7 +27,6 @@ from ..ai.provider_factory import get_active_provider
 from ..utils.cancellation import ScanCancelled
 from ..utils.verbose import verbose_print
 
-# Schema describing the next-action object we ask the model to return.
 ACTION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -29,12 +46,12 @@ ACTION_SYSTEM = (
     "to explore security-relevant functionality (menus, network triggers, "
     "sensitive screens, authenticated areas).\n\n"
     "If the current screen asks for input that is NOT a login username/password "
-    "prompt — a credit card number, PIN, name, address, phone number, or any "
-    "other form field — fill it with a plausible random/dummy value via the "
+    "prompt - a credit card number, PIN, name, address, phone number, or any "
+    "other form field - fill it with a plausible random/dummy value via the "
     "'input' action and continue; never skip or get stuck on these fields. Only "
     "genuine login/credential screens are paused for the user by the system "
     "separately, so you do not need to handle that case yourself.\n\n"
-    "Respond with ONE JSON object only — no markdown, no prose, no <think> blocks."
+    "Respond with ONE JSON object only - no markdown, no prose, no <think> blocks."
 )
 
 LOGIN_KEYWORDS = [
@@ -47,12 +64,41 @@ _PASSWORD_FIELD_RE = re.compile(r'\bpassword="true"')
 
 
 def _strip_thinking(text: str) -> str:
+    """
+    Purpose:
+        Remove reasoning-trace markup from a model response before it is parsed.
+
+    Parameters:
+        text: The raw response.
+
+    Returns:
+        The response with thinking blocks removed.
+
+    Implementation notes:
+        Some models emit a reasoning trace inline, wrapped in tags. It has to go before JSON extraction, because the trace frequently contains a draft of the answer in braces and the extractor would find that instead of the real one. Unpaired tags are stripped too, since a truncated response can leave one behind.
+    """
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"</?think>", "", text, flags=re.IGNORECASE)
     return text.strip()
 
 
 def _extract_first_json_object(text: str) -> Optional[str]:
+    """
+    Purpose:
+        Find the first complete JSON object in a response, tracking string and escape state.
+
+    Parameters:
+        text: The response text.
+
+    Returns:
+        The object's text, or None when no complete object was found.
+
+    Complexity:
+        O(n) in the text length.
+
+    Implementation notes:
+        Brace counting alone is not enough: a brace inside a string value would unbalance the count and cut the object short. Tracking whether the scan is inside a string, and whether the previous character escaped the current one, is what makes the extraction correct for objects containing braces in their text. A regular expression is unsuitable here for the same reason -- nesting and quoting are not regular.
+    """
     depth = 0
     start = -1
     in_str = False
@@ -81,7 +127,34 @@ def _extract_first_json_object(text: str) -> Optional[str]:
 
 
 class UIAutomator:
+    """
+    Purpose:
+        Drives the app under test through its interface.
+
+    Attributes:
+        adb_manager: Device control, used for taps and text input.
+        device: Device serial.
+        verbose: Whether automation is traced.
+
+    Invariants:
+        Every method returns a failure value rather than raising when the automation service is unavailable.
+
+    Thread-safety:
+        Not safe to share; the automation service is a single device-side resource.
+    """
     def __init__(self, adb_manager, device: str, verbose: bool = False):
+        """
+        Purpose:
+            Construct the automator for one device.
+
+        Parameters:
+            adb_manager: Device control.
+            device: Device serial.
+            verbose: Enables tracing.
+
+        Postconditions:
+            Not connected; connect must succeed before the hierarchy can be read.
+        """
         self.adb_manager = adb_manager
         self.device = device
         self.verbose = verbose
@@ -89,7 +162,19 @@ class UIAutomator:
         verbose_print(f"UIAutomator initialized for {device}", self.verbose)
 
     def connect(self) -> bool:
-        """Connect via uiautomator2 (a declared dependency) and health-check."""
+        """
+        Purpose:
+            Connect to the device's automation service.
+
+        Returns:
+            True when connected and responsive.
+
+        Side effects:
+            May install and start the automation service on the device.
+
+        Implementation notes:
+            A property is read after connecting, because the connection object is created optimistically and only a real query proves the device-side service is running. Without that check, the first hierarchy dump would fail instead. The dependency is optional and its absence returns False rather than raising, so a scan without it degrades to a launch-only dynamic run.
+        """
         verbose_print(f"Connecting uiautomator2 to {self.device}", self.verbose)
         try:
             import uiautomator2 as u2
@@ -106,6 +191,19 @@ class UIAutomator:
             return False
 
     def dump_ui_hierarchy(self) -> Optional[str]:
+        """
+        Purpose:
+            Capture the current screen's view hierarchy as XML.
+
+        Returns:
+            The hierarchy XML, or None when unavailable.
+
+        Implementation notes:
+            This is the model's entire view of the screen, so a failed dump means the loop cannot decide anything and must stop.
+
+        Security considerations:
+            The hierarchy contains on-screen text, which can include data the user entered and content the app fetched. It is sent to the AI provider.
+        """
         if not self._u2_device:
             return None
         try:
@@ -117,6 +215,22 @@ class UIAutomator:
             return None
 
     def is_login_screen(self, ui_xml: str) -> bool:
+        """
+        Purpose:
+            Recognise a screen that is asking for credentials, so automation can stop there.
+
+        Parameters:
+            ui_xml: The view hierarchy.
+
+        Returns:
+            True when the screen appears to be a login.
+
+        Implementation notes:
+            A password-flagged input field is decisive and is checked first, since it is a structural property rather than a guess at wording. Keyword matching over the attribute values is the fallback for screens that do not flag the field, and it is matched against extracted attribute values rather than the raw XML so that element and attribute names cannot trigger it.
+
+        Security considerations:
+            This exists so the automated loop does not type into a credential form or trigger an authentication attempt against a real account. A false negative here means automation continues into a login screen, which is why the structural check comes first.
+        """
         if _PASSWORD_FIELD_RE.search(ui_xml):
             verbose_print('Password input field present (password="true")', self.verbose)
             return True
@@ -129,7 +243,27 @@ class UIAutomator:
 
     def ask_ai_for_next_tap(self, ui_xml: str, app_package: str,
                             context: str = "") -> Optional[Dict[str, Any]]:
-        """Ask the active AI provider for the next action. Returns the parsed dict."""
+        """
+        Purpose:
+            Ask the model what to do next, given the current screen.
+
+        Parameters:
+            ui_xml: The view hierarchy.
+            app_package: Package under test, for context.
+            context: What has happened so far in the session.
+
+        Returns:
+            The chosen action, or None when the model gave nothing usable.
+
+        Side effects:
+            Makes an AI provider request.
+
+        Implementation notes:
+            The hierarchy is truncated before being sent, since a complex screen produces far more XML than is useful and the interactive elements appear early. The running context is included so the model does not repeat an action that already failed or loop between two screens. The response is constrained to a small action vocabulary -- tap, input, or nothing -- so the model cannot ask for an operation this loop has no way to perform safely.
+
+        Security considerations:
+            The prompt carries on-screen content from an untrusted app, which means app-controlled text reaches the model. The response is constrained by schema and the coordinates are used only for taps.
+        """
         verbose_print("Asking AI for next action", self.verbose)
         prompt = (
             f"App under test: {app_package}\n"
@@ -141,7 +275,8 @@ class UIAutomator:
         )
         try:
             provider = get_active_provider(verbose=self.verbose, apk_name=app_package)
-            result = provider.analyze(prompt, system_message=ACTION_SYSTEM, schema=ACTION_SCHEMA)
+            result = provider.analyze(prompt, system_message=ACTION_SYSTEM, schema=ACTION_SCHEMA,
+                                      max_tokens=500)
         except Exception as exc:
             verbose_print(f"AI provider error: {exc}", self.verbose)
             return None
@@ -168,11 +303,43 @@ class UIAutomator:
                 return None
 
     def execute_tap(self, x: int, y: int) -> bool:
+        """
+        Purpose:
+            Tap a screen coordinate.
+
+        Parameters:
+            x: Horizontal coordinate.
+            y: Vertical coordinate.
+
+        Returns:
+            True when the command succeeded.
+
+        Security considerations:
+            Coordinates come from model output and are interpolated into a device shell command. They are integers by the response schema, which is what keeps that safe.
+        """
         verbose_print(f"Tap ({x}, {y})", self.verbose)
         result = self.adb_manager.shell(self.device, f"input tap {x} {y}")
         return result.returncode == 0
 
     def execute_text_input(self, x: int, y: int, text: str) -> bool:
+        """
+        Purpose:
+            Tap a field and type text into it.
+
+        Parameters:
+            x: Horizontal coordinate of the field.
+            y: Vertical coordinate of the field.
+            text: Text to type.
+
+        Returns:
+            True when the input command succeeded.
+
+        Implementation notes:
+            The field is tapped first and a short pause follows, because focus does not transfer instantly and text sent too early goes to whatever had focus before.
+
+        Security considerations:
+            The text is single-quoted with embedded quotes escaped in the shell idiom before being sent, because this composes a device shell command and the text originates in model output. Without that escaping, text containing a quote or a semicolon would become a command on the device.
+        """
         verbose_print(f"Input at ({x}, {y}): '{text[:30]}'", self.verbose)
         self.execute_tap(x, y)
         time.sleep(0.5)
@@ -187,7 +354,31 @@ class UIAutomator:
         is_cancelled: Optional[Callable[[], bool]] = None,
         max_iterations: int = 20,
     ) -> List[Dict[str, Any]]:
-        """Drive the app: dump → (login pause) → ask AI → act, up to ``max_iterations``."""
+        """
+        Purpose:
+            Drive the app through its interface for a bounded number of steps, stopping at a login screen or when the model says it is done.
+
+        Parameters:
+            app_package: Package under test.
+            pause_for_login: Called when a login screen is reached, so the operator can sign in by hand.
+            is_cancelled: Polled each iteration so a user stop takes effect promptly.
+            max_iterations: Hard ceiling on the number of actions.
+
+        Returns:
+            The actions taken, in order.
+
+        Side effects:
+            Interacts with a real app on a real device.
+
+        Raises:
+            ScanCancelled: When the user stopped the scan.
+
+        Implementation notes:
+            The iteration ceiling is the primary safety mechanism. A model-driven loop with no bound can wander indefinitely, and each step costs a request and a real interaction with the app. Reaching a login screen hands control back rather than attempting to log in, and the action log is what makes the session reproducible afterwards.
+
+        Security considerations:
+            Every action is a real interaction with an untrusted app on a real device. The bounded iteration count, the restricted action vocabulary and the login stop are what keep that contained.
+        """
         verbose_print(
             f"Starting UI loop for {app_package} (max {max_iterations})", self.verbose)
         actions_taken: List[Dict[str, Any]] = []

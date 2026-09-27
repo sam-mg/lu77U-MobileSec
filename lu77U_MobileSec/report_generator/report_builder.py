@@ -1,4 +1,19 @@
-"""Report Builder for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.report_generator.report_builder
+
+Purpose:
+    Entry point for producing a PDF report, keeping the PDF stack's optional native dependencies out of the caller's import path.
+
+Responsibilities:
+    Lazily construct the PDF generator and delegate to it.
+
+Dependencies:
+    The PDF generator, imported on demand.
+
+Implementation notes:
+    The indirection exists for one reason: WeasyPrint needs native libraries that are frequently absent, and importing it at module level would make report generation unimportable on those machines -- including for HTML reports, which need nothing native.
+"""
 
 from lu77U_MobileSec.detection.results import DetectionResult
 from ..utils.verbose import verbose_print
@@ -7,15 +22,46 @@ import platform
 import os
 
 class ReportBuilder:
-    """Main report builder class that orchestrates report generation"""
-    
+    """
+    Purpose:
+        Builds PDF reports, loading the PDF stack only when one is requested.
+
+    Attributes:
+        verbose: Whether report building is traced.
+        pdf_generator: The lazily constructed generator, or None.
+
+    Invariants:
+        The generator is constructed at most once per instance.
+
+    Thread-safety:
+        The lazy construction is unsynchronised; concurrent first calls may build two generators, of which one is discarded.
+    """
     def __init__(self, verbose: bool = False):
+        """
+        Purpose:
+            Construct the builder without loading the PDF stack.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         self.pdf_generator = None
         verbose_print("ReportBuilder initialized", self.verbose)
     
     def _get_pdf_generator(self):
-        """Lazy initialization of PDF generator"""
+        """
+        Purpose:
+            Construct the PDF generator on first use.
+
+        Returns:
+            The generator, or None when the PDF stack is unavailable.
+
+        Side effects:
+            Imports the PDF modules and their native dependencies on first call.
+
+        Implementation notes:
+            A failed import returns None rather than raising, so a machine without the native libraries produces an HTML report and a clear message instead of a traceback.
+        """
         verbose_print("_get_pdf_generator called", self.verbose)
         verbose_print(f"Current pdf_generator state: {self.pdf_generator}", self.verbose)
         
@@ -64,6 +110,22 @@ class ReportBuilder:
         return self.pdf_generator
     
     def generate_pdf_report(self, detection_result: DetectionResult) -> Optional[str]:
+        """
+        Purpose:
+            Generate a PDF report for a completed analysis.
+
+        Parameters:
+            detection_result: The detection result to report on.
+
+        Returns:
+            The report path, or None when generation failed.
+
+        Side effects:
+            Writes a PDF.
+
+        Implementation notes:
+            Failures return None rather than raising. A report is the last stage of a long scan, and losing the run because the PDF stack misbehaved would be a poor trade against reporting what succeeded.
+        """
         verbose_print("generate_pdf_report called", self.verbose)
         verbose_print(f"detection_result type: {type(detection_result)}", self.verbose)
         verbose_print(f"detection_result.target_path: {getattr(detection_result, 'target_path', 'N/A')}", self.verbose)

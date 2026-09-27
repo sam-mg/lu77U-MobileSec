@@ -1,4 +1,19 @@
-"""Main Detection Results for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.detection.results.detection_results
+
+Purpose:
+    The top-level result of the detection stage, combining framework identification and package information with the errors and warnings gathered along the way.
+
+Responsibilities:
+    Hold the detection outputs, accumulate diagnostics, and render the summary the report and dashboard display.
+
+Dependencies:
+    dataclasses, the sibling result types, ...utils for duration formatting.
+
+Implementation notes:
+    Errors and warnings are accumulated on the result rather than raised, because detection is expected to partly fail on real APKs -- an obfuscated or truncated manifest is ordinary -- and a partial result is still useful.
+"""
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
@@ -10,6 +25,30 @@ from ...utils.verbose import verbose_print
 
 @dataclass
 class DetectionResult:
+    """
+    Purpose:
+        Everything the detection stage established about one target.
+
+    Attributes:
+        target_path: Path that was analysed.
+        is_apk: Whether the target is an APK rather than a project directory.
+        analysis_timestamp: When detection ran.
+        framework_results: Framework identification, or None when that stage failed.
+        basic_info: Package information, or None when extraction failed.
+        analysis_duration: Seconds the stage took, recorded on success and failure alike.
+        errors: Timestamped error messages.
+        warnings: Timestamped warning messages.
+        verbose: Whether accessors trace their work.
+
+    Invariants:
+        Either result field may be None independently; completeness is reported by is_detection_complete rather than assumed.
+
+    Thread-safety:
+        Mutable and owned by one detection run.
+
+    Implementation notes:
+        verbose is declared with init=False so it is never a constructor argument, and every method reads it through getattr with a default. Dataclass field ordering would otherwise force it into the signature of every construction site, and the getattr guard means an instance rebuilt from serialised data without the field still works.
+    """
     target_path: str = ""
     is_apk: bool = False
     analysis_timestamp: datetime = field(default_factory=datetime.now)
@@ -23,30 +62,72 @@ class DetectionResult:
     verbose: bool = field(default=False, init=False)
     
     def __post_init__(self):
-        """Post initialization logging"""
+        """
+        Purpose:
+            Trace the creation of the result.
+
+        Side effects:
+            Writes one line to the verbose stream.
+        """
         if hasattr(self, 'verbose'):
             verbose_print(f"DetectionResult created for: {self.target_path} (APK: {self.is_apk})", self.verbose)
     
     def add_error(self, error_message: str):
-        """Add an error message to the detection"""
+        """
+        Purpose:
+            Record an error that did not stop detection.
+
+        Parameters:
+            error_message: What went wrong.
+
+        Side effects:
+            Appends a timestamped entry and traces it.
+
+        Implementation notes:
+            Timestamped at the point of recording, so that a slow stage's failures can be placed in time against the progress log.
+        """
         error_entry = f"{datetime.now()}: {error_message}"
         self.errors.append(error_entry)
         verbose_print(f"Added error to detection: {error_message}", getattr(self, 'verbose', False))
         verbose_print(f"Total errors: {len(self.errors)}", getattr(self, 'verbose', False))
     
     def add_warning(self, warning_message: str):
-        """Add a warning message to the detection"""
+        """
+        Purpose:
+            Record a condition worth reporting that did not prevent detection.
+
+        Parameters:
+            warning_message: What was noticed.
+
+        Side effects:
+            Appends a timestamped entry and traces it.
+        """
         warning_entry = f"{datetime.now()}: {warning_message}"
         self.warnings.append(warning_entry)
         verbose_print(f"Added warning to detection: {warning_message}", getattr(self, 'verbose', False))
         verbose_print(f"Total warnings: {len(self.warnings)}", getattr(self, 'verbose', False))
     
     def get_formatted_duration(self) -> str:
-        """Get formatted duration string"""
+        """
+        Purpose:
+            Render the stage duration for display.
+
+        Returns:
+            A human-readable duration.
+        """
         return format_duration(self.analysis_duration, getattr(self, 'verbose', False))
     
     def get_summary(self) -> Dict[str, Any]:
-        """Get a summary of the detection results"""
+        """
+        Purpose:
+            Build the compact summary the report header and dashboard show.
+
+        Returns:
+            A dict that always carries target, type, timestamp, duration and diagnostic counts, plus framework and package fields when those stages succeeded.
+
+        Implementation notes:
+            Optional sections are added only when their source result exists, so a caller must check for those keys. The base keys are unconditional, which is what lets a failed detection still render a meaningful header.
+        """
         verbose_print("Generating detection summary", getattr(self, 'verbose', False))
         
         summary = {
@@ -82,7 +163,16 @@ class DetectionResult:
         return summary
     
     def is_detection_complete(self) -> bool:
-        """Check if detection is complete (framework detection and basic info)"""
+        """
+        Purpose:
+            Report whether both detection stages produced a result.
+
+        Returns:
+            True when framework results and package information are both present.
+
+        Implementation notes:
+            Completeness is about the stages having run, not about them having found anything. An app whose framework could not be identified still has a framework result recording that.
+        """
         verbose_print("Checking detection completeness", getattr(self, 'verbose', False))
         
         framework_complete = self.framework_results is not None
@@ -97,15 +187,36 @@ class DetectionResult:
         return is_complete
     
     def has_errors(self) -> bool:
-        """Check if detection has any errors"""
+        """
+        Purpose:
+            Report whether any errors were recorded.
+
+        Returns:
+            True when the error list is non-empty.
+        """
         return len(self.errors) > 0
     
     def has_warnings(self) -> bool:
-        """Check if detection has any warnings"""
+        """
+        Purpose:
+            Report whether any warnings were recorded.
+
+        Returns:
+            True when the warning list is non-empty.
+        """
         return len(self.warnings) > 0
     
     def get_status(self) -> str:
-        """Get detection status string"""
+        """
+        Purpose:
+            Summarise the outcome of detection in one phrase for display.
+
+        Returns:
+            One of four status strings.
+
+        Implementation notes:
+            Incompleteness outranks errors, and errors outrank warnings, so the phrase always names the most serious thing that happened rather than the most recent.
+        """
         verbose_print("Determining detection status", getattr(self, 'verbose', False))
         
         if not self.is_detection_complete():

@@ -1,4 +1,19 @@
-"""Utilities package for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.utils
+
+Purpose:
+    Flat facade over the small, dependency-free helpers used across the codebase, so that call sites read `from ..utils import verbose_print` instead of reaching into six separate modules.
+
+Responsibilities:
+    Re-export terminal helpers, duration formatting, platform probes, the Android XML filters and the vulnerability display helper.
+
+Dependencies:
+    .verbose, .screen, .time_utils, .system, .xml_utils, .display_utils -- all standard-library only, which is what makes eager re-export cheap here and inappropriate in the heavier packages.
+
+Security considerations:
+    filter_strings_xml_* exist to keep framework-supplied resource strings out of AI prompts and reports; they are exported here so that no caller has an excuse to read strings.xml raw.
+"""
 
 from .verbose import verbose_print
 from .screen import clear_screen, safe_input

@@ -1,11 +1,41 @@
-"""System utilities for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.utils.system
+
+Purpose:
+    Report the interpreter and platform the tool is running on, for the startup compatibility gate and for the environment block embedded in every report.
+
+Responsibilities:
+    Read version and platform facts, and state the minimum supported Python.
+
+Dependencies:
+    sys, platform, .verbose.
+
+Security considerations:
+    Platform details are embedded in generated reports. They describe the analyst's machine, not the APK, so a report shared outside the team discloses the analyst's OS build and architecture.
+"""
 
 import sys
 import platform
 from .verbose import verbose_print
 
 def get_python_version(verbose: bool = False):
-    """Get current Python version string"""
+    """
+    Purpose:
+        Report the running interpreter version as a plain string.
+
+    Parameters:
+        verbose: Traces each component as it is read.
+
+    Returns:
+        A "major.minor.micro" string, without build or compiler detail.
+
+    Complexity:
+        O(1).
+
+    Implementation notes:
+        Built from sys.version_info rather than sliced out of sys.version, because sys.version is a free-form string whose layout differs between CPython, PyPy and vendor builds. Only its first line is traced, for the same reason -- it is multi-line on several platforms.
+    """
     verbose_print("Starting Python version detection", verbose)
     
     major = sys.version_info.major
@@ -17,14 +47,28 @@ def get_python_version(verbose: bool = False):
     version = f"{major}.{minor}.{micro}"
     verbose_print(f"Formatted Python version: {version}", verbose)
     
-    # Additional version info
     full_version = sys.version
     verbose_print(f"Full Python version string: {full_version.splitlines()[0]}", verbose)
     
     return version
 
 def check_python_compatibility(verbose: bool = False):
-    """Check if current Python version is compatible"""
+    """
+    Purpose:
+        Decide whether the running interpreter meets the minimum this tool supports.
+
+    Parameters:
+        verbose: Traces the required and current versions and the verdict.
+
+    Returns:
+        True when the interpreter is 3.12 or newer.
+
+    Complexity:
+        O(1).
+
+    Implementation notes:
+        3.12 is the floor because the codebase relies on tomllib, modern typing syntax and current androguard builds. The comparison is against the (major, minor) tuple, so any micro release of a supported minor passes. The requirement is stated as local constants rather than read out of packaging metadata deliberately: this check has to run and produce a clear message on an interpreter too old to load parts of the package.
+    """
     verbose_print("Starting Python compatibility check", verbose)
     
     required_major = 3
@@ -50,7 +94,22 @@ def check_python_compatibility(verbose: bool = False):
     return is_compatible
 
 def get_platform_info(verbose: bool = False):
-    """Get current platform information"""
+    """
+    Purpose:
+        Collect the host platform facts shown in reports and used when choosing platform-specific tool paths.
+
+    Parameters:
+        verbose: Traces each field as it is read.
+
+    Returns:
+        A dict with system, platform, architecture, machine, processor and release. Every key is always present.
+
+    Complexity:
+        O(1), though some platform calls shell out and are not free.
+
+    Implementation notes:
+        processor() and release() are individually guarded because both can fail or hang on unusual hosts -- processor() shells out on some platforms and returns an empty string on others. Each degrades to "Unknown" so the dict shape stays stable and callers never have to check for missing keys. architecture() returns a tuple, not a string; callers that want the bit width must index it.
+    """
     verbose_print("Gathering platform information", verbose)
     
     system = platform.system()
@@ -72,7 +131,6 @@ def get_platform_info(verbose: bool = False):
         verbose_print(f"Could not get processor info: {e}", verbose)
         processor = "Unknown"
     
-    # Additional platform details
     try:
         release = platform.release()
         verbose_print(f"Release: {release}", verbose)
@@ -93,7 +151,22 @@ def get_platform_info(verbose: bool = False):
     return platform_info
 
 def get_system_info(verbose: bool = False):
-    """Get comprehensive system information"""
+    """
+    Purpose:
+        Aggregate interpreter and platform facts into the single environment block reports and diagnostics embed.
+
+    Parameters:
+        verbose: Forwarded to each underlying probe, so one call traces the whole collection.
+
+    Returns:
+        A dict with python_version, python_compatible and a nested platform dict.
+
+    Complexity:
+        O(1).
+
+    Security considerations:
+        The result is embedded verbatim in generated reports and therefore discloses the analyst's operating system, architecture and interpreter build to anyone the report is shared with.
+    """
     verbose_print("Starting comprehensive system information gathering", verbose)
     
     verbose_print("Getting Python version information", verbose)

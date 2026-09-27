@@ -1,0 +1,311 @@
+{
+  "active_provider": "claude_cli",
+  "providers": {
+    "ollama": {
+      "name": "ollama",
+      "display_name": "Ollama (local or cloud)",
+      "model": "glm-4.6:cloud",
+      "mode": "cloud",
+      "base_url": null,
+      "cloud_host": "https://api.ollama.com",
+      "local_host": "http://localhost:11434",
+      "max_concurrent_requests": 2,
+      "has_api_key": true,
+      "api_key_count": 1,
+      "api_keys": [
+        {
+          "index": 0,
+          "masked": "sk-d\u2026emo"
+        }
+      ],
+      "default_model": "glm-4.6:cloud",
+      "needs_api_key": true,
+      "is_cli": false
+    },
+    "claude": {
+      "name": "claude",
+      "display_name": "Claude (Anthropic)",
+      "model": "claude-opus-4-8",
+      "mode": null,
+      "base_url": null,
+      "cloud_host": null,
+      "local_host": null,
+      "max_concurrent_requests": 2,
+      "has_api_key": true,
+      "api_key_count": 1,
+      "api_keys": [
+        {
+          "index": 0,
+          "masked": "sk-d\u2026emo"
+        }
+      ],
+      "default_model": "claude-opus-4-8",
+      "needs_api_key": true,
+      "is_cli": false
+    },
+    "openai": {
+      "name": "openai",
+      "display_name": "OpenAI",
+      "model": "gpt-4o",
+      "mode": null,
+      "base_url": null,
+      "cloud_host": null,
+      "local_host": null,
+      "max_concurrent_requests": 2,
+      "has_api_key": true,
+      "api_key_count": 1,
+      "api_keys": [
+        {
+          "index": 0,
+          "masked": "sk-d\u2026emo"
+        }
+      ],
+      "default_model": "gpt-4o",
+      "needs_api_key": true,
+      "is_cli": false
+    },
+    "gemini": {
+      "name": "gemini",
+      "display_name": "Google Gemini",
+      "model": "gemini-2.5-flash",
+      "mode": null,
+      "base_url": null,
+      "cloud_host": null,
+      "local_host": null,
+      "max_concurrent_requests": 2,
+      "has_api_key": true,
+      "api_key_count": 1,
+      "api_keys": [
+        {
+          "index": 0,
+          "masked": "sk-d\u2026emo"
+        }
+      ],
+      "default_model": "gemini-2.5-flash",
+      "needs_api_key": true,
+      "is_cli": false
+    },
+    "custom": {
+      "name": "custom",
+      "display_name": "Custom (OpenAI-compatible endpoint)",
+      "model": "",
+      "mode": null,
+      "base_url": "https://demo.example.com/v1",
+      "cloud_host": null,
+      "local_host": null,
+      "max_concurrent_requests": 2,
+      "has_api_key": false,
+      "api_key_count": 0,
+      "api_keys": [],
+      "default_model": "",
+      "needs_api_key": false,
+      "is_cli": false
+    },
+    "claude_cli": {
+      "name": "claude_cli",
+      "display_name": "Claude Code CLI (Claude Pro/Max)",
+      "model": "opus",
+      "mode": null,
+      "base_url": null,
+      "cloud_host": null,
+      "local_host": null,
+      "max_concurrent_requests": 1,
+      "has_api_key": false,
+      "api_key_count": 0,
+      "api_keys": [],
+      "default_model": "opus",
+      "needs_api_key": false,
+      "is_cli": true,
+      "binary_path": "",
+      "cli_binary": "claude",
+      "cli_found": true,
+      "cli_resolved_path": "/usr/local/bin/claude",
+      "signin_hint": "Run `claude` once in a terminal and complete the browser sign-in."
+    },
+    "copilot_cli": {
+      "name": "copilot_cli",
+      "display_name": "GitHub Copilot CLI (Copilot Pro)",
+      "model": "",
+      "mode": null,
+      "base_url": null,
+      "cloud_host": null,
+      "local_host": null,
+      "max_concurrent_requests": 1,
+      "has_api_key": false,
+      "api_key_count": 0,
+      "api_keys": [],
+      "default_model": "",
+      "needs_api_key": false,
+      "is_cli": true,
+      "binary_path": "",
+      "cli_binary": "copilot",
+      "cli_found": true,
+      "cli_resolved_path": "/usr/local/bin/copilot",
+      "signin_hint": "Run `copilot` once and sign in with your GitHub account."
+    },
+    "kimi_cli": {
+      "name": "kimi_cli",
+      "display_name": "Kimi CLI (Kimi Plus/Pro/Max/Ultra)",
+      "model": "",
+      "mode": null,
+      "base_url": null,
+      "cloud_host": null,
+      "local_host": null,
+      "max_concurrent_requests": 1,
+      "has_api_key": false,
+      "api_key_count": 0,
+      "api_keys": [],
+      "default_model": "",
+      "needs_api_key": false,
+      "is_cli": true,
+      "binary_path": "",
+      "cli_binary": "kimi",
+      "cli_found": true,
+      "cli_resolved_path": "/usr/local/bin/kimi",
+      "signin_hint": "Run `kimi` once and complete the Moonshot AI sign-in. If it's installed but not found, it may not be on PATH \u2014 set binary_path in Settings to its full path (commonly ~/.kimi-code/bin/kimi)."
+    },
+    "codex_cli": {
+      "name": "codex_cli",
+      "display_name": "Codex CLI (ChatGPT Plus/Pro)",
+      "model": "",
+      "mode": null,
+      "base_url": null,
+      "cloud_host": null,
+      "local_host": null,
+      "max_concurrent_requests": 1,
+      "has_api_key": false,
+      "api_key_count": 0,
+      "api_keys": [],
+      "default_model": "",
+      "needs_api_key": false,
+      "is_cli": true,
+      "binary_path": "",
+      "cli_binary": "codex",
+      "cli_found": true,
+      "cli_resolved_path": "/usr/local/bin/codex",
+      "signin_hint": "Run `codex` once and choose \"Sign in with ChatGPT\"."
+    },
+    "antigravity_cli": {
+      "name": "antigravity_cli",
+      "display_name": "Antigravity CLI (Google AI Pro/Ultra)",
+      "model": "",
+      "mode": null,
+      "base_url": null,
+      "cloud_host": null,
+      "local_host": null,
+      "max_concurrent_requests": 1,
+      "has_api_key": false,
+      "api_key_count": 0,
+      "api_keys": [],
+      "default_model": "",
+      "needs_api_key": false,
+      "is_cli": true,
+      "binary_path": "",
+      "cli_binary": "agy",
+      "cli_found": true,
+      "cli_resolved_path": "/usr/local/bin/agy",
+      "signin_hint": "Run `agy` once and sign in with your Google account."
+    }
+  },
+  "provider_order": [
+    "ollama",
+    "claude",
+    "openai",
+    "gemini",
+    "custom",
+    "claude_cli",
+    "copilot_cli",
+    "kimi_cli",
+    "codex_cli",
+    "antigravity_cli"
+  ],
+  "vendors": [
+    {
+      "id": "ollama",
+      "label": "Ollama",
+      "api": "ollama"
+    },
+    {
+      "id": "claude",
+      "label": "Claude",
+      "api": "claude",
+      "cli": "claude_cli"
+    },
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "api": "openai",
+      "cli": "codex_cli"
+    },
+    {
+      "id": "google",
+      "label": "Google",
+      "api": "gemini",
+      "cli": "antigravity_cli"
+    },
+    {
+      "id": "copilot",
+      "label": "GitHub Copilot",
+      "cli": "copilot_cli"
+    },
+    {
+      "id": "kimi",
+      "label": "Kimi",
+      "cli": "kimi_cli"
+    },
+    {
+      "id": "custom",
+      "label": "Custom",
+      "api": "custom"
+    }
+  ],
+  "custom_presets": [
+    {
+      "label": "Groq (free tier)",
+      "base_url": "https://api.groq.com/openai/v1",
+      "model": "llama-3.3-70b-versatile"
+    },
+    {
+      "label": "OpenRouter (free models)",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "meta-llama/llama-3.3-70b-instruct:free"
+    },
+    {
+      "label": "Together AI (free tier)",
+      "base_url": "https://api.together.xyz/v1",
+      "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
+    }
+  ],
+  "jadx_path": "/opt/homebrew/bin/jadx",
+  "blutter_path": "",
+  "hermes_decomp_path": "",
+  "rn_decompiler_path": "",
+  "pdf_generation": true,
+  "auto_resume": true,
+  "agent_budget": {
+    "max_steps_per_region": 40,
+    "max_minutes": 45
+  },
+  "agent_budget_limits": {
+    "max_steps_per_region": [
+      0,
+      500
+    ],
+    "max_minutes": [
+      0,
+      480
+    ]
+  },
+  "max_concurrent_requests_range": [
+    1,
+    20
+  ],
+  "status": {
+    "jadx_configured": true,
+    "ollama_configured": true,
+    "blutter_configured": false,
+    "hermes_decomp_configured": false,
+    "rn_decompiler_configured": false,
+    "ready_for_analysis": true
+  }
+}

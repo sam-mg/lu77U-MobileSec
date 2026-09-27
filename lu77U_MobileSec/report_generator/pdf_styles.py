@@ -1,5 +1,21 @@
-"""CSS Styles for PDF Reports"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.report_generator.pdf_styles
 
+Purpose:
+    Supply the print stylesheet for PDF reports: page geometry, page numbering and the typographic rules that make a security report readable on paper.
+
+Responsibilities:
+    Build the CSS and wrap it in the PDF engine's stylesheet object.
+
+Dependencies:
+    WeasyPrint, which is required for this module's public entry point.
+
+Implementation notes:
+    The print stylesheet is separate from the HTML report's own styling because the two media differ in ways that cannot be reconciled in one sheet -- fixed page size, page-break control and running footers have no screen equivalent.
+"""
+
+from .._metadata import NAME as APP_NAME
 from ..utils.verbose import verbose_print
 
 try:
@@ -16,15 +32,45 @@ except Exception as e:
     WEASYPRINT_ERROR = str(e)
 
 class PDFStyleManager:
-    """Manages CSS styles for PDF report generation"""
-    
+    """
+    Purpose:
+        Provides the print stylesheet for PDF reports.
+
+    Attributes:
+        verbose: Whether style generation is traced.
+
+    Thread-safety:
+        Stateless; the methods are static.
+    """
     def __init__(self, verbose: bool = False):
+        """
+        Purpose:
+            Construct the manager.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         verbose_print("PDFStyleManager initialized", self.verbose)
     
     @staticmethod
     def get_pdf_css(verbose: bool = False):
-        """Get the main CSS styling for PDF reports"""
+        """
+        Purpose:
+            Build the stylesheet object the PDF engine renders with.
+
+        Parameters:
+            verbose: Traces the construction.
+
+        Returns:
+            The stylesheet.
+
+        Raises:
+            ImportError: When WeasyPrint is unavailable, with the install command in the message.
+
+        Implementation notes:
+            Raising rather than returning None is right here: the caller has already committed to producing a PDF, and a stylesheet-less render would silently produce an unreadable document.
+        """
         verbose_print("Generating PDF CSS styles", verbose)
         
         if not WEASYPRINT_AVAILABLE:
@@ -41,7 +87,19 @@ class PDFStyleManager:
     
     @staticmethod
     def _get_css_content(verbose: bool = False) -> str:
-        """Get the CSS content as a string"""
+        """
+        Purpose:
+            Return the print stylesheet text.
+
+        Parameters:
+            verbose: Traces the construction.
+
+        Returns:
+            The CSS.
+
+        Implementation notes:
+            Page geometry, margins and the footer page counter are set here because they exist only in paged media. The rest mirrors the HTML report's severity colours, so a finding looks the same on screen and on paper.
+        """
         verbose_print("Building CSS content string", verbose)
         
         return """
@@ -49,7 +107,7 @@ class PDFStyleManager:
                 margin: 1in;
                 size: A4;
                 @bottom-center {
-                    content: "lu77U-MobileSec Analysis Report - Page " counter(page);
+                    content: "__APP_NAME__ Analysis Report - Page " counter(page);
                     font-size: 9pt;
                     color: #666;
                 }
@@ -232,4 +290,4 @@ class PDFStyleManager:
                     page-break-inside: avoid;
                 }
             }
-        """
+        """.replace("__APP_NAME__", APP_NAME)

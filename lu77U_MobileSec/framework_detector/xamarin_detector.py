@@ -1,4 +1,22 @@
-"""Xamarin Framework Detector for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.framework_detector.xamarin_detector
+
+Purpose:
+    Recognise a Xamarin or .NET MAUI app, whose logic is in managed .NET assemblies rather than in Dalvik bytecode, so that the right decompiler and analyzer are chosen for it.
+
+Responsibilities:
+    Detect the framework in an APK by its bundled artifacts, and in a project by its directory layout.
+
+Dependencies:
+    zipfile, pathlib, ..config.constants for the indicator tables.
+
+Implementation notes:
+    Xamarin bundles its assemblies inside the APK, sometimes compressed into a single blob. Recognising it routes the app to the .NET decompiler; analysing the Dalvik code instead would examine only the generated bindings and find nothing of the application. The indicator tables live in config rather than here, so adding a marker for a new version of the framework is a data change.
+
+Security considerations:
+    The bundled assemblies are attacker-controlled executable content. Detection reads only entry names and never extracts or loads an assembly.
+"""
 
 import os
 import zipfile
@@ -11,9 +29,30 @@ from ..config.constants import (
 )
 
 class XamarinDetector:
-    """Detector for Xamarin framework"""
-    
+    """
+    Purpose:
+        Detects Xamarin in an APK or a project.
+
+    Attributes:
+        verbose: Whether detection is traced.
+        framework_name: The framework name reported.
+        apk_indicators: Markers looked for among APK entry names.
+        project_indicators: Directories looked for in a project.
+
+    Invariants:
+        Returns None rather than a zero-confidence result when nothing matched.
+
+    Thread-safety:
+        Holds no per-detection state; safe to reuse.
+    """
     def __init__(self, verbose=False):
+        """
+        Purpose:
+            Construct the detector and bind its indicator tables.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         self.framework_name = "Xamarin"
         self.apk_indicators = XAMARIN_APK_INDICATORS
@@ -21,7 +60,19 @@ class XamarinDetector:
         self.project_extensions = XAMARIN_PROJECT_EXTENSIONS
     
     def detect(self, input_path: str):
-        """Detect Xamarin framework in APK or project directory"""
+        """
+        Purpose:
+            Detect Xamarin in an APK or a project.
+
+        Parameters:
+            input_path: Path to an APK or a project directory.
+
+        Returns:
+            A detection dict with framework, indicators and confidence, or None.
+
+        Implementation notes:
+            The directory case is tested before the extension, so a directory is never misrouted to the archive path.
+        """
         if os.path.isdir(input_path):
             return self._detect_in_project(input_path)
         elif input_path.endswith('.apk'):
@@ -31,7 +82,22 @@ class XamarinDetector:
             return None
     
     def _detect_in_project(self, project_path: str):
-        """Detect Xamarin framework in project directory"""
+        """
+        Purpose:
+            Detect a Xamarin project by the files and directories it contains.
+
+        Parameters:
+            project_path: Path to the project root.
+
+        Returns:
+            A detection dict, or None when no indicator was found.
+
+        Side effects:
+            Stats the candidate paths.
+
+        Implementation notes:
+            Indicators are interpreted by their spelling: one ending in a separator must be a directory, while the rest may be either. Xamarin projects are identified by a mix of both -- project directories and specific project files -- so a single rule would miss half the evidence. Confidence starts at a base and rises with each additional indicator, capped below certainty. Failures are swallowed and reported as no detection.
+        """
         verbose_print(f"Scanning project directory for Xamarin indicators", self.verbose)
         
         try:
@@ -96,7 +162,25 @@ class XamarinDetector:
             return None
     
     def _detect_in_apk(self, apk_path: str):
-        """Detect Xamarin framework in APK file"""
+        """
+        Purpose:
+            Detect Xamarin by the artifacts its runtime bundles into an APK.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            A detection dict, or None when no indicator was found.
+
+        Side effects:
+            Opens the APK as a zip archive.
+
+        Implementation notes:
+            Only the archive's entry names are read; nothing is extracted. That keeps detection cheap enough to run every detector over every APK, and avoids writing attacker-controlled content to disk during detection. Markers are the Mono runtime libraries and the bundled assembly layout. The per-indicator increment is modest because these markers frequently appear together and would otherwise reach certainty on what is really a single piece of evidence.
+
+        Security considerations:
+            A malformed archive is caught and reported as no detection rather than propagating.
+        """
         verbose_print(f"Scanning APK file for Xamarin indicators", self.verbose)
         
         try:

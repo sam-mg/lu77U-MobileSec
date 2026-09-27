@@ -1,4 +1,22 @@
-"""AndroidManifest.xml Parser for lu77U-MobileSec"""
+#!/usr/bin/env python3
+"""
+Module: lu77U_MobileSec.detection.extractors.manifest_parser
+
+Purpose:
+    Read AndroidManifest.xml in whatever form it arrives -- text in a project, binary XML in an APK -- and pull out identity, components, permissions and the security-relevant flags.
+
+Responsibilities:
+    Locate the manifest, parse it through androguard or external tooling or as raw bytes, resolve string resources, and derive component and security details from the content.
+
+Dependencies:
+    xml.etree, zipfile, subprocess, androguard when installed, ...config.constants for the permission and dangerous-permission tables.
+
+Implementation notes:
+    The manifest is the single most valuable file in an APK and the one most likely to resist parsing: it is binary XML, apps obfuscate and malform it deliberately, and androguard does not always cope. This module therefore has a long fallback chain -- androguard, then aapt or aapt2, then apktool, then raw string scraping -- each weaker than the last but each better than nothing. A manifest that only yields readable strings still tells the analysis which permissions and components exist, which is enough to drive the rest of the scan.
+
+Security considerations:
+    Parsing an untrusted binary manifest is the most hostile input this tool handles. External tools are invoked with fixed argument vectors and no shell, and every extraction path is time-bounded so a malformed archive cannot hang a scan.
+"""
 
 import os
 import re
@@ -7,7 +25,7 @@ import zipfile
 try:
     import defusedxml.ElementTree as ET
 except ImportError:
-    import xml.etree.ElementTree as ET  # type: ignore[no-redef]
+    import xml.etree.ElementTree as ET
 from typing import Dict, Any, Optional, List
 from ...utils.verbose import verbose_print
 from ...config.constants import DANGEROUS_PERMISSIONS, PERMISSION_PATTERNS
@@ -22,15 +40,45 @@ except ImportError:
     APK = None
 
 class ManifestParser:
-    """Comprehensive parser for AndroidManifest.xml files from both APKs and project directories"""
-    
+    """
+    Purpose:
+        Extracts manifest information from an APK or a source project.
+
+    Attributes:
+        verbose: Whether parsing is traced.
+
+    Invariants:
+        Always returns a dict, possibly empty or carrying only an error key. Never raises to the caller.
+
+    Thread-safety:
+        Holds no per-parse state, but the external tools it spawns write into temporary directories of their own.
+    """
     def __init__(self, verbose: bool = False):
+        """
+        Purpose:
+            Construct the parser and record whether androguard is available.
+
+        Parameters:
+            verbose: Enables tracing.
+        """
         self.verbose = verbose
         verbose_print("ManifestParser initialized", self.verbose)
         verbose_print(f"Androguard available: {ANDROGUARD_AVAILABLE}", self.verbose)
     
     def extract_manifest_info(self, input_path: str) -> Dict[str, Any]:
-        """Extract manifest information from APK file or project directory"""
+        """
+        Purpose:
+            Extract manifest information from whatever the target is.
+
+        Parameters:
+            input_path: Path to an APK or a project directory.
+
+        Returns:
+            The extracted attributes; empty when nothing could be read.
+
+        Implementation notes:
+            Dispatch is by extension, case-insensitively, since an APK reached through a file picker may not be lowercase.
+        """
         verbose_print(f"Starting manifest extraction for: {input_path}", self.verbose)
         
         if input_path.lower().endswith('.apk'):
@@ -41,7 +89,22 @@ class ManifestParser:
             return self._extract_from_project(input_path)
     
     def _extract_from_project(self, project_path: str) -> Dict[str, Any]:
-        """Extract manifest info from project directory"""
+        """
+        Purpose:
+            Parse a text AndroidManifest.xml from a source project.
+
+        Parameters:
+            project_path: Path to the project root.
+
+        Returns:
+            The extracted attributes; empty when no manifest was found or it would not parse.
+
+        Side effects:
+            Reads the manifest and possibly the string resources.
+
+        Implementation notes:
+            A project manifest is ordinary XML, so this path is far simpler than the APK one -- no binary decoding and no external tooling. String resources are resolved from the project's own resource files, so the app label reads as text rather than as a reference.
+        """
         verbose_print(f"Starting project-based manifest extraction for: {project_path}", self.verbose)
         manifest_info = {}
         manifest_path = self._find_manifest_file(project_path)
@@ -169,6 +232,25 @@ class ManifestParser:
         return manifest_info
     
     def _find_manifest_file(self, project_path: str) -> Optional[str]:
+        """
+        Purpose:
+            Locate AndroidManifest.xml within a project.
+
+        Parameters:
+            project_path: Path to the project root.
+
+        Returns:
+            The path, or None when no manifest exists.
+
+        Side effects:
+            May walk the entire project tree.
+
+        Implementation notes:
+            Three standard locations are checked first, covering a bare source set, a project root and a Gradle app module. Only if all three miss does the full recursive walk run, which is expensive on a large checkout.
+
+        Known limitations:
+            The recursive search takes whichever manifest it finds first in walk order. A multi-module project has several, and the one chosen may belong to a library module rather than the application.
+        """
         verbose_print(f"Searching for AndroidManifest.xml in: {project_path}", self.verbose)
         possible_paths = [
             os.path.join(project_path, 'src', 'main', 'AndroidManifest.xml'),
@@ -198,6 +280,20 @@ class ManifestParser:
         return None
     
     def _resolve_string_resource(self, project_path: str, resource_ref: str) -> Optional[str]:
+        """
+        Purpose:
+            Resolve a string resource reference against a project's resource files.
+
+        Parameters:
+            project_path: Path to the project root.
+            resource_ref: The reference to resolve.
+
+        Returns:
+            The resolved text, or None when it is not a reference or could not be resolved.
+
+        Implementation notes:
+            Only the default values directory is searched, not the per-locale variants. For the app label that is almost always where the base string lives, and searching every locale would cost many file reads for a marginal gain. A malformed resource file is skipped so that one bad file does not prevent resolution from another location.
+        """
         verbose_print(f"Attempting to resolve string resource: {resource_ref}", self.verbose)
         if not resource_ref.startswith('@string/'):
             verbose_print("Not a string resource reference", self.verbose)
@@ -241,7 +337,25 @@ class ManifestParser:
         return None
     
     def _extract_from_apk(self, apk_path: str) -> Dict[str, Any]:
-        """Extract manifest info from APK file using Androguard"""
+        """
+        Purpose:
+            Extract manifest information from a built APK, preferring androguard and falling back to external tooling.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            The extracted attributes, or a dict carrying an error key.
+
+        Side effects:
+            Parses the APK and may spawn external tools.
+
+        Implementation notes:
+            A missing file returns an explicit error rather than an empty dict, because that distinction matters to the caller: nothing found is a parsing outcome, while nothing to open is a caller mistake.
+
+        Security considerations:
+            The APK is untrusted. Every parsing path below is guarded and bounded.
+        """
         verbose_print(f"Starting APK-based manifest extraction for: {apk_path}", self.verbose)
         manifest_info = {}
         
@@ -278,7 +392,19 @@ class ManifestParser:
         return manifest_info
     
     def _extract_with_androguard(self, apk_obj) -> Dict[str, Any]:
-        """Extract manifest info using Androguard APK object"""
+        """
+        Purpose:
+            Read the manifest through androguard, the preferred path.
+
+        Parameters:
+            apk_obj: The parsed APK object.
+
+        Returns:
+            The extracted attributes.
+
+        Implementation notes:
+            Preferred because androguard decodes binary XML properly and resolves resources, so this path yields structured data rather than scraped strings. The fallbacks exist only for the APKs it cannot handle.
+        """
         verbose_print("Extracting manifest info with Androguard", self.verbose)
         manifest_info = {}
         
@@ -299,7 +425,13 @@ class ManifestParser:
             
             verbose_print("Extracting permissions", self.verbose)
             permissions = apk_obj.get_permissions()
-            manifest_info['permissions'] = permissions if permissions else []
+            if permissions:
+                manifest_info['permissions'] = list(permissions)
+            else:
+                manifest_info.setdefault('permissions', [])
+                verbose_print(
+                    "androguard reported no permissions; leaving any existing value "
+                    "in place for the text-manifest fallback to fill", self.verbose)
             verbose_print(f"Found {len(manifest_info['permissions'])} permissions", self.verbose)
             
             verbose_print("Extracting application components", self.verbose)
@@ -333,7 +465,25 @@ class ManifestParser:
         return manifest_info
     
     def _extract_manifest_content_fallback(self, apk_path: str) -> str:
-        """Extract manifest content using fallback methods"""
+        """
+        Purpose:
+            Recover manifest content when androguard could not, using external tooling and finally raw bytes.
+
+        Parameters:
+            apk_path: Path to the APK.
+
+        Returns:
+            Manifest content in some readable form, or an empty string when every method failed.
+
+        Side effects:
+            Spawns external processes and may extract the APK into a temporary directory.
+
+        Implementation notes:
+            Four methods in decreasing order of fidelity: aapt, aapt2, apktool, and raw extraction from the archive. Each produces a different format, which is why the callers parse the result loosely rather than expecting XML. apktool gets a longer timeout than the aapt tools because it decodes the entire APK rather than one file. Missing tools are an expected outcome, not an error: none of these is a declared dependency, and each is skipped quietly if absent.
+
+        Security considerations:
+            Every command is a fixed argument list with the APK path as a separate element, so no shell interpretation occurs. Every invocation is bounded by a timeout, so a malformed archive that makes a tool spin cannot hang the scan. The apktool output goes to a temporary directory that is removed afterwards, never into the user's tree.
+        """
         verbose_print("Attempting fallback manifest extraction methods", self.verbose)
         
         for tool in ['aapt', 'aapt2']:
@@ -402,7 +552,25 @@ class ManifestParser:
         return ""
     
     def _extract_readable_strings(self, manifest_data: bytes) -> str:
-        """Extract readable strings from binary manifest"""
+        """
+        Purpose:
+            Scrape printable strings out of a binary manifest as a last resort.
+
+        Parameters:
+            manifest_data: The raw binary manifest.
+
+        Returns:
+            A pseudo-manifest of comment lines carrying the relevant strings.
+
+        Complexity:
+            O(n) in the size of the manifest.
+
+        Implementation notes:
+            This is the floor of the fallback chain: no structure survives, but the permission names, component class names and attribute names do, and those are enough for the rest of the scan to know what the app declares. Runs shorter than four characters are dropped as binary noise, and the survivors are filtered to those containing manifest-relevant keywords, which removes most of the resource-table strings. The result is wrapped in XML comments and labelled as limited parsing, so that anything reading it can see it is scraped rather than parsed, and so a regex-based consumer does not mistake a fragment for real markup.
+
+        Security considerations:
+            Scraped strings are raw bytes from an untrusted file. They are filtered to printable ASCII, which removes control characters, but they remain attacker-controlled text.
+        """
         verbose_print("Extracting readable strings from binary manifest", self.verbose)
         
         readable_strings = []
@@ -440,7 +608,19 @@ class ManifestParser:
         return "\n".join(manifest_parts)
     
     def _parse_manifest_content(self, manifest_content: str) -> Dict[str, Any]:
-        """Parse manifest content for additional information"""
+        """
+        Purpose:
+            Derive permissions, component detail, security flags and manifest-level issues from manifest content in any of its recovered forms.
+
+        Parameters:
+            manifest_content: Manifest text, whether real XML or scraped strings.
+
+        Returns:
+            The derived attributes, plus a parsing_error key when derivation failed.
+
+        Implementation notes:
+            Each derivation is text-based rather than tree-based, so it works on scraped content as well as on real XML -- which is the point, since this runs on whatever the fallback chain produced. The error is recorded in the result rather than raised, keeping whatever was derived before the failure.
+        """
         verbose_print("Parsing manifest content for additional information", self.verbose)
         manifest_info = {}
         
@@ -469,7 +649,19 @@ class ManifestParser:
         return manifest_info
     
     def _parse_permissions(self, manifest_content: str) -> List[str]:
-        """Parse permissions from manifest content"""
+        """
+        Purpose:
+            Extract declared permission names from manifest content.
+
+        Parameters:
+            manifest_content: Manifest text.
+
+        Returns:
+            Unique permission names, sorted.
+
+        Implementation notes:
+            Pattern-based rather than tree-based so that it works on scraped content. Sorted and deduplicated so the output is stable across runs and comparable between reports.
+        """
         verbose_print("Parsing permissions from manifest content", self.verbose)
         permissions = []
         
@@ -482,7 +674,22 @@ class ManifestParser:
         return unique_permissions
     
     def _parse_activities_detailed(self, manifest_content: str) -> List[Dict[str, Any]]:
-        """Parse activities with detailed information"""
+        """
+        Purpose:
+            Extract per-activity detail -- export status, enabled state, guarding permission and whether it has intent filters.
+
+        Parameters:
+            manifest_content: Manifest text.
+
+        Returns:
+            One entry per activity found.
+
+        Implementation notes:
+            Real XML is parsed properly, with the Android namespace spelled out in full because attributes are namespaced and a bare name lookup silently returns nothing. Defaults follow the platform: unspecified exported is false, unspecified enabled is true. Those defaults are what later findings reason about. When the content is not parseable XML, a regex fallback recovers names only and marks export and enabled state as unknown rather than guessing. That distinction matters: an unknown export status must not be reported as "not exported".
+
+        Security considerations:
+            Export status and guarding permission are the inputs to exported-component findings, so a wrong default here would directly misreport a vulnerability. That is why the fallback reports unknown rather than defaulting.
+        """
         verbose_print("Parsing detailed activity information", self.verbose)
         activities = []
         
@@ -521,7 +728,22 @@ class ManifestParser:
         return activities
     
     def _parse_security_flags(self, manifest_content: str) -> Dict[str, Any]:
-        """Parse security-related flags from manifest"""
+        """
+        Purpose:
+            Detect the manifest-level security flags that later findings depend on.
+
+        Parameters:
+            manifest_content: Manifest text.
+
+        Returns:
+            A flag per attribute checked.
+
+        Implementation notes:
+            Matched as literal attribute strings rather than parsed, so the check works on scraped content too.
+
+        Known limitations:
+            Literal matching is whitespace- and quote-sensitive: a manifest writing the attribute with single quotes or unusual spacing reads as absent. It also cannot see a flag set in a build variant rather than the manifest. Missing a flag under-reports, which is the safer direction than falsely claiming one is set.
+        """
         verbose_print("Parsing security flags from manifest", self.verbose)
         flags = {}
         
@@ -535,7 +757,23 @@ class ManifestParser:
         return flags
     
     def _analyze_security(self, manifest_content: str, manifest_info: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Analyze manifest for security vulnerabilities"""
+        """
+        Purpose:
+            Turn the parsed manifest facts into manifest-level findings.
+
+        Parameters:
+            manifest_content: Manifest text.
+            manifest_info: Attributes derived so far.
+
+        Returns:
+            Finding dicts for the issues identified.
+
+        Implementation notes:
+            Works from the already-parsed facts rather than re-reading the text, so it cannot disagree with the flags and components reported elsewhere. Dangerous permissions are matched against the shared table, keeping what counts as dangerous in one place rather than duplicated here.
+
+        Security considerations:
+            These are manifest-level observations, several of which are exactly the weak classes the gates later demote -- backup enabled, cleartext permitted, a dangerous permission requested. They are reported here as facts and judged downstream, rather than being suppressed at the point of detection where the context to judge them is missing.
+        """
         verbose_print("Performing security analysis on manifest", self.verbose)
         security_issues = []
         
