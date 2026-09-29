@@ -244,18 +244,14 @@ class TestConfirmationUpgradesTheReference:
             """
             unavailable = None
 
-            def analyze(self, prompt, system_message=None, schema=None, images=None, max_tokens=None, session_key=None):
+            def analyze(self, *_unused_args, **_unused_kwargs):
                 """
                 Purpose:
                     Confirm the first proposal and nothing else.
 
                 Parameters:
-                    prompt: The prompt, unused here.
-                    system_message: The system prompt, unused here.
-                    schema: The requested response schema, unused here.
-                    images: Attached images, unused here.
-                    max_tokens: The response limit, unused here.
-                    session_key: The conversation key, unused here.
+                    _unused_args: The prompt, unused here.
+                    _unused_kwargs: The system prompt, schema, images, response limit and conversation key, unused here.
 
                 Returns:
                     A response confirming the first proposal with a short reason and a flow.

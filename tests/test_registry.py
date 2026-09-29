@@ -154,7 +154,7 @@ class TestAnalyzerContract:
             The service passes verbose, progress and is_cancelled. A subclass that forgets one raises TypeError at construction, which fails every scan of that framework before any work starts; that is a regression this pins, not a hypothetical.
         """
         stop = lambda: True
-        instance = cls(verbose=False, progress=lambda *a, **kw: None, is_cancelled=stop)
+        instance = cls(verbose=False, progress=lambda *_, **__: None, is_cancelled=stop)
         assert instance.is_cancelled is stop
 
     @pytest.mark.parametrize("cls", _ALL_ANALYZERS)
@@ -183,16 +183,16 @@ class TestAnalyzerContract:
         """
         seen = {}
 
-        def fake_run(provider, source_root, static_signals=None, **kwargs):
+        def fake_run(provider_unused, source_root_unused, static_signals_unused=None, **kwargs):
             """
             Purpose:
                 Stand in for the agent loop and record the keywords it was called with.
 
             Parameters:
-                provider: The AI provider, unused here.
-                source_root: The decompiled source root, unused here.
-                static_signals: The static pre-pass signals, unused here.
-            kwargs: Everything else the analyzer passed through, recorded so the test can assert the cancellation callback arrived.
+                provider_unused: The AI provider, unused here.
+                source_root_unused: The decompiled source root, unused here.
+                static_signals_unused: The static pre-pass signals, unused here.
+                kwargs: Everything else the analyzer passed through, recorded so the test can assert the cancellation callback arrived.
 
             Returns:
                 An empty finding list, a success flag and an empty error string, matching the real return shape.
@@ -224,7 +224,7 @@ class TestUnconfiguredToolsDegradeCleanly:
         """
         monkeypatch.setattr(
             "lu77U_MobileSec.tools_checker.blutter_checker.check_blutter_configured",
-            lambda verbose=False: False)
+            lambda **_: False)
         ready, reason = FlutterAnalyzer(verbose=False).preflight()
         assert ready is False
         assert "blutter" in reason.lower() or "Blutter" in reason
@@ -239,10 +239,10 @@ class TestUnconfiguredToolsDegradeCleanly:
         """
         monkeypatch.setattr(
             "lu77U_MobileSec.tools_checker.hermes_checker.check_hermes_configured",
-            lambda verbose=False: False)
+            lambda **_: False)
         monkeypatch.setattr(
             "lu77U_MobileSec.tools_checker.rn_decompiler_checker.check_rn_decompiler_configured",
-            lambda verbose=False: False)
+            lambda **_: False)
         ready, reason = ReactNativeAnalyzer(verbose=False).preflight()
         assert ready is False
         assert "hermes" in reason.lower()
@@ -261,10 +261,10 @@ class TestUnconfiguredToolsDegradeCleanly:
         """
         monkeypatch.setattr(
             "lu77U_MobileSec.tools_checker.hermes_checker.check_hermes_configured",
-            lambda verbose=False: True)
+            lambda **_: True)
         monkeypatch.setattr(
             "lu77U_MobileSec.tools_checker.rn_decompiler_checker.check_rn_decompiler_configured",
-            lambda verbose=False: False)
+            lambda **_: False)
         ready, _ = ReactNativeAnalyzer(verbose=False).preflight()
         assert ready is True
 

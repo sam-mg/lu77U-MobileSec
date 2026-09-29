@@ -159,14 +159,14 @@ _FRAMEWORK_LAYOUT_PREFIXES = (
 )
 
 
-def is_framework_layout_file(filename: str, verbose: bool = False) -> bool:
+def is_framework_layout_file(filename: str, verbose_unused: bool = False) -> bool:
     """
     Purpose:
         Recognise layout files shipped by AndroidX, Material and the support libraries, so they can be skipped before they reach an analyzer.
 
     Parameters:
         filename: Bare filename, not a path.
-        verbose: Accepted for signature consistency with the other helpers in this module; deliberately unused, as a per-file trace line here would produce thousands of lines of noise.
+        verbose_unused: Accepted for signature consistency with the other helpers in this module; deliberately unused, as a per-file trace line here would produce thousands of lines of noise.
 
     Returns:
         True when the name carries a known framework prefix.

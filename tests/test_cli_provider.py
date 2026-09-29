@@ -9,7 +9,7 @@ Responsibilities:
     Pin that the prompt travels on standard input and never on the command line, that an array-rooted schema is wrapped for the CLI and unwrapped on the way back while an object-rooted one passes through untouched, that each error shape is classified correctly and trips or spares the circuit breaker accordingly, and that every CLI specification is registered and capped at one call in flight.
 
 Dependencies:
-    pytest, the CLI provider module, the error classifier, the finding schema, the provider factory and the user settings defaults.
+    pytest, the CLI provider module, the finding schema, the provider factory and the user settings defaults.
 
 Implementation notes:
     No real CLI is invoked and nothing here reaches the network or a live account. Two levels of fake are used deliberately: a stub executable on disk for the argument and standard input contract, which only a real process spawn exercises honestly, and a replaced process runner for the schema and error logic, which needs no process at all.
@@ -21,29 +21,20 @@ Security considerations:
 import json
 import stat
 import subprocess
-import sys
 import textwrap
 
-import pytest
-
-from lu77U_MobileSec.ai.cli_provider import (
-    CLI_SPECS,
-    CLIBackedProvider,
-    CLIProcessError,
-    _make_provider_class,
-)
-from lu77U_MobileSec.ai.errors import classify, ErrorClass
+from lu77U_MobileSec.ai.cli_provider import CLI_SPECS, _make_provider_class
 from lu77U_MobileSec.ai.schema import VULNERABILITY_SCHEMA
 
 
-def _provider(spec_key: str, tmp_path, binary_path=None, **config_overrides):
+def _provider(spec_key: str, unused_tmp_path, binary_path=None, **config_overrides):
     """
     Purpose:
         Build one CLI-backed provider from its specification, with a configuration the test controls.
 
     Parameters:
         spec_key: The key naming which CLI specification to build from.
-        tmp_path: Temporary directory, accepted so every call site reads the same.
+        unused_tmp_path: Temporary directory, accepted so every call site reads the same even though the provider itself does not touch the filesystem.
         binary_path: An explicit path to the executable, or empty to let the provider look one up.
         config_overrides: Configuration entries replacing the defaults, such as the concurrency cap.
 
@@ -127,8 +118,7 @@ class TestStdinDiscipline:
         """
         captured = {}
 
-        def fake_run(argv, input=None, capture_output=True, text=True,
-                     timeout=None, cwd=None):
+        def fake_run(argv, input=None, **unused_kwargs):
             """
             Purpose:
                 Record the command line and standard input instead of spawning anything.
@@ -136,10 +126,7 @@ class TestStdinDiscipline:
             Parameters:
                 argv: The command line the provider assembled.
                 input: The text the provider wrote to standard input.
-                capture_output: Whether output is captured, unused here.
-                text: Whether output is decoded, unused here.
-                timeout: The call timeout.
-                cwd: The working directory, unused here.
+                unused_kwargs: The remaining keyword arguments the real subprocess.run accepts (capture_output, text, timeout, cwd), unused here.
 
             Returns:
                 A completed process carrying an empty successful envelope.
@@ -184,19 +171,14 @@ class TestSchemaWrapUnwrap:
         Returns:
             The provider, ready to analyse.
         """
-        def fake_run(argv, input=None, capture_output=True, text=True,
-                     timeout=None, cwd=None):
+        def fake_run(argv, **unused_kwargs):
             """
             Purpose:
                 Return the fixed structured result without spawning anything.
 
             Parameters:
                 argv: The command line the provider assembled.
-                input: The text the provider wrote to standard input.
-                capture_output: Whether output is captured, unused here.
-                text: Whether output is decoded, unused here.
-                timeout: The call timeout.
-                cwd: The working directory, unused here.
+                unused_kwargs: The remaining keyword arguments the real subprocess.run accepts (input, capture_output, text, timeout, cwd), unused here.
 
             Returns:
                 A completed process carrying the fixed result in a successful envelope.
@@ -277,10 +259,10 @@ class TestErrorClassification:
         called = []
         monkeypatch.setattr(
             "lu77U_MobileSec.ai.cli_provider.subprocess.run",
-            lambda *a, **k: called.append(1))
+            lambda *unused_args, **unused_kwargs: called.append(1))
         p = _provider("claude_cli", tmp_path, binary_path="")
         monkeypatch.setattr(
-            "lu77U_MobileSec.ai.cli_provider.shutil.which", lambda name: None)
+            "lu77U_MobileSec.ai.cli_provider.shutil.which", lambda _: None)
         result = p.analyze("hi")
         assert result.get("fatal") is True
         assert result.get("error_class") == "fatal_auth"
@@ -299,19 +281,14 @@ class TestErrorClassification:
         Implementation notes:
             The second half is the point of the circuit breaker: without it every remaining region of a scan spends a full-size prompt to be told the same thing.
         """
-        def fake_run(argv, input=None, capture_output=True, text=True,
-                     timeout=None, cwd=None):
+        def fake_run(argv, **unused_kwargs):
             """
             Purpose:
                 Return a spent-quota error envelope without spawning anything.
 
             Parameters:
                 argv: The command line the provider assembled.
-                input: The text the provider wrote to standard input.
-                capture_output: Whether output is captured, unused here.
-                text: Whether output is decoded, unused here.
-                timeout: The call timeout.
-                cwd: The working directory, unused here.
+                unused_kwargs: The remaining keyword arguments the real subprocess.run accepts (input, capture_output, text, timeout, cwd), unused here.
 
             Returns:
                 A completed process carrying the quota error envelope.
@@ -333,7 +310,7 @@ class TestErrorClassification:
         calls = []
         monkeypatch.setattr(
             "lu77U_MobileSec.ai.cli_provider.subprocess.run",
-            lambda *a, **k: calls.append(1))
+            lambda *unused_args, **unused_kwargs: calls.append(1))
         result2 = p.analyze("hi again")
         assert result2.get("short_circuited") is True
         assert not calls
@@ -350,19 +327,15 @@ class TestErrorClassification:
         Implementation notes:
             One hung call is an ordinary event on a long prompt, and treating it as fatal would abandon the rest of a scan over a single slow turn.
         """
-        def fake_run(argv, input=None, capture_output=True, text=True,
-                     timeout=None, cwd=None):
+        def fake_run(argv, timeout=None, **unused_kwargs):
             """
             Purpose:
                 Raise a timeout instead of spawning anything.
 
             Parameters:
                 argv: The command line the provider assembled.
-                input: The text the provider wrote to standard input.
-                capture_output: Whether output is captured, unused here.
-                text: Whether output is decoded, unused here.
-                timeout: The call timeout.
-                cwd: The working directory, unused here.
+                timeout: The call timeout, echoed into the raised error.
+                unused_kwargs: The remaining keyword arguments the real subprocess.run accepts (input, capture_output, text, cwd), unused here.
 
             Raises:
                 subprocess.TimeoutExpired: Always, standing in for a call that hung.

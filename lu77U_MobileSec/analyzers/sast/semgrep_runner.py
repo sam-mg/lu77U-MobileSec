@@ -125,12 +125,12 @@ def run_semgrep(source_root, verbose: bool = False,
         verbose_print(f"Semgrep: unparseable JSON output ({exc}); skipping", verbose)
         return []
 
-    findings = _to_findings(payload, root, verbose)
+    findings = _to_findings(payload, root)
     verbose_print(f"Semgrep: {plural(len(findings), 'hit')}", verbose)
     return findings
 
 
-def _to_findings(payload: Dict[str, Any], root: Path, verbose: bool) -> List[SastFinding]:
+def _to_findings(payload: Dict[str, Any], root: Path) -> List[SastFinding]:
     """
     Purpose:
         Convert Semgrep's output into rule findings.
@@ -138,7 +138,6 @@ def _to_findings(payload: Dict[str, Any], root: Path, verbose: bool) -> List[Sas
     Parameters:
         payload: Semgrep's parsed output.
         root: Source root, for relative paths.
-        verbose: Traces conversion problems.
 
     Returns:
         The findings.

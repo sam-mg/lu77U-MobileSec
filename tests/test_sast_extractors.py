@@ -316,7 +316,8 @@ class TestWebView:
             Asserted by line number rather than by the reported text, because the evidence snippet carries a couple of lines of context on either side, so the literal load legitimately appears inside the tainted one's snippet without itself being reported.
         """
         source = (java_tree / "sources" / "app" / "WebActivity.java").read_text().splitlines()
-        static_line = next(i + 1 for i, l in enumerate(source) if "static.example.com" in l)
+        static_line = next(i + 1 for i, l in enumerate(source)
+                           if 'loadUrl("https://static.example.com/ok")' in l)
         flagged = {f.line for f in analyze_webviews(java_tree) if "loads a URL" in f.title}
         assert static_line not in flagged
 
@@ -451,14 +452,14 @@ class TestRunnerAndFindingShape:
         Implementation notes:
             The scanners share nothing, so one failing is a reason to lose its own results and nothing else.
         """
-        def boom(*a, **kw):
+        def boom(*_, **__):
             """
             Purpose:
                 Fail, standing in for a scanner that raised.
 
             Parameters:
-                a: Positional arguments, ignored.
-                kw: Keyword arguments, ignored.
+                _: Positional arguments, ignored.
+                __: Keyword arguments, ignored.
 
             Raises:
                 RuntimeError: Always.
@@ -467,7 +468,7 @@ class TestRunnerAndFindingShape:
 
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.sast.runner._SCANNERS",
-            {"manifest": boom, "webview": lambda root, verbose=False: [
+            {"manifest": boom, "webview": lambda root_unused, **_: [
                 SastFinding(title="ok", severity="Low", description="d")]})
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.sast.runner._BY_PROFILE",
@@ -1009,6 +1010,95 @@ class TestSecretsAndSdks:
         assert f.extra["sdk_inventory"][0]["version"] == "4.12.0"
 
 
+class TestSignatureDerivedKey:
+    """
+    Purpose:
+        The scanner for an app using its own signing certificate as key material.
+    """
+    def test_certificate_read_alongside_hmac_is_flagged(self, tmp_path):
+        """
+        Purpose:
+            Pin that reading the signing certificate and referencing an HMAC primitive in the same file is reported.
+
+        Parameters:
+            tmp_path: Directory the fixture is written into.
+
+        Security considerations:
+            This is the shape the finding exists for: the certificate, which ships inside the APK, standing in for a secret in a signing routine.
+        """
+        from lu77U_MobileSec.analyzers.sast.extractors.signature_derived_key import (
+            analyze_signature_derived_key)
+        src = tmp_path / "s"
+        src.mkdir()
+        (src / "SignHelper.java").write_text(
+            "class SignHelper {\n"
+            "  String cert() {\n"
+            "    Signature[] sigs = getPackageManager()\n"
+            "        .getPackageInfo(pkg, 64).signatures;\n"
+            "    return sigs[0].toCharsString();\n"
+            "  }\n"
+            "  native String hmacSign(String key, String data);\n"
+            "}")
+        found = analyze_signature_derived_key(tmp_path)
+        assert len(found) == 1
+        f = found[0]
+        assert f.vuln_class == "CRYPTO-02" and f.severity == "High"
+        assert "signing certificate" in f.title
+
+    def test_certificate_read_alone_is_not_flagged(self, tmp_path):
+        """
+        Purpose:
+            Pin that reading the signing certificate for an ordinary integrity check, with no cryptographic or native sink nearby, is not reported.
+
+        Parameters:
+            tmp_path: Directory the fixture is written into.
+
+        Implementation notes:
+            Checking the app has not been re-signed is the normal, safe use of this API, and is most of why it appears in an app at all -- flagging every occurrence would bury the genuine cases.
+        """
+        from lu77U_MobileSec.analyzers.sast.extractors.signature_derived_key import (
+            analyze_signature_derived_key)
+        src = tmp_path / "s"
+        src.mkdir()
+        (src / "IntegrityCheck.java").write_text(
+            "class IntegrityCheck {\n"
+            "  boolean isOfficial() {\n"
+            "    Signature[] sigs = getPackageManager()\n"
+            "        .getPackageInfo(pkg, 64).signatures;\n"
+            "    return sigs[0].toCharsString().equals(KNOWN_GOOD);\n"
+            "  }\n"
+            "}")
+        assert analyze_signature_derived_key(tmp_path) == []
+
+    def test_crypto_sink_alone_is_not_flagged(self, tmp_path):
+        """
+        Purpose:
+            Pin that ordinary cryptographic code with no signature read is not reported.
+
+        Parameters:
+            tmp_path: Directory the fixture is written into.
+        """
+        from lu77U_MobileSec.analyzers.sast.extractors.signature_derived_key import (
+            analyze_signature_derived_key)
+        src = tmp_path / "s"
+        src.mkdir()
+        (src / "Crypto.java").write_text(
+            "class Crypto { Cipher c = Cipher.getInstance(\"AES\"); }")
+        assert analyze_signature_derived_key(tmp_path) == []
+
+    def test_empty_tree(self, tmp_path):
+        """
+        Purpose:
+            Pin that a tree with no source yields nothing.
+
+        Parameters:
+            tmp_path: Directory the fixture is written into.
+        """
+        from lu77U_MobileSec.analyzers.sast.extractors.signature_derived_key import (
+            analyze_signature_derived_key)
+        assert analyze_signature_derived_key(tmp_path) == []
+
+
 class TestSemgrepRunner:
     """
     Purpose:
@@ -1042,14 +1132,14 @@ class TestSemgrepRunner:
         import subprocess
         from lu77U_MobileSec.analyzers.sast import semgrep_runner
 
-        def boom(*a, **kw):
+        def boom(*_, **__):
             """
             Purpose:
                 Report the run as having exceeded its time limit.
 
             Parameters:
-                a: Positional arguments, ignored.
-                kw: Keyword arguments, ignored.
+                _: Positional arguments, ignored.
+                __: Keyword arguments, ignored.
 
             Raises:
                 subprocess.TimeoutExpired: Always.
@@ -1084,7 +1174,7 @@ class TestSemgrepRunner:
             stdout, stderr, returncode = "not json", "", 0
 
         monkeypatch.setattr(semgrep_runner, "_resolve_semgrep", lambda: ["semgrep"])
-        monkeypatch.setattr(semgrep_runner.subprocess, "run", lambda *a, **kw: R())
+        monkeypatch.setattr(semgrep_runner.subprocess, "run", lambda *_, **__: R())
         assert semgrep_runner.run_semgrep(tmp_path) == []
 
     def test_results_are_mapped_with_metadata(self, tmp_path, monkeypatch):
@@ -1125,7 +1215,7 @@ class TestSemgrepRunner:
             stdout, stderr, returncode = _json.dumps(payload), "", 0
 
         monkeypatch.setattr(semgrep_runner, "_resolve_semgrep", lambda: ["semgrep"])
-        monkeypatch.setattr(semgrep_runner.subprocess, "run", lambda *a, **kw: R())
+        monkeypatch.setattr(semgrep_runner.subprocess, "run", lambda *_, **__: R())
         f = semgrep_runner.run_semgrep(tmp_path)[0]
         assert f.vuln_class == "PLATFORM-04"
         assert f.severity == "Medium"
@@ -1365,13 +1455,10 @@ public class Login {
 }''')
         assert not [f for f in found if f.vuln_class == "AUTH-02"]
 
-    def test_the_prefilter_lets_the_new_rules_run(self, tmp_path):
+    def test_the_prefilter_lets_the_new_rules_run(self):
         """
         Purpose:
             Pin that the markers each of these rules depends on are present in the file prefilter.
-
-        Parameters:
-            tmp_path: Directory the fixture is written into.
 
         Implementation notes:
             The prefilter skips a file on its raw bytes before anything decodes it, so a rule whose marker is missing from that list never fires at all and nothing reports that it did not.

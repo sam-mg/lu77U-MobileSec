@@ -113,7 +113,7 @@ def test_secret_string_extracted(www):
     """
     g = build_cordova_graph(www)
     index = next(n for n in g.nodes.values() if n.file == "js/index.js")
-    assert any("http://api.example.com" in s for s in index.strings)
+    assert "http://api.example.com/data?token=abcdef1234567890abcdef" in index.strings
 
 
 def test_html_entry_page_role(www):

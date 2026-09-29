@@ -148,7 +148,7 @@ class TestBuildFlutterGraph:
         pool = graph.nodes.get("ObjectPool")
         assert pool is not None
         assert any("api_key_prod" in s for s in pool.strings)
-        assert any("backend.example.com" in s for s in pool.strings)
+        assert "https://backend.example.com/v1/login" in pool.strings
         assert not any("just a normal string" in s for s in pool.strings)
 
     def test_pp_txt_with_no_secrets_produces_no_pool_node(self, tmp_path):

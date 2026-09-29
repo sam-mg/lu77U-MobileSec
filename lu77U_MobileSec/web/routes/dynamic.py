@@ -9,7 +9,7 @@ Responsibilities:
     Serve device listings and run the readiness checks off the event loop.
 
 Dependencies:
-    The device, instrumentation and interception managers.
+    The device, instrumentation and interception managers, and the verbose module for reporting a failed teardown.
 
 Security considerations:
     The readiness check is not a passive probe: it deploys and starts the instrumentation server and performs a full interception check, which installs a CA on the device. It is exposed as an endpoint because the dashboard needs it before a run, but it changes device state.
@@ -21,6 +21,7 @@ import threading
 from fastapi import APIRouter, Request
 
 from ...dynamic_analysis import ADBManager, FridaManager, MitmproxyManager
+from ...utils.verbose import verbose_print
 
 router = APIRouter(prefix="/api", tags=["dynamic"])
 
@@ -90,14 +91,19 @@ def _run_device_checks(serial: str, verbose: bool) -> dict:
             Deploys and starts the instrumentation server, then stops it again.
 
         Implementation notes:
-            The server is stopped after the check because this is a readiness probe rather than the start of a session; leaving it running would hold root on the device until something else tore it down.
+            The server is stopped after the check because this is a readiness probe rather than the start of a session; leaving it running would hold root on the device until something else tore it down. A failed stop does not change the check's verdict, but it is logged and appended to the check's message, so the operator learns that a root instrumentation server may still be running.
+
+        Security considerations:
+            frida-server runs as root, so a stop that fails silently would leave the device exposed with nobody aware of it; surfacing the failure in the result is what lets the operator stop it by hand.
         """
         frida = FridaManager(verbose=verbose)
         frida_ok, frida_message = frida.setup_and_verify(adb, serial, root_ok)
         try:
             frida.stop_server(adb, serial)
-        except Exception:
-            pass
+        except Exception as exc:
+            stop_warning = f"Could not stop frida-server after the readiness check: {exc}"
+            verbose_print(stop_warning, verbose)
+            frida_message = f"{frida_message} {stop_warning}".strip()
         results["frida"] = {"ok": frida_ok, "message": frida_message}
 
     def _run_mitm() -> None:

@@ -8,31 +8,60 @@ import {
 } from "../api";
 import { Card, SectionTitle, Segmented, Spinner, Switch } from "../components/ui";
 
-/** Which of a vendor's one or two backends is being viewed/edited. Ignored
- * for a single-backend vendor (Ollama, Custom, GitHub Copilot, Kimi). */
+/** Which of a vendor's one or two backends is being viewed/edited. Ignored for a single-backend vendor (Ollama, Custom, GitHub Copilot, Kimi). */
 type Access = "api" | "cli";
 
-/** The vendor that owns `providerKey` (its `api` or `cli` field equals it),
- * or undefined if `providerKey` is empty/unknown. */
+/** Every backend provider key the server actually knows about - see PROVIDER_VENDORS in ai/registry.py, the single source of truth this mirrors. Used as an explicit allow-list before a provider key coming out of fetched settings is used to index into or write onto an object. */
+const KNOWN_PROVIDER_KEYS = new Set([
+  "ollama", "claude", "openai", "gemini", "custom",
+  "claude_cli", "copilot_cli", "kimi_cli", "codex_cli", "antigravity_cli",
+]);
+
+/** The vendor that owns `providerKey` (its `api` or `cli` field equals it), or undefined if `providerKey` is empty/unknown. */
 function vendorFor(vendors: ProviderVendor[], providerKey: string): ProviderVendor | undefined {
   return vendors.find((v) => v.api === providerKey || v.cli === providerKey);
 }
 
-/** The actual backend provider key a vendor + access resolves to. A
- * single-backend vendor ignores `access` entirely. */
+/** The actual backend provider key a vendor + access resolves to. A single-backend vendor ignores `access` entirely. */
 function resolveProvider(v: ProviderVendor, access: Access): string | undefined {
   if (v.api && v.cli) return access === "api" ? v.api : v.cli;
   return v.api ?? v.cli;
 }
 
-/** Which backend to show first when a vendor is selected: whichever one is
- * already active, else whichever is configured, else API key over CLI. */
+/** Which backend to show first when a vendor is selected: whichever one is already active, else whichever is configured, else API key over CLI. */
 function defaultAccess(v: ProviderVendor, s: SettingsT): Access {
   if (v.cli && s.active_provider === v.cli) return "cli";
   if (v.api && s.active_provider === v.api) return "api";
   if (v.api && s.providers[v.api]?.has_api_key) return "api";
   if (v.cli && s.providers[v.cli]?.cli_found) return "cli";
   return v.api ? "api" : "cli";
+}
+
+/** Loose but real shape check on one parsed-JSON vendor entry, enough to trust its `id`/`api`/`cli` fields before they are used to pick a provider. */
+function isProviderVendor(value: unknown): value is ProviderVendor {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === "string" &&
+    typeof v.label === "string" &&
+    (v.api === undefined || typeof v.api === "string") &&
+    (v.cli === undefined || typeof v.cli === "string")
+  );
+}
+
+/** Shape check on the fetched settings payload, enough to trust the fields this page reads before any of them drive a hook dependency, an object index or a request body. */
+function isSettings(value: unknown): value is SettingsT {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.active_provider === "string" &&
+    Array.isArray(v.provider_order) &&
+    v.provider_order.every((p) => typeof p === "string") &&
+    typeof v.providers === "object" &&
+    v.providers !== null &&
+    Array.isArray(v.vendors) &&
+    v.vendors.every(isProviderVendor)
+  );
 }
 
 export default function Settings() {
@@ -42,17 +71,15 @@ export default function Settings() {
 
   async function reload() {
     const s = await api.getSettings();
-    setSettings(s);
+    // Validate the fetched settings right where they enter this component, so the vendor lookups, hook dependencies and object indexing below never have to trust unverified JSON.
+    if (isSettings(s)) setSettings(s);
   }
 
   useEffect(() => {
     reload().catch(() => {});
   }, []);
 
-  // Sticky selection, same as the old `cur || s.active_provider`: only the
-  // FIRST load (or a load before any chip was ever clicked) picks a vendor -
-  // a later reload (after Save, after "Make active") must not yank the
-  // editor out from under whatever the user is looking at.
+  // Sticky selection, same as the old `cur || s.active_provider`: only the FIRST load (or a load before any chip was ever clicked) picks a vendor - a later reload (after Save, after "Make active") must not yank the editor out from under whatever the user is looking at.
   useEffect(() => {
     if (!settings || selectedVendorId) return;
     const v = vendorFor(settings.vendors, settings.active_provider) ?? settings.vendors[0];
@@ -73,10 +100,7 @@ export default function Settings() {
     setAccess(defaultAccess(v, settings!));
   }
 
-  // Approved behaviour: flipping Access always changes what's being edited,
-  // and ALSO moves `active_provider` - but only when this vendor already
-  // owns it. For any other vendor, flipping just changes what the editor
-  // below shows; the existing "Make active" button commits it.
+  // Approved behaviour: flipping Access always changes what's being edited, and ALSO moves `active_provider` - but only when this vendor already owns it. For any other vendor, flipping just changes what the editor below shows; the existing "Make active" button commits it.
   async function changeAccess(next: Access) {
     setAccess(next);
     if (!vendor) return;
@@ -151,11 +175,7 @@ export default function Settings() {
 }
 
 /**
- * Shape carries "active vs configured" so the state survives with colour
- * perception removed: a filled dot is active, a hollow ring is merely
- * configured. Colour is the second signal - emerald when the active one can
- * actually run, amber when it can't (no key/CLI found yet), matching the
- * amber this page already uses for "Setup required" elsewhere.
+ * Shape carries "active vs configured" so the state survives with colour perception removed: a filled dot is active, a hollow ring is merely configured. Colour is the second signal - emerald when the active one can actually run, amber when it can't (no key/CLI found yet), matching the amber this page already uses for "Setup required" elsewhere.
  */
 function VendorDot({ active, configured }: { active: boolean; configured: boolean }) {
   if (active) {
@@ -268,9 +288,7 @@ function GeneralCard({ settings, onChange }: { settings: SettingsT; onChange: ()
           label="Auto-resume interrupted scans"
         />
 
-        {/* The AI phase is the expensive part of a scan. Left unbounded it runs
-            until the provider's own account limit stops it, which on a large app
-            means a spent quota and an unfinished report. */}
+        {/* The AI phase is the expensive part of a scan. Left unbounded it runs until the provider's own account limit stops it, which on a large app means a spent quota and an unfinished report. */}
         <div>
           <label className="label flex items-center gap-1"><Gauge className="h-3 w-3" /> AI analysis budget</label>
           <div className="flex gap-2">
@@ -535,12 +553,16 @@ function ProviderEditor({ settings, name, onChange }: { settings: SettingsT; nam
   }
 
   useEffect(() => {
+    // `name` traces back to fetched settings JSON - confirmed against the server's own known provider keys before it drives either request.
+    if (!KNOWN_PROVIDER_KEYS.has(name)) return;
     loadModels();
     loadCliStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
 
   async function saveConfig() {
+    // `name` ultimately traces back to fetched settings JSON (vendor.api / vendor.cli); it is checked against the server's own known provider keys before it is ever used as the property name of the update below.
+    if (!KNOWN_PROVIDER_KEYS.has(name)) return;
     setSavingCfg(true);
     try {
       const fields: Record<string, unknown> = { model };
@@ -766,10 +788,7 @@ function ProviderEditor({ settings, name, onChange }: { settings: SettingsT; nam
 }
 
 /**
- * Config block for a subscription-CLI-backed provider (Claude Code, Copilot,
- * Kimi, Codex, Antigravity - see ai/cli_provider.py). No API key: the
- * one-time sign-in is interactive and runs outside this tool, so this only
- * ever shows detection status and reports how to sign in.
+ * Config block for a subscription-CLI-backed provider (Claude Code, Copilot, Kimi, Codex, Antigravity - see ai/cli_provider.py). No API key: the one-time sign-in is interactive and runs outside this tool, so this only ever shows detection status and reports how to sign in.
  */
 function CliStatusBlock({
   provider, binaryPath, onBinaryPathChange, status, loading, onRefresh, signinHint, cliBinary,

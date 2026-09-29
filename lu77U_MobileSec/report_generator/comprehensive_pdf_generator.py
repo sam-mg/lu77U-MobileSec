@@ -19,7 +19,7 @@ from lu77U_MobileSec.detection.results import DetectionResult
 from .pdf_generation_engine import PDFGenerationEngine
 from .comprehensive_html_builder import ComprehensiveHTMLBuilder
 from ..utils.verbose import verbose_print
-from typing import Optional, Dict, Union
+from typing import Optional, Dict
 import os
 import traceback
 

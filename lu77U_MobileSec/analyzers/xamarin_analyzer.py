@@ -236,8 +236,8 @@ class XamarinAnalyzer(BaseAnalyzer):
             *(f"  {name}" for name in every if name not in app),
             "",
             "Each <assembly>.dll has a <assembly>.dll.txt of its literal strings.",
-            "Where .cs files are present the assembly was decompiled; where they "
-            "are not, the .txt sidecar is what there is to read.",
+            ("Where .cs files are present the assembly was decompiled; where they "
+             "are not, the .txt sidecar is what there is to read."),
         ]
         try:
             (Path(self.source_root) / "assemblies.txt").write_text(

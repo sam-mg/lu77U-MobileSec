@@ -26,7 +26,6 @@ from xml.etree import ElementTree
 from ..findings import SastFinding
 from ....utils.verbose import plural, verbose_print
 
-_ANDROID = "{http://schemas.android.com/apk/res/android}"
 _MAX_FILES = 60000
 
 _NOISE = ("/androidx/", "/android/support/", "/com/google/android/gms/",

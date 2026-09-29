@@ -9,7 +9,7 @@ Responsibilities:
     Create and locate scan directories, and read and write the metadata, log and result files.
 
 Dependencies:
-    The configured output base.
+    ..config.paths for the application name, ..config.user_settings for the configured output base.
 
 Implementation notes:
     Scans live as plain directories with plain JSON rather than in a database. A scan directory is then the same artifact the analysis already writes into, so a user can open it, copy it or delete it directly, and the dashboard's view of history is just the filesystem.
@@ -18,6 +18,7 @@ Security considerations:
     Two untrusted values reach the filesystem here -- the scan identifier and the uploaded filename -- and both are constrained before use. The identifier is validated against a strict pattern, and the filename is reduced to a sanitised basename.
 """
 
+import contextlib
 import json
 import re
 import shutil
@@ -25,7 +26,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..config.paths import APP_NAME, get_output_base
+from ..config.paths import APP_NAME
+from ..config.user_settings import get_output_base
 
 _FOLDER_PREFIX = f"{APP_NAME}-"
 
@@ -245,19 +247,17 @@ def append_log(scan_id: str, ts: str, message: str) -> None:
         Appends to the log file.
 
     Implementation notes:
-        Appending rather than rewriting, so a scan that is killed still leaves everything logged up to that point. Failures are swallowed: logging must never interrupt the analysis it is describing.
+        Appending rather than rewriting, so a scan that is killed still leaves everything logged up to that point. Failures are suppressed: logging must never interrupt the analysis it is describing. They are deliberately not reported through the verbose module either, because this function is that module's log sink, and reporting a sink failure through the sink would recurse.
 
     Security considerations:
         The message has already passed through the verbose module's redaction.
     """
-    try:
+    with contextlib.suppress(Exception):
         path = log_path(scan_id)
         if path is None:
             return
         with path.open("a", encoding="utf-8") as handle:
             handle.write(f"{ts}\t{message}\n")
-    except Exception:
-        pass
 
 
 def read_log(scan_id: str, limit: Optional[int] = None) -> List[Dict[str, str]]:

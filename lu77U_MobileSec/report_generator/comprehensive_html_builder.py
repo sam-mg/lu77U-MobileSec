@@ -139,7 +139,7 @@ class ComprehensiveHTMLBuilder:
         html = self._build_html_header()
         verbose_print("HTML header built", self.verbose)
 
-        html += self._build_report_header(detection_result, vulnerabilities, is_unsupported, analyzer_results)
+        html += self._build_report_header(detection_result, vulnerabilities, is_unsupported)
         verbose_print("Report header built", self.verbose)
 
         html += self._build_coverage_notice(analyzer_results)
@@ -663,7 +663,7 @@ class ComprehensiveHTMLBuilder:
         }
         """.replace("__APP_NAME__", APP_NAME) + SYNTAX_CSS
 
-    def _build_report_header(self, detection_result: DetectionResult, vulnerabilities: List[Dict], is_unsupported: bool, analyzer_results: Optional[Dict]) -> str:
+    def _build_report_header(self, detection_result: DetectionResult, vulnerabilities: List[Dict], is_unsupported: bool) -> str:
         """
         Purpose:
             Build the report banner: what was analysed, when, and the headline score.
@@ -672,7 +672,6 @@ class ComprehensiveHTMLBuilder:
             detection_result: Detection output.
             vulnerabilities: The findings.
             is_unsupported: Whether the framework is unsupported.
-            analyzer_results: Per-analyzer detail.
 
         Returns:
             The header HTML.
@@ -689,7 +688,6 @@ class ComprehensiveHTMLBuilder:
                     f'<span class="chip-count">{counts[severity]}</span> {SEVERITY_LABELS[severity]}</span>'
                 )
 
-        app_name = "Unknown application"
         package_name = "Unknown"
         version_name = "Unknown"
 

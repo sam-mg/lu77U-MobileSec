@@ -334,7 +334,6 @@ class JavaKotlinAnalyzer(BaseAnalyzer):
                         content = f.read()
                         
                         class_count = content.count('class ')
-                        method_count = content.count('public ') + content.count('private ') + content.count('protected ')
                         
                         if len(content) < 500 and class_count == 0:
                             verbose_print(f"Skipped small/empty Java file: {java_file.name} ({len(content)} chars, {class_count} classes)", self.verbose)
@@ -516,7 +515,7 @@ class JavaKotlinAnalyzer(BaseAnalyzer):
         """
         verbose_print("Starting Java/Kotlin APK Analysis...", self.verbose)
         
-        output_dir = self.output_manager.create_output_directory(apk_path)
+        self.output_manager.create_output_directory(apk_path)
         
         if not self.apk_base or not self.apk_dir:
             apk_path_obj = Path(apk_path)

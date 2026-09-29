@@ -4,20 +4,44 @@ import type { Chain, CodeContext, GateResult, ScanResult, Severity, Vulnerabilit
 import { SEVERITIES, SEVERITY_META, normalizeSeverity } from "../lib/format";
 import { SeverityBadge, EmptyState } from "./ui";
 
-function flatten(result: ScanResult): { sev: Severity; v: Vulnerability }[] {
-  const buckets = result.vulnerability_analysis?.vulnerabilities;
+/** Loose but real shape check on one parsed-JSON vulnerability entry - just enough to trust it as `Vulnerability` before it is rendered. */
+function isVulnerability(value: unknown): value is Vulnerability {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { title?: unknown }).title === "string"
+  );
+}
+
+/** Narrows the server's raw `vulnerabilities` map to arrays of values that actually look like findings, dropping anything that does not. */
+function isVulnerabilityBuckets(value: unknown): value is Record<Severity, Vulnerability[]> {
+  if (typeof value !== "object" || value === null) return false;
+  const buckets = value as Record<string, unknown>;
+  return SEVERITIES.every((sev) => buckets[sev] === undefined || Array.isArray(buckets[sev]));
+}
+
+function flatten(buckets: Record<Severity, Vulnerability[]> | undefined): { sev: Severity; v: Vulnerability }[] {
   if (!buckets) return [];
   const out: { sev: Severity; v: Vulnerability }[] = [];
   for (const sev of SEVERITIES) {
-    for (const v of buckets[sev] || []) out.push({ sev: normalizeSeverity(v.severity || sev), v });
+    const bucket = buckets[sev];
+    if (!Array.isArray(bucket)) continue;
+    for (const v of bucket) {
+      if (!isVulnerability(v)) continue;
+      out.push({ sev: normalizeSeverity(v.severity || sev), v });
+    }
   }
   return out;
 }
 
 export default function VulnList({ result }: { result: ScanResult }) {
-  const all = useMemo(() => flatten(result), [result]);
+  // Validate the fetched analysis shape right where it enters this component, so nothing downstream (the memo, the renderers below) ever has to trust unverified server JSON.
+  const rawBuckets = result.vulnerability_analysis?.vulnerabilities;
+  const buckets = isVulnerabilityBuckets(rawBuckets) ? rawBuckets : undefined;
+  const all = useMemo(() => flatten(buckets), [buckets]);
   const counts = result.vulnerability_analysis?.by_severity;
-  const refuted = result.vulnerability_analysis?.refuted ?? [];
+  const rawRefuted = result.vulnerability_analysis?.refuted;
+  const refuted = Array.isArray(rawRefuted) ? rawRefuted.filter(isVulnerability) : [];
   const [active, setActive] = useState<Severity | "all">("all");
 
   const visible = active === "all" ? all : all.filter((x) => x.sev === active);
@@ -65,12 +89,7 @@ export default function VulnList({ result }: { result: ScanResult }) {
 }
 
 /**
- * Findings the mechanical evidence gate refuted before any model call - e.g.
- * a title claiming "Hardcoded AES key" whose cited code contains none of
- * AES/SecretKeySpec/Cipher/javax.crypto. Kept out of every count and the
- * severity filter chips above, never dropped: collapsed by default here (the
- * live page can afford that, unlike the PDF's headless print pass) so the
- * tool's own mistakes stay visible without crowding the real findings.
+ * Findings the mechanical evidence gate refuted before any model call - e.g. a title claiming "Hardcoded AES key" whose cited code contains none of AES/SecretKeySpec/Cipher/javax.crypto. Kept out of every count and the severity filter chips above, never dropped: collapsed by default here (the live page can afford that, unlike the PDF's headless print pass) so the tool's own mistakes stay visible without crowding the real findings.
  */
 function RefutedSection({ items }: { items: Vulnerability[] }) {
   const [open, setOpen] = useState(false);
@@ -192,8 +211,7 @@ function ChainBlock({ chain }: { chain: Chain }) {
 }
 
 /**
- * Why a finding sits where it does. Only rendered when the gates actually
- * changed something: a PASS with nothing to say would be noise on every card.
+ * Why a finding sits where it does. Only rendered when the gates actually changed something: a PASS with nothing to say would be noise on every card.
  */
 function GateBlock({ gate, chainedInto }: { gate: GateResult; chainedInto?: string[] }) {
   const downgraded = gate.original_severity !== gate.final_severity;
@@ -253,9 +271,11 @@ function GateBlock({ gate, chainedInto }: { gate: GateResult; chainedInto?: stri
   );
 }
 
+/**
+ * The decompiled source lines this renders come from whatever APK is being scanned - attacker-controlled input from the tool's own point of view - so every line is rendered as plain JSX text, never as raw HTML. The server can still emit a pre-highlighted `lines_html` for the static HTML/PDF report, but this live view intentionally never uses it as a rendering sink.
+ */
 function CodeContextBlock({ context }: { context: CodeContext }) {
-  const { start_line, highlight_start, highlight_end, lines, lines_html } = context;
-  const hasHtml = Array.isArray(lines_html) && lines_html.length === lines.length;
+  const { start_line, highlight_start, highlight_end, lines } = context;
   return (
     <pre className="overflow-x-auto rounded-lg border border-ink-800 bg-ink-950 font-mono text-xs text-slate-300">
       {lines.map((line, i) => {
@@ -266,14 +286,7 @@ function CodeContextBlock({ context }: { context: CodeContext }) {
             <span className={`mr-3 w-8 shrink-0 select-none text-right ${isHl ? "text-rose-400" : "text-slate-600"}`}>
               {lineNo}
             </span>
-            {hasHtml ? (
-              <code
-                className="whitespace-pre-wrap break-words"
-                dangerouslySetInnerHTML={{ __html: lines_html[i] || "&nbsp;" }}
-              />
-            ) : (
-              <code className="whitespace-pre-wrap break-words">{line || " "}</code>
-            )}
+            <code className="whitespace-pre-wrap break-words">{line || " "}</code>
           </div>
         );
       })}

@@ -35,6 +35,7 @@ class UnityDetector:
         framework_name: The framework name reported.
         apk_indicators: Markers looked for among APK entry names.
         project_indicators: Directories looked for in a project.
+        project_files: Files looked for at the project root.
 
     Invariants:
         Returns None rather than a zero-confidence result when nothing matched.
@@ -51,13 +52,13 @@ class UnityDetector:
             verbose: Enables tracing.
 
         Implementation notes:
-            The APK indicator table is assigned twice from the same constant, which is redundant but harmless.
+            project_files must be bound here because _detect_in_project reads it. It was once missing, so every directory scan raised AttributeError inside the method's broad guard and silently reported no detection.
         """
         self.verbose = verbose
         self.framework_name = "Unity"
         self.apk_indicators = UNITY_APK_INDICATORS
-        self.apk_indicators = UNITY_APK_INDICATORS
         self.project_indicators = UNITY_PROJECT_INDICATORS
+        self.project_files = UNITY_PROJECT_FILES
     
     def detect(self, input_path: str):
         """
@@ -84,7 +85,7 @@ class UnityDetector:
     def _detect_in_project(self, project_path: str):
         """
         Purpose:
-            Detect a Unity project by the directories a project of that kind contains.
+            Detect a Unity project by the directories and root files a project of that kind contains.
 
         Parameters:
             project_path: Path to the project root.

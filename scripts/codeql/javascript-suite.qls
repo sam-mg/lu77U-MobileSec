@@ -1,0 +1,12 @@
+- description: This project's JavaScript suite - security-and-quality, security-experimental and code-quality-extended in full, with js/untrusted-data-to-external-api-more-sources swapped for a locally re-modelled copy of the exact same query (see lu77u-js-models/SafeReactHooks.qll for why and what changed) rather than left out. Every other query, and every other package that query can still flag, is unchanged.
+- apply: codeql-suites/javascript-security-and-quality.qls
+  from: codeql/javascript-queries
+- apply: codeql-suites/javascript-security-experimental.qls
+  from: codeql/javascript-queries
+- apply: codeql-suites/javascript-code-quality-extended.qls
+  from: codeql/javascript-queries
+- exclude:
+    id:
+      - js/untrusted-data-to-external-api-more-sources
+- query: UntrustedDataToExternalAPIMoreSources.ql
+  from: lu77u/js-models

@@ -192,18 +192,19 @@ class _QuotaProvider:
         """
         return self._fatal
 
-    def analyze(self, prompt, system_message=None, schema=None, images=None, max_tokens=None, session_key=None):
+    def analyze(self, prompt_unused, system_message_unused=None, schema_unused=None,
+                images_unused=None, max_tokens_unused=None, session_key_unused=None):
         """
         Purpose:
             Refuse immediately once the circuit is open, otherwise count the call and report a spent quota from the chosen call onward.
 
         Parameters:
-            prompt: The prompt, unused here.
-            system_message: The system prompt, unused here.
-            schema: The requested response schema, unused here.
-            images: Attached images, unused here.
-            max_tokens: The response limit, unused here.
-            session_key: The conversation key, unused here.
+            prompt_unused: The prompt, unused here.
+            system_message_unused: The system prompt, unused here.
+            schema_unused: The requested response schema, unused here.
+            images_unused: Attached images, unused here.
+            max_tokens_unused: The response limit, unused here.
+            session_key_unused: The conversation key, unused here.
 
         Returns:
             The refusal, the fatal error, or a response holding an empty finding list.

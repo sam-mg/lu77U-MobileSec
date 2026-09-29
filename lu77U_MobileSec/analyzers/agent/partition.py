@@ -17,7 +17,7 @@ Implementation notes:
 
 import collections
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from ...utils.verbose import plural, verbose_print
 

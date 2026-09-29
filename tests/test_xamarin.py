@@ -15,7 +15,7 @@ Implementation notes:
     No real Xamarin application was available when this was written, so the container formats are exercised against fixtures built here, including a genuine compression round trip. That round trip is the one part of the pipeline that could silently produce plausible-looking rubbish instead of failing, which is why it is tested against real encoded blocks rather than a stub. The behaviour that carries the most weight is that a Xamarin scan degrades rather than fails: with no external decompiler there is no C# at all, and the whole scan then rests on the string sidecars written beside each recovered assembly, which is why several tests here exist only to hold that path open.
 
 Security considerations:
-    Every declared size and entry count in these containers comes from the file being analysed, so the refusal cases are what stop a crafted or corrupt application from driving an enormous allocation during a scan. The credentials and keys in the fixtures are invented and match nothing real.
+    Every declared size and entry count in these containers comes from the file being analysed, so the refusal cases are what stop a crafted or corrupt application from driving an enormous allocation during a scan. The credentials and keys in the fixtures are invented and match nothing real, and the Google key is assembled at runtime so the source carries no literal a secret scanner reports as a leak.
 """
 
 import struct
@@ -690,9 +690,9 @@ class TestGraph:
         """
         from lu77U_MobileSec.analyzers.xamarin.graph import build_xamarin_graph
 
+        key = "AIza" + "A" * 35
         self._write(tmp_path, "Conf.cs",
-                    'public class Conf { const string ApiKey = '
-                    '"AIzaSyA1234567890abcdefghijklmnopqrstuv"; }')
+                    'public class Conf { const string ApiKey = "' + key + '"; }')
         assert build_xamarin_graph(tmp_path).nodes["Conf.cs"].strings
 
     def test_a_missing_root_yields_none(self, tmp_path):

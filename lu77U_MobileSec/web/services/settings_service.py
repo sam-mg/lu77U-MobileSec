@@ -384,7 +384,7 @@ def list_models(provider: str, verbose: bool = False) -> List[str]:
         Model names; empty when they cannot be determined.
 
     Implementation notes:
-        Never raises, because this runs while rendering the settings page and an unreachable provider should show an empty chooser rather than an error.
+        Never raises, because this runs while rendering the settings page and an unreachable provider should show the curated list (or an empty chooser) rather than an error. A listing failure is logged so the fallback to the curated list is traceable rather than silent.
     """
     from ...ai.provider_factory import build_provider
 
@@ -392,8 +392,8 @@ def list_models(provider: str, verbose: bool = False) -> List[str]:
         models = build_provider(provider, verbose=verbose).list_models()
         if models:
             return models
-    except Exception:
-        pass
+    except Exception as exc:
+        verbose_print(f"Could not list models for {provider}: {exc}", verbose)
     return CURATED_MODELS.get(provider, [])
 
 def test_provider(provider: Optional[str] = None, verbose: bool = False) -> Dict[str, Any]:

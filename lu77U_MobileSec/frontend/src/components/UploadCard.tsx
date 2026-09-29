@@ -16,7 +16,14 @@ export default function UploadCard({ ready }: { ready: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const { id } = await promise;
+      const result = await promise;
+      // The server response is parsed JSON, not a value TypeScript actually checked at runtime - confirm `id` is a safe route segment before it reaches the router.
+      const id = typeof result?.id === "string" && /^[A-Za-z0-9_-]+$/.test(result.id) ? result.id : "";
+      if (!id) {
+        setError("Scan did not return a valid id");
+        setBusy(false);
+        return;
+      }
       navigate(`/scans/${id}`);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : "Failed to start scan";

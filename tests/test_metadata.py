@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from lu77U_MobileSec import _metadata
+import lu77U_MobileSec._metadata as _metadata
 
 PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
@@ -261,9 +261,6 @@ class TestPackagedDataFiles:
         Returns:
             The package data table as a mapping of package name to patterns.
         """
-        import tomllib
-        from pathlib import Path
-
         root = Path(__file__).resolve().parents[1]
         with (root / "pyproject.toml").open("rb") as handle:
             config = tomllib.load(handle)

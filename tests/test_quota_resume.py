@@ -96,18 +96,14 @@ class QuotaTrippingProvider:
         """
         return self._fatal
 
-    def analyze(self, prompt, system_message=None, schema=None, images=None, max_tokens=None, session_key=None):
+    def analyze(self, _, **__):
         """
         Purpose:
             Play the next scripted turn, or report the quota as spent once the script is finished.
 
         Parameters:
-            prompt: The turn prompt, unused here.
-            system_message: The system prompt, unused here.
-            schema: The requested response schema, unused here.
-            images: Attached images, unused here.
-            max_tokens: The response limit, unused here.
-            session_key: The conversation key, unused here.
+            _: The turn prompt, ignored.
+            __: The turn's keyword arguments (system_message, schema, images, max_tokens, session_key), ignored.
 
         Returns:
             The next scripted response, or the fatal quota error.
@@ -144,18 +140,14 @@ class ScriptedProvider:
         self.calls = 0
         self.unavailable = None
 
-    def analyze(self, prompt, system_message=None, schema=None, images=None, max_tokens=None, session_key=None):
+    def analyze(self, _, **__):
         """
         Purpose:
             Play the next scripted turn, falling back to a harmless listing action once the script is spent.
 
         Parameters:
-            prompt: The turn prompt, unused here.
-            system_message: The system prompt, unused here.
-            schema: The requested response schema, unused here.
-            images: Attached images, unused here.
-            max_tokens: The response limit, unused here.
-            session_key: The conversation key, unused here.
+            _: The turn prompt, ignored.
+            __: The turn's keyword arguments (system_message, schema, images, max_tokens, session_key), ignored.
 
         Returns:
             The next scripted response, or a listing action.
@@ -290,7 +282,7 @@ class TestResumeContinuesRatherThanReplays:
         assert len(vulns1) == 2
         resume_state = snapshots[-1]
         assert resume_state["resumable"] is True
-        base_steps_before = resume_state["steps_taken"]
+        assert "steps_taken" in resume_state
 
         second_provider = ScriptedProvider([
             _add_finding("Path traversal", "a.java", "20"),

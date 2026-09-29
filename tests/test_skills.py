@@ -22,7 +22,7 @@ import pytest
 
 from lu77U_MobileSec.analyzers.agent.agent_loop import _contextual_skills
 from lu77U_MobileSec.analyzers.agent.skills_loader import (
-    CORE_SKILLS, SKILLS_DIR, available_skills, load_skills, skill_path)
+    CORE_SKILLS, available_skills, load_skills, skill_path)
 from lu77U_MobileSec.analyzers.agent.surfaces import ANDROID_SURFACES
 
 OWN = ("vulnerability_classes", "finding_quality", "chain_building",

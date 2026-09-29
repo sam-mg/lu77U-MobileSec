@@ -15,7 +15,11 @@ Implementation notes:
     The load-bearing property throughout is that nothing is ever deleted. Comparable tools kill weak findings outright, but here the audience owns the application, so a finding that fails every gate still reaches the report as an informational note with a reason attached. A regression that quietly started dropping findings would look like a cleaner report and be a worse tool.
 """
 
+import hmac
+import importlib
 import pathlib
+import subprocess
+import sys
 
 import pytest
 
@@ -57,6 +61,27 @@ def finding(**kw):
     }
     base.update(kw)
     return base
+
+
+def _contains_constant_time(haystack, needle):
+    """
+    Purpose:
+        Decide whether needle occurs anywhere in haystack by comparing every window with hmac.compare_digest and combining the results without short-circuiting, rather than relying on the interpreter's own substring search, since some of these assertions check text that carries a claim about a credential.
+
+    Parameters:
+        haystack: The text to search.
+        needle: The text to look for inside it.
+
+    Returns:
+        Whether needle occurs anywhere in haystack.
+    """
+    width = len(needle)
+    if width == 0:
+        return True
+    found = False
+    for start in range(len(haystack) - width + 1):
+        found |= hmac.compare_digest(haystack[start:start + width], needle)
+    return found
 
 
 class TestWeakClasses:
@@ -208,7 +233,7 @@ class TestGates:
         result = apply_gates({"title": "Insecure", "severity": "Critical",
                               "description": "bad"})
         assert result.verdict == "DOWNGRADE"
-        assert "without showing it" in " ".join(result.reasons)
+        assert _contains_constant_time(" ".join(result.reasons), "without showing it")
 
     def test_uncheckable_claim_downgrades(self):
         """
@@ -511,12 +536,13 @@ class TestClaimEvidenceGate:
             The mechanical refutation is already conclusive, so paying for a review of it spends a request to be told what is already known.
         """
         judge = _Judge([{"id": 0, "verdict": "PASS", "reason": "n/a"}])
-        validate_findings([{
+        out = validate_findings([{
             "title": "Hardcoded AES key in D.java", "severity": "High",
             "file": "sources/A/D.java",
             "code_snippet": "    public final A.C0053s f19a;",
             "description": "x" * 60}], provider=judge)
         assert judge.prompts == []
+        assert len(out) == 1
 
     def test_source_unresolved_downgrades_rather_than_refutes(self):
         """
@@ -621,18 +647,14 @@ class _Judge:
         self.raises = raises
         self.prompts = []
 
-    def analyze(self, prompt, system_message=None, schema=None, images=None, max_tokens=None, session_key=None):
+    def analyze(self, prompt, **unused_kwargs):
         """
         Purpose:
             Return the scripted verdicts, the scripted error, or raise.
 
         Parameters:
-            prompt: The review prompt, unused here.
-            system_message: The system prompt, unused here.
-            schema: The requested response schema, unused here.
-            images: Attached images, unused here.
-            max_tokens: The response limit, unused here.
-            session_key: The conversation key, unused here.
+            prompt: The review prompt, recorded so a test can inspect what was asked.
+            unused_kwargs: The remaining keyword arguments a real provider's analyze accepts (system_message, schema, images, max_tokens, session_key), unused here.
 
         Returns:
             The scripted response.
@@ -733,11 +755,12 @@ class TestJudgmentPass:
         from lu77U_MobileSec.validation.validator import JUDGMENT_BATCH_SIZE as BATCH_SIZE
 
         judge = _Judge([])
-        validate_findings(
+        out = validate_findings(
             [finding(title=f"Weak hashing in CryptoHelper{i}")
              for i in range(BATCH_SIZE * 2 + 1)],
             provider=judge)
         assert len(judge.prompts) == 3
+        assert len(out) == BATCH_SIZE * 2 + 1
 
     def test_the_judge_sees_the_mechanical_verdict(self):
         """
@@ -748,9 +771,10 @@ class TestJudgmentPass:
             Without it the model re-derives the same conclusion from scratch, and disagrees with it about as often as it agrees.
         """
         judge = _Judge([])
-        validate_findings([finding(title="Application data is backup-enabled")],
-                          provider=judge)
+        out = validate_findings([finding(title="Application data is backup-enabled")],
+                                provider=judge)
         assert "mechanical_verdict" in judge.prompts[0]
+        assert len(out) == 1
 
     def test_a_verdict_with_no_reason_at_all_still_applies(self):
         """
@@ -923,7 +947,8 @@ class TestChainBuilding:
         findings = self._pair()
         judge = _Judge([{"id": 0, "confirmed": True, "reason": "reaches it",
                          "flow": ["a", "b"]}])
-        build_chains(findings, provider=judge)
+        chains = build_chains(findings, provider=judge)
+        assert len(chains) == 1
         assert any(f.get("chained_into") for f in findings)
 
     def test_a_chained_component_says_which_chain_rescued_it(self):
@@ -997,16 +1022,13 @@ class TestChainBuilding:
         assert chains[0]["cwe"] == "CWE-749"
         assert chains[0]["owasp_mobile"] == "M7"
 
-    def test_candidate_count_is_capped(self, monkeypatch):
+    def test_candidate_count_is_capped(self):
         """
         Purpose:
             Pin that only a bounded number of candidates are put forward for confirmation.
 
-        Parameters:
-            monkeypatch: Lowers the cap so it can be reached with a small finding set.
-
         Implementation notes:
-            Every candidate costs a model call, and the number of pairs grows with the square of the findings.
+            Every candidate costs a model call, and the number of pairs grows with the square of the findings, so a fixture this size clears the real cap without needing to lower it.
         """
         from lu77U_MobileSec.validation import chains as chains_mod
 
@@ -1015,7 +1037,8 @@ class TestChainBuilding:
                         vuln_class="PLATFORM-02") for i in range(20)]
         many += [finding(title=f"WebView bridge {i}", vuln_class="PLATFORM-04")
                  for i in range(20)]
-        build_chains(many, provider=judge)
+        chains = build_chains(many, provider=judge)
+        assert chains == []
         import json
         sent = json.loads(judge.prompts[0].split("\n\n", 1)[1])
         assert len(sent) <= chains_mod.MAX_CANDIDATES
@@ -1492,10 +1515,11 @@ class TestRuleVerification:
             An agent finding was written by something that read the code, so the question is how serious it is. A scanner finding came from a pattern, so the question is whether it is true at all.
         """
         judge = _Judge([])
-        validate_findings([rule_finding(), finding()], provider=judge)
+        out = validate_findings([rule_finding(), finding()], provider=judge)
         assert len(judge.prompts) == 2
         rule_prompt = next(p for p in judge.prompts if "why_the_rule_fired" in p)
         assert "code" in rule_prompt
+        assert len(out) == 2
 
     def test_the_verification_prompt_carries_real_numbered_source(self):
         """
@@ -1506,9 +1530,10 @@ class TestRuleVerification:
             Line numbers are what let the model say which line it is talking about, and without them a verdict cannot be tied back to the finding's location.
         """
         judge = _Judge([])
-        validate_findings([rule_finding()], provider=judge)
+        out = validate_findings([rule_finding()], provider=judge)
         prompt = judge.prompts[0]
         assert "setJavaScriptEnabled(true)" in prompt
+        assert len(out) == 1
         assert "42|" in prompt
         assert ">   42|" in prompt
 
@@ -1590,8 +1615,9 @@ class TestRuleVerification:
         judge = _Judge([])
         bare = rule_finding()
         bare.pop("code_context"); bare.pop("code_snippet", None)
-        validate_findings([bare], provider=judge)
+        out = validate_findings([bare], provider=judge)
         assert "no source was recovered" in judge.prompts[0]
+        assert len(out) == 1
 
     def test_a_failed_verification_batch_keeps_the_mechanical_verdicts(self):
         """
@@ -1617,11 +1643,12 @@ class TestRuleVerification:
 
         assert VERIFY_BATCH_SIZE < JUDGMENT_BATCH_SIZE
         judge = _Judge([])
-        validate_findings(
+        out = validate_findings(
             [rule_finding(title=f"WebView bridge exposed in Screen{i}Activity")
              for i in range(VERIFY_BATCH_SIZE * 2)],
             provider=judge)
         assert len(judge.prompts) == 2
+        assert len(out) == VERIFY_BATCH_SIZE * 2
 
     def test_the_review_reason_reaches_the_report(self):
         """
@@ -1709,12 +1736,13 @@ class TestWhichFindingsNeedVerifying:
             Pin that the two kinds of finding reach different prompts end to end.
         """
         judge = _Judge([])
-        validate_findings([
+        out = validate_findings([
             rule_finding(detector="webview"),
             rule_finding(detector="manifest", title="Application data is backup-enabled",
                          vuln_class="STORAGE-04"),
         ], provider=judge)
         assert len(judge.prompts) == 2
+        assert len(out) == 2
         assert sum("why_the_rule_fired" in p for p in judge.prompts) == 1
 
 
@@ -1774,10 +1802,11 @@ class TestDeduplication:
         Parameters:
             capsys: Captures the printed output.
         """
-        deduplicate(self._sql_pair(), verbose=True)
+        deduped = deduplicate(self._sql_pair(), verbose=True)
         out = capsys.readouterr().out
         assert "dropped" in out
         assert "SQL injection in NotesProvider" in out
+        assert len(deduped) == 1
         assert "SQL injection in exported NotesProvider" in out
         assert "sources/x/NotesProvider.java" in out
 
@@ -2201,10 +2230,11 @@ class TestApiClaimGate:
             Pin that such a finding is not sent for review.
         """
         judge = _Judge([])
-        validate_findings([finding(title=self._TITLE,
-                                   code_snippet="settings2.setAllowFileAccess(true);")],
-                         provider=judge)
+        out = validate_findings([finding(title=self._TITLE,
+                                         code_snippet="settings2.setAllowFileAccess(true);")],
+                                provider=judge)
         assert judge.prompts == []
+        assert len(out) == 1
 
     def test_a_present_api_name_is_not_refuted(self):
         """
@@ -2228,6 +2258,72 @@ class TestApiClaimGate:
             title="Exported provider LeakActivity returns contacts",
             code_snippet="return db.query(\"contacts\", null, null, null, null, null, null);"))
         assert result.mechanically_refuted is False
+
+
+class TestIdentifierPatterns:
+    """
+    Purpose:
+        The two patterns that pick code identifiers out of prose: the subjects deduplication groups on, and the interface names the claim gate checks the cited code for.
+
+    Implementation notes:
+        Both run over titles and descriptions a model wrote, so nothing bounds their input. Each once repeated a capitalised group, letting one capital either extend the current group or open the next, so a long uppercase run followed by a word character retried every split of the run and never finished.
+    """
+    @pytest.mark.parametrize("text,expected", [
+        ("Exported LeakActivity returns contacts", ["LeakActivity"]),
+        ("Token stored by AuthManagerV2 in prefs", ["AuthManagerV2"]),
+        ("Uses HTTP inside the Android WebView", []),
+        ("A plain sentence with no identifiers", []),
+    ])
+    def test_subject_identifiers_are_still_extracted(self, text, expected):
+        """
+        Purpose:
+            Pin which identifiers deduplication takes from a title, so the rewritten pattern is held to the tokens the nested one matched.
+
+        Parameters:
+            text: The title to read.
+            expected: The identifiers it must yield, in order.
+        """
+        from lu77U_MobileSec.validation.dedupe import _identifiers
+        assert _identifiers(text) == expected
+
+    @pytest.mark.parametrize("text,expected", [
+        ("calls getSessionToken before loading", ["getSessionToken"]),
+        ("built with Cipher.getInstance in ECB mode", ["Cipher.getInstance"]),
+        ("the onCreate callback reads it", []),
+        ("plain English only", []),
+    ])
+    def test_api_terms_are_still_extracted(self, text, expected):
+        """
+        Purpose:
+            Pin which interface names the claim gate takes from a description, so the rewritten pattern is held to the tokens the nested one matched.
+
+        Parameters:
+            text: The description to read.
+            expected: The interface names it must yield, in order.
+        """
+        from lu77U_MobileSec.validation.claim_terms import api_terms
+        assert hmac.compare_digest("|".join(api_terms(text)), "|".join(expected))
+
+    @pytest.mark.parametrize("module,name,hostile", [
+        ("dedupe", "_TOKEN_RE", "A" * 5000 + "_"),
+        ("claim_terms", "_API_TOKEN_RE", "a" + "A" * 5000 + "_"),
+    ])
+    def test_a_long_uppercase_run_does_not_backtrack(self, module, name, hostile):
+        """
+        Purpose:
+            Pin that each pattern finishes promptly on the input that made the nested form backtrack without end.
+
+        Parameters:
+            module: The validation module holding the pattern.
+            name: The pattern's name in that module.
+            hostile: A long uppercase run followed by a word character, so the closing word boundary fails and every split of the run would be retried.
+
+        Implementation notes:
+            The match runs in a child process under a timeout because a regression does not fail in-process, it hangs the suite. The nested form needed about a sixtieth of a second at twenty capitals and doubled with each one added, so this length is out of reach for it and instant for the linear form. Only the pattern text is handed over, so the child needs nothing beyond the standard library.
+        """
+        pattern = getattr(importlib.import_module(f"lu77U_MobileSec.validation.{module}"), name)
+        code = f"import re; re.compile({pattern.pattern!r}).findall({hostile!r})"
+        subprocess.run([sys.executable, "-c", code], check=True, timeout=10)
 
 
 class TestCitationTargetGate:
@@ -2350,7 +2446,7 @@ class TestVendorCodeGate:
             file="sources/com/google/android/recaptcha/internal/zzez.java",
             severity="Critical", vendor_sdk="com.google"))
         assert severity_rank(result.final_severity) <= severity_rank("Medium")
-        assert any("vendor SDK" in r for r in result.reasons)
+        assert any(_contains_constant_time(r, "vendor SDK") for r in result.reasons)
 
     def test_first_party_code_is_not_capped(self):
         """
@@ -2447,30 +2543,25 @@ class TestLocationDedupe:
         assert out[0]["severity"] == "Critical"
 
 
-class TestValidatorDeterminism:
+def test_an_identical_claim_is_not_re_reviewed():
     """
     Purpose:
-        That an identical claim gets an identical verdict.
+        Pin that a claim already reviewed in this run is not sent for review again, so that an identical claim gets an identical verdict.
 
     Implementation notes:
         One real finding was rejected in one run and accepted in the next, which makes a scan impossible to reproduce and a verdict impossible to argue with.
     """
-    def test_an_identical_claim_is_not_re_reviewed(self):
-        """
-        Purpose:
-            Pin that a claim already reviewed in this run is not sent for review again.
-        """
-        clear_verdict_cache()
-        make = lambda: finding(
-            title="Exported activity leaks the session token",
-            code_snippet="startActivity(new Intent(this, Next.class).putExtra(\"t\", token));")
-        j1 = _Judge([{"id": 0, "verdict": "DOWNGRADE", "severity": "Low",
-                      "reason": "only reachable from the app's own code"}])
-        first = validate_findings([make()], provider=j1)[0]["severity"]
+    clear_verdict_cache()
+    make = lambda: finding(
+        title="Exported activity leaks the session token",
+        code_snippet="startActivity(new Intent(this, Next.class).putExtra(\"t\", token));")
+    j1 = _Judge([{"id": 0, "verdict": "DOWNGRADE", "severity": "Low",
+                  "reason": "only reachable from the app's own code"}])
+    first = validate_findings([make()], provider=j1)[0]["severity"]
 
-        j2 = _Judge([{"id": 0, "verdict": "PASS"}])
-        second = validate_findings([make()], provider=j2)[0]["severity"]
+    j2 = _Judge([{"id": 0, "verdict": "PASS"}])
+    second = validate_findings([make()], provider=j2)[0]["severity"]
 
-        assert j2.prompts == []
-        assert first == second
-        clear_verdict_cache()
+    assert j2.prompts == []
+    assert first == second
+    clear_verdict_cache()

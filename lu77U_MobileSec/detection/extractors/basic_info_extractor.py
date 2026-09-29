@@ -392,7 +392,6 @@ class BasicInfoExtractor:
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         content = f.read()
-                        import re
                         package_match = re.search(r'package\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s*;', content)
                         if package_match:
                             package_name = package_match.group(1)

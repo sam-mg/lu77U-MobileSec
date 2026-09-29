@@ -18,6 +18,8 @@ Security considerations:
     The OS keychain is the intended store. The Fernet fallback exists for headless Linux and containers where no keychain daemon is running, and it is genuinely weaker: the encryption key sits in the same directory as the ciphertext, so anyone who can read one can read the other. It protects against casual disclosure -- a backup, a shared screen, a misdirected file copy -- not against a local attacker. The user is warned once, explicitly, when this path is taken. Key files are chmodded to owner-only. Keys are never logged, and mask_key exists so that no display path has a reason to print one in full.
 """
 
+import contextlib
+import functools
 import json
 import os
 import stat
@@ -25,14 +27,13 @@ from pathlib import Path
 from typing import List, Optional
 
 import keyring
-from keyring.errors import KeyringError
+from keyring.errors import KeyringError, PasswordDeleteError
 
 from .paths import APP_NAME, get_config_dir
 from ..ui.colors import Colors
 
 SERVICE_NAME = APP_NAME
 
-_FALLBACK_WARNED = False
 _USE_FALLBACK: Optional[bool] = None
 
 def _key_name(provider: str) -> str:
@@ -80,28 +81,27 @@ def _secrets_path() -> Path:
     """
     return get_config_dir() / ".secrets.enc"
 
+@functools.cache
 def _warn_fallback_once() -> None:
     """
     Purpose:
         Tell the user, exactly once per process, that their keys are being stored in a file rather than a keychain.
 
     Side effects:
-        Prints a warning and sets a module-global flag.
+        Prints a warning on the first call only; functools.cache remembers that call, so every later call returns without printing.
 
     Thread-safety:
-        The flag is set without a lock, so concurrent first calls can print the warning twice. Harmless, and not worth a lock on a path that runs once.
+        functools.cache does not lock around the first call, so concurrent first calls can print the warning twice. Harmless, and not worth a lock on a path that runs once.
+
+    Implementation notes:
+        The once-per-process guarantee comes from the cache rather than a module-global flag, so there is no mutable global to forget to set. Tests reset it with _warn_fallback_once.cache_clear().
 
     Security considerations:
         This warning is the user's only signal that their keys are protected by a file rather than the OS keychain, and that the protecting key sits beside them. It names the directory so the user can restrict it. It must not be silenced.
     """
-    global _FALLBACK_WARNED
-    if not _FALLBACK_WARNED:
-        print(
-            f"{Colors.WARNING}[!] No OS keychain is available; API keys will be "
-            f"stored in a Fernet-encrypted file under {get_config_dir()} instead. "
-            f"This is not hardware-backed - protect that directory.{Colors.RESET}"
-        )
-        _FALLBACK_WARNED = True
+    print(
+        f"{Colors.WARNING}[!] No OS keychain is available; API keys will be stored in a Fernet-encrypted file under {get_config_dir()} instead. This is not hardware-backed - protect that directory.{Colors.RESET}"
+    )
 
 def _load_fernet():
     """
@@ -294,15 +294,13 @@ def _get_raw(provider: str) -> Optional[str]:
         The stored value, or None when neither store has it.
 
     Implementation notes:
-        The fallback is consulted whenever the keychain yields nothing, not only when it errors. That covers the case where keys were written before a keychain became available, so gaining one does not appear to erase the user's keys.
+        The fallback is consulted whenever the keychain yields nothing, not only when it errors. That covers the case where keys were written before a keychain became available, so gaining one does not appear to erase the user's keys. A KeyringError on read is suppressed for the same reason: a locked or broken keychain is treated as holding nothing, and the fallback store gets its turn.
     """
     if keyring_available():
-        try:
+        with contextlib.suppress(KeyringError):
             value = keyring.get_password(SERVICE_NAME, _key_name(provider))
             if value is not None:
                 return value
-        except KeyringError:
-            pass
     return _fallback_get(provider)
 
 
@@ -445,16 +443,22 @@ def delete_api_key(provider: str) -> None:
         provider: Provider identifier.
 
     Side effects:
-        Deletes from the keychain and from the fallback store.
+        Deletes from the keychain and from the fallback store, and prints a warning when the keychain entry could not be removed.
 
     Implementation notes:
-        Both stores are cleared unconditionally, and keychain errors are swallowed. Deletion must be thorough: leaving a copy in the store that was not checked would mean a key the user believes they revoked is still on disk and still usable.
+        Both stores are cleared unconditionally: a keychain failure never stops the fallback store being cleared. Deletion must be thorough: leaving a copy in the store that was not checked would mean a key the user believes they revoked is still on disk and still usable. PasswordDeleteError is the keychain saying there was nothing to delete, which is the normal case for a provider whose key lives only in the fallback store, so it stays silent. Any other failure -- a locked keychain, a denied access prompt, a broken backend -- means the key may still be stored, so the user is warned rather than left believing it is gone.
+
+    Security considerations:
+        The warning names the provider but never the key itself.
     """
     if keyring_available():
         try:
             keyring.delete_password(SERVICE_NAME, _key_name(provider))
-        except Exception:
-            pass
+        except Exception as exc:
+            if not isinstance(exc, PasswordDeleteError):
+                print(
+                    f"{Colors.WARNING}[!] Could not remove the {provider} key from the OS keychain ({type(exc).__name__}); it may still be stored in the fallback store.{Colors.RESET}"
+                )
     _fallback_delete(provider)
 
 def has_api_key(provider: str) -> bool:

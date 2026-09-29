@@ -9,7 +9,7 @@ Responsibilities:
     Model methods and their call edges, and support search, neighbour lookup, path finding and reachability.
 
 Dependencies:
-    androguard's analysis object.
+    androguard's analysis object, the sink family table in graph_tables.
 
 Implementation notes:
     Reachability is what separates a finding from an observation. A vulnerable call in code nothing invokes is a code-quality note; the same call reachable from an exported component is a vulnerability. This graph is how the agent establishes which. Only the app's own methods are included, since a path through the entire platform and every bundled library would be both enormous and unusable -- and a path that leaves the app's code tells the reader nothing they can act on. Every traversal is bounded in depth and in result count, because the agent's context is finite and an unbounded path search over a real app does not terminate usefully.
@@ -18,8 +18,9 @@ Implementation notes:
 import collections
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set
 
+from .graph_tables import SINK_FAMILIES as _SINK_FAMILIES
 from ...utils.verbose import plural, verbose_print
 
 MAX_NEIGHBOURS = 40
@@ -384,13 +385,8 @@ def build_call_graph(dx, app_descriptors: Sequence[str],
         Linear in the number of methods and call edges within the app's classes.
 
     Implementation notes:
-        Restricted to the app's own classes, so an edge into the platform or a bundled library terminates rather than expanding the graph into code the reader cannot change. Manifest roles are applied here rather than inferred, because what makes a method an entry point is the manifest declaring its class reachable, which the bytecode does not show. Failures around individual classes are tolerated, since androguard's shapes vary across versions and one unreadable class should cost its edges rather than the graph.
+        Restricted to the app's own classes, so an edge into the platform or a bundled library terminates rather than expanding the graph into code the reader cannot change. Manifest roles are applied here rather than inferred, because what makes a method an entry point is the manifest declaring its class reachable, which the bytecode does not show. Failures around individual classes are tolerated, since androguard's shapes vary across versions and one unreadable class should cost its edges rather than the graph. Sink families come from graph_tables, the same table the code graph tags classes with, imported at module level because graph_tables is a leaf module and importing it cannot close a cycle back through code_graph.
     """
-    try:
-        from .code_graph import _SINK_FAMILIES
-    except Exception:
-        _SINK_FAMILIES = {}
-
     try:
         wanted = set(app_descriptors)
         class_roles = class_roles or {}

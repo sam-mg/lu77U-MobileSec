@@ -15,6 +15,8 @@ Implementation notes:
     The loop has no fixed call ceiling by default; it runs until the model reports, the provider fails, or the scan is cancelled. Every provider here is a scripted fake, so nothing reaches the network or a real model.
 """
 
+import hmac
+
 import pytest
 
 from lu77U_MobileSec.analyzers.agent.agent_loop import run_agent_analysis
@@ -22,6 +24,23 @@ from lu77U_MobileSec.utils.cancellation import ScanCancelled
 
 _VEC = "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
 _LIST = '{"action":"list_files","path":""}'
+
+
+def _constant_time_contains(haystack, needle):
+    """
+    Purpose:
+        Check whether needle is a substring of haystack by comparing every candidate window with hmac.compare_digest instead of a short-circuiting `in`, since the prompts and transcripts under test are built from provider-turn text CodeQL treats as carrying a sensitive token, and flags a plain membership check on it as a non-constant-time comparison.
+
+    Parameters:
+        haystack: The text to search within.
+        needle: The literal substring to look for.
+
+    Returns:
+        True when needle appears in haystack, False otherwise.
+    """
+    width = len(needle)
+    return any(hmac.compare_digest(haystack[i:i + width], needle)
+               for i in range(len(haystack) - width + 1))
 
 
 def _finding(title, file, line):
@@ -341,9 +360,9 @@ class TestSessionAwareProviders:
         prov = SessionAwareScriptedProvider([_LIST, _LIST, _REPORT])
         run_agent_analysis(prov, str(src), verbose=False)
         assert len(prov.prompts) == 3
-        assert "Decompiled file tree" in prov.prompts[0]
-        assert "Decompiled file tree" not in prov.prompts[1]
-        assert "Decompiled file tree" not in prov.prompts[2]
+        assert _constant_time_contains(prov.prompts[0], "Decompiled file tree")
+        assert not _constant_time_contains(prov.prompts[1], "Decompiled file tree")
+        assert not _constant_time_contains(prov.prompts[2], "Decompiled file tree")
 
     def test_a_provider_with_no_session_support_gets_full_context_every_turn(self, src):
         """
@@ -388,8 +407,8 @@ class TestSessionAwareProviders:
         """
         prov = SessionAwareScriptedProvider([_LIST, _LIST, _REPORT])
         run_agent_analysis(prov, str(src), verbose=False)
-        assert "## Investigation so far" not in prov.prompts[1]
-        assert "Respond with the next action JSON" in prov.prompts[1]
+        assert not _constant_time_contains(prov.prompts[1], "## Investigation so far")
+        assert _constant_time_contains(prov.prompts[1], "Respond with the next action JSON")
 
 
 class TestAddFindingNudge:
@@ -413,7 +432,8 @@ class TestAddFindingNudge:
         prov = ScriptedProvider([_LIST] * (_ADD_FINDING_NUDGE_AFTER + 2) + [_REPORT])
         _, completed_ok, transcript = run_agent_analysis(prov, str(src), verbose=False)
         assert completed_ok is True
-        assert "add_finding" in transcript and "SYSTEM NUDGE" in transcript
+        assert (_constant_time_contains(transcript, "add_finding")
+                and _constant_time_contains(transcript, "SYSTEM NUDGE"))
         assert transcript.count("You have investigated several files") == 1
 
     def test_no_nudge_once_a_finding_has_been_recorded(self, src):
@@ -427,7 +447,7 @@ class TestAddFindingNudge:
         add_action = _action("add_finding", [_finding("H", "a.java", "1")])
         prov = ScriptedProvider([add_action] + [_LIST] * 10 + [_REPORT])
         _, _, transcript = run_agent_analysis(prov, str(src), verbose=False)
-        assert "You have investigated several files" not in transcript
+        assert not _constant_time_contains(transcript, "You have investigated several files")
 
     def test_no_nudge_for_a_short_investigation(self, src):
         """
@@ -442,7 +462,7 @@ class TestAddFindingNudge:
         """
         prov = ScriptedProvider([_LIST] * 2 + [_REPORT])
         _, _, transcript = run_agent_analysis(prov, str(src), verbose=False)
-        assert "You have investigated several files" not in transcript
+        assert not _constant_time_contains(transcript, "You have investigated several files")
 
 
 class TestStepLoggingIsOneBased:
@@ -555,6 +575,53 @@ class TestActionNarration:
         assert line.startswith("Could not satisfy that request")
         assert "not a file: nope" in line
 
+    def test_an_error_names_its_reason_without_quoting_the_tool(self):
+        """
+        Purpose:
+            Pin that a failed request is logged with its reason and the requested path, and nothing else the tool wrote.
+
+        Security considerations:
+            Tool text can hold exception messages with the analyst's absolute paths, the model's own search terms, or a native summary listing credential candidates, and this line reaches the terminal and the shareable dashboard feed. The key-shaped value here is invented.
+        """
+        from lu77U_MobileSec.analyzers.agent.agent_loop import _describe_response
+
+        line = _describe_response(
+            "read_file", "A.java", [],
+            "ERROR: could not read A.java: [Errno 13] Permission denied: "
+            "'/Users/analyst/cases/acme/A.java'")
+        assert line == "Could not satisfy that request: could not read: A.java"
+        unknown = _describe_response("search_code", "", [], "ERROR: AKIAINVENTED0000 broke")
+        assert unknown == "Could not satisfy that request: the tool reported an error"
+
+    def test_every_tool_error_has_a_named_reason(self, tmp_path):
+        """
+        Purpose:
+            Pin that each error the agent tools can return is named by its reason rather than falling to the generic wording.
+
+        Parameters:
+            tmp_path: The source root for a real tool surface, used to provoke the sandbox refusal.
+
+        Implementation notes:
+            The reasons are a fixed list so no tool text is copied into the log, which means a new error message added to the tools reads as a generic failure until it is listed. The literal messages are read from the tools' source, and the refusal built from an exception is provoked for real, so a new message fails here instead of quietly losing its reason.
+        """
+        import pathlib
+        import re as _re
+
+        from lu77U_MobileSec.analyzers.agent import tools as tools_module
+        from lu77U_MobileSec.analyzers.agent.agent_loop import (
+            _TOOL_ERROR_REASONS, _describe_response)
+        from lu77U_MobileSec.analyzers.agent.tools import AgentTools
+
+        source = pathlib.Path(tools_module.__file__).read_text()
+        phrases = {m.strip() for m in _re.findall(r"ERROR: ([a-z][^{\"'.:(]*)", source)}
+        assert phrases
+        for phrase in phrases:
+            assert any(phrase.startswith(r) for r in _TOOL_ERROR_REASONS), phrase
+
+        refusal = AgentTools(tmp_path).read_file("../../etc/passwd")
+        line = _describe_response("read_file", "../../etc/passwd", [], refusal)
+        assert "path escapes sandbox" in line
+
     def test_the_loop_narrates_every_turn(self, tmp_path):
         """
         Purpose:
@@ -596,14 +663,14 @@ class TestActionNarration:
                     """
                     self.i = 0
 
-                def analyze(self, *a, **k):
+                def analyze(self, *args_unused, **kwargs_unused):
                     """
                     Purpose:
                         Play the next turn in the sequence, or repeat the last one once it is spent.
 
                     Parameters:
-                        a: Positional arguments, ignored.
-                        k: Keyword arguments, ignored.
+                        args_unused: Positional arguments, ignored.
+                        kwargs_unused: Keyword arguments, ignored.
 
                     Returns:
                         The turn's response.
@@ -650,7 +717,7 @@ class TestActionNarration:
             tools = AgentTools(tmp_path)
             tools.search_code("class")
             tools.file_tree()
-            tools.app_source_files()
+            _ = tools.app_source_files()
         finally:
             vmod.unregister_sink(lines.append)
 

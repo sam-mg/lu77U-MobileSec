@@ -18,13 +18,14 @@ Security considerations:
     Launches a subprocess with a fixed argument list and no shell. The server binds locally and is not exposed beyond what Ollama itself does.
 """
 
+import contextlib
 import shutil
 import subprocess
 import time
 from typing import Optional
 
 from . import ollama_models
-from ..config import user_settings, credentials
+from ..config import user_settings
 from ..ui.colors import Colors
 from ..utils.verbose import verbose_print
 
@@ -173,7 +174,7 @@ class OllamaLifecycle:
             Prints a menu, reads input, and persists the choice to settings.
 
         Implementation notes:
-            A remembered model that is still installed becomes the Enter-key default, which makes re-running a scan a single keypress. An empty model list is a guidance case rather than an error: the message names a concrete pull command, because "no models found" alone leaves a new user stuck. An invalid selection returns None rather than re-prompting, leaving loop control to the caller.
+            A remembered model that is still installed becomes the Enter-key default, which makes re-running a scan a single keypress. An empty model list is a guidance case rather than an error: the message names a concrete pull command, because "no models found" alone leaves a new user stuck. An invalid selection returns None rather than re-prompting, leaving loop control to the caller. Non-numeric input is treated exactly like an out-of-range number: the conversion error is suppressed and falls through to the same invalid-selection message.
         """
         models = self.local_models()
         remembered = user_settings.get_provider_config("ollama").get("model")
@@ -200,14 +201,12 @@ class OllamaLifecycle:
 
         if not choice and remembered in models:
             return remembered
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             idx = int(choice) - 1
             if 0 <= idx < len(models):
                 chosen = models[idx]
                 user_settings.set_provider_field("ollama", "model", chosen)
                 return chosen
-        except (ValueError, TypeError):
-            pass
         print(f"{Colors.ERROR}Invalid selection.{Colors.RESET}")
         return None
 
@@ -249,15 +248,15 @@ class OllamaLifecycle:
         """
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type_unused, exc_unused, tb_unused):
         """
         Purpose:
             Stop the owned server on leaving the context.
 
         Parameters:
-            exc_type: Exception type, if the block raised.
-            exc: Exception instance, if the block raised.
-            tb: Traceback, if the block raised.
+            exc_type_unused: Exception type, if the block raised; unused, since cleanup does not branch on the error.
+            exc_unused: Exception instance, if the block raised; unused, since cleanup does not branch on the error.
+            tb_unused: Traceback, if the block raised; unused, since cleanup does not branch on the error.
 
         Returns:
             False, so an exception in the block propagates. Cleanup must not swallow the error that triggered it.

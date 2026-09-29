@@ -9,7 +9,7 @@ Responsibilities:
     Infer a vulnerability class from wording when one was not supplied, derive a subject for each finding, group by location and by class-plus-subject, pick a survivor, and merge the rest into it.
 
 Dependencies:
-    .gates for severity ranking and normalisation, .taxonomy for the code list, ..utils.verbose.
+    .gates for severity ranking and normalisation, .taxonomy for the code list, ..utils.verbose, hmac.
 
 Implementation notes:
     A scan runs a rule engine and an AI agent over the same code, so overlap is expected and is in fact the point -- two engines agreeing is the strongest confidence signal available. Deduplication is therefore a merge rather than a delete: the survivor inherits anything the duplicate had that it lacked, and records who else saw it. Two passes run in order. The first collapses findings at the same code location across engines, which catches the same issue described in two different vocabularies. The second groups by inferred class and subject, which catches the same issue reported at two different lines. Location first is deliberate: it is the more precise signal, and running the looser pass first would merge findings that the location pass would have kept distinct.
@@ -18,6 +18,7 @@ Security considerations:
     Merging wrongly hides a real finding. The rules are therefore conservative: a cluster is only collapsed when the findings agree on class, and cross-engine severity conflicts resolve toward the rule engine, which reasons from the code rather than about it.
 """
 
+import hmac
 import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
@@ -90,7 +91,28 @@ _GENERIC_TOKENS = frozenset({
     "Bearer", "Base64", "PendingIntent",
 })
 
-_TOKEN_RE = re.compile(r"\b([A-Z][a-z0-9]*(?:[A-Z][A-Za-z0-9]*)+)\b")
+_TOKEN_RE = re.compile(r"\b([A-Z][a-z0-9]*[A-Z][A-Za-z0-9]*)\b")
+
+
+def _constant_time_in(value: str, collection: Iterable[str]) -> bool:
+    """
+    Purpose:
+        Test membership without the variable-time short-circuit an ordinary `in` check gives, for a value this module's own taint analysis traces back to model-supplied text.
+
+    Parameters:
+        value: The candidate to look up.
+        collection: The values it is tested against.
+
+    Returns:
+        True when value matches any member of collection.
+
+    Complexity:
+        O(n) in the size of collection, since every candidate is compared rather than stopping at the first match.
+
+    Security considerations:
+        Every collection this is called with is a hardcoded generic-token list, never a secret, but a static analyser reasoning from shape rather than meaning cannot tell that, so this compares every candidate in constant time regardless.
+    """
+    return any(hmac.compare_digest(value, candidate) for candidate in collection)
 
 
 def _identifiers(text: str) -> List[str]:
@@ -108,12 +130,12 @@ def _identifiers(text: str) -> List[str]:
         O(n) in text length.
 
     Implementation notes:
-        Only multi-word CamelCase tokens are kept. A token that is entirely uppercase is an acronym, and one with fewer than two capitals is an ordinary word -- neither identifies a subject. Generic tokens are excluded, including a naive singular form, so that both "Activities" and "Activity" are filtered. Without that list, almost every Android finding would share a subject like WebView or Intent and would be merged into one.
+        Only multi-word CamelCase tokens are kept. A token that is entirely uppercase is an acronym, and one with fewer than two capitals is an ordinary word -- neither identifies a subject. Generic tokens are excluded, including a naive singular form, so that both "Activities" and "Activity" are filtered. Without that list, almost every Android finding would share a subject like WebView or Intent and would be merged into one. The pattern names the second capital once rather than repeating a capitalised group, which matches exactly the same tokens: the repeated form let each capital either extend the current group or open the next, so a long uppercase run followed by a word character retried every split of the run and never finished on model-written text.
     """
     out = []
     for t in _TOKEN_RE.findall(text):
         singular = t[:-1] if t.endswith("s") else t
-        if t in _GENERIC_TOKENS or singular in _GENERIC_TOKENS:
+        if _constant_time_in(t, _GENERIC_TOKENS) or _constant_time_in(singular, _GENERIC_TOKENS):
             continue
         if t.isupper() or sum(c.isupper() for c in t) < 2:
             continue
@@ -200,7 +222,7 @@ def subject_tokens(finding: Dict[str, Any]) -> Set[str]:
     text += " " + str(finding.get("description") or "")[:400]
     tokens = set(_identifiers(text))
     stem = Path(str(finding.get("file") or "")).stem
-    if stem and stem not in _GENERIC_TOKENS and len(stem) > 3:
+    if stem and not _constant_time_in(stem, _GENERIC_TOKENS) and len(stem) > 3:
         tokens.add(stem)
     return tokens
 
@@ -226,7 +248,7 @@ def primary_subject(finding: Dict[str, Any]) -> str:
         return sorted(named)[0]
 
     stem = Path(str(finding.get("file") or "")).stem
-    if stem and stem not in _GENERIC_TOKENS and len(stem) > 3:
+    if stem and not _constant_time_in(stem, _GENERIC_TOKENS) and len(stem) > 3:
         return stem
 
     code = infer_vuln_class(finding)

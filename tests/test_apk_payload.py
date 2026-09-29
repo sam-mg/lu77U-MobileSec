@@ -17,8 +17,6 @@ Security considerations:
 
 import zipfile
 
-import pytest
-
 from lu77U_MobileSec.decompiler.apk_payload import (
     HERMES_MAGIC, available_native_abis, extract_cordova_www, extract_member,
     extract_native_libs, find_js_bundle, is_hermes,

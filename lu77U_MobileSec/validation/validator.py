@@ -19,6 +19,7 @@ Security considerations:
 """
 
 import hashlib
+import hmac
 import json
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -204,7 +205,7 @@ def is_rule_finding(finding: Dict[str, Any]) -> bool:
     return True
 
 
-_VERDICT_CACHE: Dict[Tuple[str, str, str, str, str], Dict[str, Any]] = {}
+_VERDICT_CACHE: Dict[Tuple[str, str, str, str], List[Tuple[str, Dict[str, Any]]]] = {}
 
 
 def _verdict_key(finding: Dict[str, Any]) -> Optional[Tuple[str, str, str, str, str]]:
@@ -234,6 +235,49 @@ def _verdict_key(finding: Dict[str, Any]) -> Optional[Tuple[str, str, str, str, 
         normalize_severity(filed),
         hashlib.sha1(snippet.encode("utf-8", "ignore")).hexdigest(),
     )
+
+
+def _cache_lookup(key: Tuple[str, str, str, str, str]) -> Optional[Dict[str, Any]]:
+    """
+    Purpose:
+        Look up a prior verdict for a cache key, comparing the embedded snippet hash in constant time so a lookup cannot leak the stored digest through timing.
+
+    Parameters:
+        key: The cache key tuple returned by _verdict_key, whose last element is the snippet's sha1 hexdigest.
+
+    Returns:
+        The cached gate result for an exact match, or None when no cached entry shares the key's prefix and digest.
+
+    Implementation notes:
+        The dict is keyed on everything but the digest so an ordinary dict lookup narrows to the (usually single) candidate sharing class, file, line and severity, then hmac.compare_digest checks the digest itself; the loop never breaks early on a match, so its runtime depends only on how many candidates share the prefix, never on which byte of the digest matched.
+    """
+    prefix, digest = key[:-1], key[-1]
+    match = None
+    for candidate_digest, result in _VERDICT_CACHE.get(prefix, []):
+        if hmac.compare_digest(candidate_digest, digest):
+            match = result
+    return match
+
+
+def _cache_store(key: Tuple[str, str, str, str, str], result: Dict[str, Any]) -> None:
+    """
+    Purpose:
+        Remember a verdict under its cache key, replacing any earlier entry for the same snippet hash.
+
+    Parameters:
+        key: The cache key tuple returned by _verdict_key, whose last element is the snippet's sha1 hexdigest.
+        result: The gate result to remember.
+
+    Side effects:
+        Mutates the module-global verdict cache.
+
+    Implementation notes:
+        Digest comparisons use hmac.compare_digest for the same constant-time reason _cache_lookup does, so replacing a stale entry does not reintroduce a variable-time comparison on the way in.
+    """
+    prefix, digest = key[:-1], key[-1]
+    entries = _VERDICT_CACHE.setdefault(prefix, [])
+    entries[:] = [(d, r) for d, r in entries if not hmac.compare_digest(d, digest)]
+    entries.append((digest, result))
 
 
 def clear_verdict_cache() -> None:
@@ -283,7 +327,7 @@ def validate_findings(
     if not findings:
         return findings
     is_cancelled = is_cancelled or (lambda: False)
-    progress = progress or (lambda *a, **kw: None)
+    progress = progress or (lambda *unused_a, **unused_kw: None)
 
     findings[:] = deduplicate(findings, verbose=verbose)
 
@@ -307,8 +351,8 @@ def validate_findings(
         cached: List[Dict[str, Any]] = []
         for finding in findings:
             key = _verdict_key(finding)
-            if key is not None and key in _VERDICT_CACHE:
-                prior = _VERDICT_CACHE[key]
+            prior = _cache_lookup(key) if key is not None else None
+            if prior is not None:
                 _apply(finding, prior.get("verdict", "PASS"),
                        "Reusing the verdict this exact claim received earlier.",
                        prior.get("final_severity"))
@@ -338,7 +382,7 @@ def validate_findings(
         for finding in findings:
             key = _verdict_key(finding)
             if key is not None and not finding.get("gate_result", {}).get("from_cache"):
-                _VERDICT_CACHE[key] = dict(finding.get("gate_result") or {})
+                _cache_store(key, dict(finding.get("gate_result") or {}))
 
     return sort_findings(findings)
 

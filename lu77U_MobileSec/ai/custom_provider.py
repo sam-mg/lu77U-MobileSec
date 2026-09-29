@@ -19,6 +19,7 @@ Security considerations:
 """
 
 import base64
+import hmac
 import json
 import time
 from typing import Any, Dict, List, Optional
@@ -26,7 +27,6 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from .base_provider import BaseAIProvider
-from .errors import classify
 from ..utils.verbose import verbose_print
 
 _TIMEOUT = 120.0
@@ -256,7 +256,9 @@ class CustomProvider(BaseAIProvider):
                 started = time.monotonic()
                 try:
                     resp = self._post(body)
-                    if (resp.status_code == 400 and "response_format" in body
+                    has_response_format = any(
+                        hmac.compare_digest("response_format", k) for k in body)
+                    if (resp.status_code == 400 and has_response_format
                             and not self._schema_unsupported):
                         verbose_print(
                             "Custom provider rejected response_format (400); "
@@ -289,7 +291,8 @@ class CustomProvider(BaseAIProvider):
                     fatal = self._handle_exception(e)
                     if fatal:
                         return fatal
-                    if self.api_key != key_before:
+                    if not hmac.compare_digest(
+                            str(self.api_key or ""), str(key_before or "")):
                         continue
                     return {"error": f"Custom request failed: {e}"}
             return {"error": "Custom request failed: exhausted the key pool"}
@@ -324,7 +327,7 @@ class CustomProvider(BaseAIProvider):
             The endpoint's model identifiers, or the configured model alone, or an empty list.
 
         Implementation notes:
-            Fetched rather than curated, because nothing is known in advance about a custom endpoint. Every failure falls back to the configured model, so the settings UI always shows the user their own choice even when the endpoint has no models route. Entries without an id are dropped so the chooser shows no blanks.
+            Fetched rather than curated, because nothing is known in advance about a custom endpoint. Every failure falls back to the configured model, so the settings UI always shows the user their own choice even when the endpoint has no models route. Entries without an id are dropped so the chooser shows no blanks. A failed listing is traced under --verbose, so a misconfigured endpoint is diagnosable instead of silently looking like one that has no models route.
         """
         try:
             resp = httpx.get(self.base_url() + "/models", headers=self._headers(), timeout=30.0)
@@ -333,8 +336,8 @@ class CustomProvider(BaseAIProvider):
             ids = [m.get("id", "") for m in data if m.get("id")]
             if ids:
                 return ids
-        except Exception:
-            pass
+        except Exception as exc:
+            verbose_print(f"Custom endpoint model listing failed, showing the configured model: {exc}", self.verbose)
         return [self.model] if self.model else []
 
     def validate_credentials(self) -> bool:

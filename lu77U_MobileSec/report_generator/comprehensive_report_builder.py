@@ -18,7 +18,7 @@ Implementation notes:
 from lu77U_MobileSec.detection.results import DetectionResult
 from ..ui.colors import Colors
 from ..utils.verbose import verbose_print
-from typing import Optional, Dict, Union
+from typing import Optional, Dict
 import platform
 import os
 import traceback
@@ -95,7 +95,7 @@ class ComprehensiveReportBuilder:
                 raise RuntimeError("Report generation failed - no valid output file created")
 
             try:
-                file_size = os.path.getsize(report_path) / 1024
+                verbose_print(f"Report size: {os.path.getsize(report_path) / 1024:.1f} KB", self.verbose)
             except Exception as e:
                 verbose_print(f"Report generated but failed to stat file: {e}", self.verbose)
                 verbose_print(f"Report location (best effort): {report_path}", self.verbose)
@@ -151,7 +151,7 @@ class ComprehensiveReportBuilder:
                 raise RuntimeError("Framework report generation failed - no valid output file created")
 
             try:
-                file_size = os.path.getsize(report_path) / 1024
+                verbose_print(f"Report size: {os.path.getsize(report_path) / 1024:.1f} KB", self.verbose)
             except Exception as e:
                 verbose_print(f"Framework report generated but failed to stat file: {e}", self.verbose)
                 verbose_print(f"Report location (best effort): {report_path}", self.verbose)
@@ -179,39 +179,32 @@ class ComprehensiveReportBuilder:
         Returns:
             The generator.
 
+        Raises:
+            RuntimeError: When the comprehensive generator cannot be imported or constructed, chained to the original error.
+
         Side effects:
             Imports the native PDF stack, and prints guidance on failure.
+
+        Implementation notes:
+            There is deliberately no fallback to the standard PDFReportGenerator. It has no generate_comprehensive_pdf and its generate_pdf_report takes only the detection result, so a fallback instance crashed on first use with an error naming a method signature instead of the missing dependency. An import failure therefore takes the same path as any other construction failure: the installation help is printed and a RuntimeError is raised.
         """
         if self.pdf_generator is None:
             verbose_print("Initializing PDF generator (lazy loading)", self.verbose)
-            
+
             try:
                 from .comprehensive_pdf_generator import ComprehensivePDFGenerator
                 self.pdf_generator = ComprehensivePDFGenerator(verbose=self.verbose)
                 verbose_print("Comprehensive PDF generator initialized successfully", self.verbose)
-                
-            except ImportError as e:
-                verbose_print(f"Comprehensive PDF generator not available: {e}", self.verbose)
-                verbose_print("Falling back to standard PDF generator", self.verbose)
-                
-                try:
-                    from .pdf_generator import PDFReportGenerator
-                    self.pdf_generator = PDFReportGenerator(verbose=self.verbose)
-                    verbose_print("Standard PDF generator initialized successfully", self.verbose)
-                    
-                except ImportError as fallback_error:
-                    verbose_print(f"Standard PDF generator also unavailable: {fallback_error}", self.verbose)
-                    raise RuntimeError("No PDF generator modules available") from fallback_error
-                    
+
             except Exception as e:
                 verbose_print(f"Failed to initialize PDF generator: {e}", self.verbose)
-                
+
                 self._print_installation_help(e)
                 raise RuntimeError(f"PDF generator initialization failed: {e}") from e
-            else:
-                verbose_print("♻Using existing PDF generator instance", self.verbose)
-                verbose_print(f"Existing generator type: {type(self.pdf_generator).__name__}", self.verbose)
-            
+        else:
+            verbose_print("Using existing PDF generator instance", self.verbose)
+            verbose_print(f"Existing generator type: {type(self.pdf_generator).__name__}", self.verbose)
+
         return self.pdf_generator
     
     def _print_installation_help(self, error: Exception):

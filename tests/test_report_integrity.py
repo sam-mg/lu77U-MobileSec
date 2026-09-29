@@ -133,13 +133,10 @@ class TestDetectorFallbackKeys:
     Implementation notes:
         The primary path keys its confidence map by the framework's display name and the fallback keyed it by the detector's registry name, so any scan that took the fallback produced a report labelled differently from every other scan and, once evidence is looked up by display name, an empty evidence list for exactly those scans.
     """
-    def test_fallback_uses_the_framework_name_not_the_registry_key(self, monkeypatch):
+    def test_fallback_uses_the_framework_name_not_the_registry_key(self):
         """
         Purpose:
             Pin that the fallback keys its results by the display name, and that the evidence lookup still works.
-
-        Parameters:
-            monkeypatch: Unused directly; the detector is assembled by hand instead.
 
         Implementation notes:
             The detector is built without running its constructor, because constructing it for real would load every detector and the surrounding machinery to exercise one branch.
@@ -151,13 +148,13 @@ class TestDetectorFallbackKeys:
             Purpose:
                 A primary detector that always fails, forcing the fallback path.
             """
-            def detect_all_frameworks(self, path):
+            def detect_all_frameworks(self, _):
                 """
                 Purpose:
                     Fail, standing in for the primary detector being unavailable.
 
                 Parameters:
-                    path: The application file, unused here.
+                    _: The application file, unused here.
 
                 Raises:
                     RuntimeError: Always.
@@ -169,13 +166,13 @@ class TestDetectorFallbackKeys:
             Purpose:
                 A single framework detector returning one confident result with evidence.
             """
-            def detect(self, path):
+            def detect(self, _):
                 """
                 Purpose:
                     Report the framework with its confidence and evidence.
 
                 Parameters:
-                    path: The application file, unused here.
+                    _: The application file, unused here.
 
                 Returns:
                     The detector's result.
@@ -472,8 +469,6 @@ class TestPermissions:
         Returns:
             The stand-in application.
         """
-        outer = self
-
         class _Axml:
             """
             Purpose:
@@ -652,14 +647,14 @@ class TestLlmUsageAccounting:
             """
             name = "test"
 
-            def analyze(self, *a, **kw):
+            def analyze(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Answer any request with an empty finding list.
 
                 Parameters:
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A response holding an empty list.
@@ -809,14 +804,14 @@ class TestPerCallMetricsJsonl:
             """
             name = "test"
 
-            def analyze(self, *a, **kw):
+            def analyze(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Answer any request with an empty finding list.
 
                 Parameters:
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A response holding an empty list.
@@ -976,14 +971,14 @@ class TestPerCallMetricsJsonl:
             """
             name = "test"
 
-            def analyze(self, *a, **kw):
+            def analyze(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Answer any request with an empty finding list.
 
                 Parameters:
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A response holding an empty list.
@@ -1027,7 +1022,7 @@ class TestPerCallMetricsJsonl:
         import lu77U_MobileSec.ai.ollama_provider as op
         from lu77U_MobileSec.utils.output_manager import OutputManager
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
         def _chunk(content="", done=False, done_reason=None, **metrics):
             """
@@ -1054,15 +1049,14 @@ class TestPerCallMetricsJsonl:
             Purpose:
                 A client that answers once with counts attached.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Yield a single complete answer carrying its counts.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single final chunk.
@@ -1134,13 +1128,10 @@ class TestAnalysisAliasMatchesAnalyzerDetails:
         assert ok["success"] is True
         assert failed["success"] is False
 
-    def test_build_result_uses_the_same_alias_function(self, tmp_path):
+    def test_build_result_uses_the_same_alias_function(self):
         """
         Purpose:
             Pin that the stored result is built by the same function rather than by a second copy of the logic.
-
-        Parameters:
-            tmp_path: Temporary directory, accepted so the signature matches the others here.
         """
         from lu77U_MobileSec.web.serializers import _analysis_alias, build_result
 

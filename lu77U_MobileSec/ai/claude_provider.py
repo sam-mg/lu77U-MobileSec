@@ -9,7 +9,7 @@ Responsibilities:
     Build the SDK client per request, expose the reporting tool, translate SDK usage figures into the shared metrics shape, and implement analyze, list_models and validate_credentials.
 
 Dependencies:
-    The anthropic SDK, imported lazily, plus the shared base provider and error classifier.
+    The anthropic SDK, imported lazily, plus the shared base provider.
 
 Implementation notes:
     Findings are collected through a forced tool call rather than by parsing free text. Claude validates tool input against the schema before emitting it, which makes malformed findings a provider-side error instead of a parsing problem downstream.
@@ -24,7 +24,6 @@ import time
 from typing import Any, Dict, List, Optional
 
 from .base_provider import BaseAIProvider
-from .errors import classify
 from .registry import CURATED_MODELS, DEFAULT_MODELS
 from ..utils.verbose import verbose_print
 

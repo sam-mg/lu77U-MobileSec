@@ -77,7 +77,7 @@ class DynamicAnalyzer:
             The managers are injectable so that a caller which already set up Frida for an earlier phase can pass it in rather than repeating the deployment. Every callback defaults to a no-op, so the analyzer runs headless without a caller having to supply stubs.
         """
         self.verbose = verbose
-        self._progress = progress or (lambda *a, **k: None)
+        self._progress = progress or (lambda *_unused_args, **_unused_kwargs: None)
         self.pause_for_login = pause_for_login
         self.is_cancelled = is_cancelled or (lambda: False)
         self.adb = adb or ADBManager(verbose=verbose)
@@ -99,14 +99,14 @@ class DynamicAnalyzer:
             Invokes the caller's progress callback.
 
         Implementation notes:
-            Callback failures are swallowed, except for cancellation. A disconnected dashboard client must not abort a dynamic run, but a cancellation raised through the callback is the user stopping the scan and has to propagate.
+            Callback failures are logged and otherwise ignored, except for cancellation. A disconnected dashboard client must not abort a dynamic run, but a cancellation raised through the callback is the user stopping the scan and has to propagate. contextlib.suppress cannot replace the handler because ScanCancelled subclasses Exception and must be re-raised first.
         """
         try:
             self._progress(phase=phase, percent=percent, message=message)
         except ScanCancelled:
             raise
-        except Exception:
-            pass
+        except Exception as exc:
+            verbose_print(f"Progress update could not be delivered: {exc}", self.verbose)
 
     def _raise_if_cancelled(self) -> None:
         """

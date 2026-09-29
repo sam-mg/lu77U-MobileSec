@@ -123,7 +123,8 @@ class TestCleanBaseline:
         Implementation notes:
             Every other test in this module mutates this file, so a baseline that already broke something would make each of them pass for the wrong reason.
         """
-        assert checker.check_path(write(tmp_path, CLEAN)) == []
+        path = write(tmp_path, CLEAN)
+        assert checker.check_path(path) == []
 
     def test_a_package_initialiser_is_named_for_its_package(self, tmp_path):
         """
@@ -172,7 +173,8 @@ class TestFileLevelRules:
         Parameters:
             tmp_path: Directory the file is written into.
         """
-        assert "shebang" in rules_for(write(tmp_path, CLEAN.split("\n", 1)[1]))
+        path = write(tmp_path, CLEAN.split("\n", 1)[1])
+        assert "shebang" in rules_for(path)
 
     def test_wrong_shebang_is_caught(self, tmp_path):
         """
@@ -183,7 +185,8 @@ class TestFileLevelRules:
             tmp_path: Directory the file is written into.
         """
         bad = CLEAN.replace("#!/usr/bin/env python3", "#!/usr/bin/python")
-        assert "shebang" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "shebang" in rules_for(path)
 
     def test_a_second_shebang_line_is_caught(self, tmp_path):
         """
@@ -197,7 +200,8 @@ class TestFileLevelRules:
             A second one is what a careless merge or a copied file header leaves behind, and it does nothing except look like the first one.
         """
         bad = CLEAN.replace("def add(", "#!/usr/bin/env python3\ndef add(")
-        assert "shebang" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "shebang" in rules_for(path)
 
     def test_a_hash_comment_is_caught(self, tmp_path):
         """
@@ -209,7 +213,8 @@ class TestFileLevelRules:
         """
         bad = CLEAN.replace("    return left + right",
                             "    # add them\n    return left + right")
-        assert "hash-comment" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "hash-comment" in rules_for(path)
 
     def test_a_shebang_constant_is_not_mistaken_for_a_second_shebang(self, tmp_path):
         """
@@ -223,7 +228,8 @@ class TestFileLevelRules:
             The checker itself holds that text in a constant, so a rule that matched it anywhere in the file would report the checker as breaking its own standard.
         """
         ok = CLEAN.replace("def add(", 'SHEBANG = "#!/usr/bin/env python3"\n\n\ndef add(')
-        assert "shebang" not in rules_for(write(tmp_path, ok))
+        path = write(tmp_path, ok)
+        assert "shebang" not in rules_for(path)
 
     def test_a_missing_final_newline_is_caught(self, tmp_path):
         """
@@ -236,7 +242,8 @@ class TestFileLevelRules:
         Implementation notes:
             The trailing newline is the line terminator every text tool expects, and its absence shows up in a diff as a note on the last line of an otherwise unrelated change.
         """
-        assert "newline" in rules_for(write(tmp_path, CLEAN.rstrip("\n")))
+        path = write(tmp_path, CLEAN.rstrip("\n"))
+        assert "newline" in rules_for(path)
 
     def test_an_unparseable_file_is_reported_not_raised(self, tmp_path):
         """
@@ -269,7 +276,8 @@ class TestDocstringPresence:
             tmp_path: Directory the file is written into.
         """
         bad = "#!/usr/bin/env python3\nVALUE = 1\n"
-        assert "docstring" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "docstring" in rules_for(path)
 
     def test_a_module_docstring_below_other_code_is_caught(self, tmp_path):
         """
@@ -280,7 +288,8 @@ class TestDocstringPresence:
             tmp_path: Directory the file is written into.
         """
         bad = '#!/usr/bin/env python3\nVALUE = 1\n"""\nPurpose:\n    Late.\n"""\n'
-        assert "docstring" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "docstring" in rules_for(path)
 
     def test_a_function_without_a_docstring_is_caught(self, tmp_path):
         """
@@ -291,7 +300,8 @@ class TestDocstringPresence:
             tmp_path: Directory the file is written into.
         """
         bad = CLEAN + "\n\ndef bare():\n    return 1\n"
-        assert "docstring" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "docstring" in rules_for(path)
 
     def test_a_class_without_a_docstring_is_caught(self, tmp_path):
         """
@@ -302,7 +312,8 @@ class TestDocstringPresence:
             tmp_path: Directory the file is written into.
         """
         bad = CLEAN + "\n\nclass Bare:\n    value = 1\n"
-        assert "docstring" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "docstring" in rules_for(path)
 
     def test_a_nested_function_without_a_docstring_is_caught(self, tmp_path):
         """
@@ -315,7 +326,8 @@ class TestDocstringPresence:
         bad = CLEAN.replace(
             "    return left + right",
             "    def helper():\n        return 1\n    return helper() + left + right")
-        assert "docstring" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "docstring" in rules_for(path)
 
     def test_a_function_defined_under_a_conditional_is_still_checked(self, tmp_path):
         """
@@ -329,7 +341,8 @@ class TestDocstringPresence:
             Walking only the direct children of a module or class misses these entirely, which is a gap that stayed invisible until it was pinned, because the files that have such definitions are few.
         """
         bad = CLEAN + "\n\nif True:\n    def guarded():\n        return 1\n"
-        assert "docstring" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "docstring" in rules_for(path)
 
     def test_a_second_string_under_the_docstring_is_caught(self, tmp_path):
         """
@@ -344,7 +357,8 @@ class TestDocstringPresence:
         """
         head, rest = CLEAN.split('"""\n', 2)[:2], CLEAN.split('"""\n', 2)[2]
         bad = '"""\n'.join(head) + '"""\n\n"""\nPurpose:\n    A stray copy.\n"""\n' + rest
-        assert "docstring" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "docstring" in rules_for(path)
 
     def test_single_quote_triples_are_caught(self, tmp_path):
         """
@@ -358,7 +372,8 @@ class TestDocstringPresence:
         bad = bad.replace(
             "    A module that satisfies every rule, used as the baseline the rule tests mutate.\n\"\"\"",
             "    A module that satisfies every rule, used as the baseline the rule tests mutate.\n'''")
-        assert "quotes" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "quotes" in rules_for(path)
 
 
 class TestSectionRules:
@@ -376,7 +391,8 @@ class TestSectionRules:
         """
         bad = CLEAN.replace("Purpose:\n        Add two numbers.",
                             "Returns:\n        Their sum, described without a purpose.")
-        assert "section" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "section" in rules_for(path)
 
     def test_an_unknown_heading_is_caught(self, tmp_path):
         """
@@ -391,7 +407,8 @@ class TestSectionRules:
         """
         bad = CLEAN.replace("    Returns:\n        Their sum.",
                             "    Notes:\n        Something.\n\n    Returns:\n        Their sum.")
-        assert "section" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "section" in rules_for(path)
 
     def test_a_repeated_heading_is_caught(self, tmp_path):
         """
@@ -403,7 +420,8 @@ class TestSectionRules:
         """
         bad = CLEAN.replace("    Returns:\n        Their sum.",
                             "    Returns:\n        Their sum.\n\n    Returns:\n        Again.")
-        assert "section" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "section" in rules_for(path)
 
     def test_an_empty_section_is_caught(self, tmp_path):
         """
@@ -415,7 +433,8 @@ class TestSectionRules:
         """
         bad = CLEAN.replace("    Returns:\n        Their sum.",
                             "    Complexity:\n\n    Returns:\n        Their sum.")
-        assert "section" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "section" in rules_for(path)
 
     def test_a_module_line_on_a_function_is_caught(self, tmp_path):
         """
@@ -430,7 +449,8 @@ class TestSectionRules:
         """
         bad = CLEAN.replace("    Purpose:\n        Add two numbers.",
                             "    Module: nope\n\n    Purpose:\n        Add two numbers.")
-        assert "section" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "section" in rules_for(path)
 
     def test_a_missing_module_line_is_caught(self, tmp_path):
         """
@@ -441,7 +461,8 @@ class TestSectionRules:
             tmp_path: Directory the file is written into.
         """
         bad = CLEAN.replace("Module: sample\n\n", "")
-        assert "section" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "section" in rules_for(path)
 
     def test_a_wrong_module_name_is_caught(self, tmp_path):
         """
@@ -455,7 +476,8 @@ class TestSectionRules:
             A wrong name is what a copied file leaves behind, and it is worse than no name because it reads as correct.
         """
         bad = CLEAN.replace("Module: sample", "Module: something.else")
-        assert "module-name" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "module-name" in rules_for(path)
 
 
 class TestParameterRules:
@@ -472,7 +494,8 @@ class TestParameterRules:
             tmp_path: Directory the file is written into.
         """
         bad = CLEAN.replace("        right: The second number.\n", "")
-        assert "parameters" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "parameters" in rules_for(path)
 
     def test_a_documented_parameter_that_does_not_exist_is_caught(self, tmp_path):
         """
@@ -487,7 +510,8 @@ class TestParameterRules:
         """
         bad = CLEAN.replace("        right: The second number.",
                             "        right: The second number.\n        nonexistent: Not real.")
-        assert "parameters" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "parameters" in rules_for(path)
 
     def test_a_missing_parameters_section_is_caught(self, tmp_path):
         """
@@ -500,7 +524,8 @@ class TestParameterRules:
         bad = CLEAN.replace(
             "    Parameters:\n        left: The first number.\n        right: The second number.\n\n",
             "")
-        assert "parameters" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "parameters" in rules_for(path)
 
     def test_self_and_cls_need_no_documenting(self, tmp_path):
         """
@@ -528,7 +553,8 @@ class Holder:
         """
         return 1
 '''
-        assert "parameters" not in rules_for(write(tmp_path, source))
+        path = write(tmp_path, source)
+        assert "parameters" not in rules_for(path)
 
     def test_a_real_parameter_named_cls_is_accepted_when_documented(self, tmp_path):
         """
@@ -559,7 +585,8 @@ class Cases:
         """
         assert cls
 '''
-        assert rules_for(write(tmp_path, source)) == set()
+        path = write(tmp_path, source)
+        assert rules_for(path) == set()
 
     def test_a_real_parameter_named_cls_is_caught_when_undocumented(self, tmp_path):
         """
@@ -584,7 +611,8 @@ class Cases:
         """
         assert cls
 '''
-        assert "parameters" in rules_for(write(tmp_path, source))
+        path = write(tmp_path, source)
+        assert "parameters" in rules_for(path)
 
     def test_a_plain_functions_first_parameter_named_cls_must_be_documented(self, tmp_path):
         """
@@ -609,7 +637,8 @@ def describe(cls):
     """
     return cls
 '''
-        assert "parameters" in rules_for(write(tmp_path, source))
+        path = write(tmp_path, source)
+        assert "parameters" in rules_for(path)
 
     def test_a_static_methods_first_parameter_is_a_real_parameter(self, tmp_path):
         """
@@ -641,7 +670,8 @@ class Holder:
         """
         return cls
 '''
-        assert "parameters" in rules_for(write(tmp_path, source))
+        path = write(tmp_path, source)
+        assert "parameters" in rules_for(path)
 
     def test_comma_separated_attribute_entries_are_accepted(self, tmp_path):
         """
@@ -668,7 +698,8 @@ class Palette:
 
     RED = "r"
 '''
-        assert rules_for(write(tmp_path, source)) == set()
+        path = write(tmp_path, source)
+        assert rules_for(path) == set()
 
 
 class TestReturnRules:
@@ -685,7 +716,8 @@ class TestReturnRules:
             tmp_path: Directory the file is written into.
         """
         bad = CLEAN.replace("\n    Returns:\n        Their sum.\n", "\n")
-        assert "returns" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "returns" in rules_for(path)
 
     def test_a_generator_needs_a_returns_section(self, tmp_path):
         """
@@ -704,7 +736,8 @@ def counter():
     """
     yield 1
 '''
-        assert "returns" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "returns" in rules_for(path)
 
     def test_a_bare_return_needs_no_returns_section(self, tmp_path):
         """
@@ -723,7 +756,8 @@ def nothing():
     """
     return
 '''
-        assert "returns" not in rules_for(write(tmp_path, ok))
+        path = write(tmp_path, ok)
+        assert "returns" not in rules_for(path)
 
     def test_a_nested_return_is_not_attributed_to_the_parent(self, tmp_path):
         """
@@ -756,7 +790,8 @@ def outer():
 
     helper()
 '''
-        assert "returns" not in rules_for(write(tmp_path, ok))
+        path = write(tmp_path, ok)
+        assert "returns" not in rules_for(path)
 
 
 class TestFormatRules:
@@ -775,7 +810,8 @@ class TestFormatRules:
         bad = CLEAN.replace(
             "    A module that satisfies every rule, used as the baseline the rule tests mutate.",
             "    A module that satisfies every rule, used as the\n    baseline the rule tests mutate.")
-        assert "wrapping" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "wrapping" in rules_for(path)
 
     def test_trailing_whitespace_is_caught(self, tmp_path):
         """
@@ -786,7 +822,8 @@ class TestFormatRules:
             tmp_path: Directory the file is written into.
         """
         bad = CLEAN.replace("        Their sum.", "        Their sum.   ")
-        assert "whitespace" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "whitespace" in rules_for(path)
 
     def test_usage_and_examples_keep_their_line_breaks(self, tmp_path):
         """
@@ -804,7 +841,8 @@ class TestFormatRules:
             "Purpose:\n    A module with a usage block.\n\n"
             "Usage:\n    python -m thing --first\n    python -m thing --second\n\n"
             "Examples:\n    thing one\n    thing two")
-        assert "wrapping" not in rules_for(write(tmp_path, ok))
+        path = write(tmp_path, ok)
+        assert "wrapping" not in rules_for(path)
 
     def test_credential_shaped_text_is_caught(self, tmp_path):
         """
@@ -819,7 +857,8 @@ class TestFormatRules:
         """
         bad = CLEAN.replace("        Their sum.",
                             "        Their sum, keyed by api_key=AKIAIOSFODNN7EXAMPLE.")
-        assert "secret" in rules_for(write(tmp_path, bad))
+        path = write(tmp_path, bad)
+        assert "secret" in rules_for(path)
 
 
 class TestTheShippedCodeComplies:

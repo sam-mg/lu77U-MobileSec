@@ -12,21 +12,20 @@ Dependencies:
     colorama on Windows only, .cli.main for the real entry point, .utils.verbose for tracing.
 
 Implementation notes:
-    Verbosity is sniffed straight from sys.argv rather than parsed, because the trace lines must fire before argparse runs. The sniff is intentionally permissive; argparse remains the authority on the flag.
+    Verbosity is sniffed straight from sys.argv rather than parsed, because the trace lines must fire before argparse runs. The sniff is intentionally permissive; argparse remains the authority on the flag. colorama is optional: when it is not installed the ImportError is suppressed and Windows output simply keeps raw ANSI sequences, which is cosmetic and never stops the tool starting.
 
 Security considerations:
     No argument is executed or interpolated into a shell here; sys.argv is only scanned for a literal flag and echoed under --verbose.
 """
 
+import contextlib
 import sys
 import platform
 
 if platform.system() == "Windows":
-    try:
+    with contextlib.suppress(ImportError):
         import colorama
         colorama.init(autoreset=True, convert=True, strip=False, wrap=True)
-    except ImportError:
-        pass
 
 from lu77U_MobileSec._metadata import NAME
 from lu77U_MobileSec.cli.main import main

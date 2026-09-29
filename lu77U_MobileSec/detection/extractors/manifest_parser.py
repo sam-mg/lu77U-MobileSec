@@ -32,12 +32,10 @@ from ...config.constants import DANGEROUS_PERMISSIONS, PERMISSION_PATTERNS
 
 try:
     from androguard.misc import AnalyzeAPK
-    from androguard.core.apk import APK
     ANDROGUARD_AVAILABLE = True
 except ImportError:
     ANDROGUARD_AVAILABLE = False
     AnalyzeAPK = None
-    APK = None
 
 class ManifestParser:
     """
@@ -638,7 +636,7 @@ class ManifestParser:
             manifest_info['security_flags'] = security_flags
             verbose_print(f"Found {len(security_flags)} security flags", self.verbose)
             
-            security_issues = self._analyze_security(manifest_content, manifest_info)
+            security_issues = self._analyze_security(manifest_info)
             manifest_info['security_issues'] = security_issues
             verbose_print(f"Identified {len(security_issues)} security issues", self.verbose)
             
@@ -756,13 +754,12 @@ class ManifestParser:
         verbose_print(f"Security flags: {flags}", self.verbose)
         return flags
     
-    def _analyze_security(self, manifest_content: str, manifest_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _analyze_security(self, manifest_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Purpose:
             Turn the parsed manifest facts into manifest-level findings.
 
         Parameters:
-            manifest_content: Manifest text.
             manifest_info: Attributes derived so far.
 
         Returns:

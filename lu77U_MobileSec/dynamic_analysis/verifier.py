@@ -320,7 +320,7 @@ _DEDUP_ADB_PREFIXES = ("dumpsys", "run-as", "getprop", "pm", "logcat", "cat", "l
 _MAX_BATCH_READS = 6
 
 
-def _dedup_key(action: str, action_obj: Dict[str, Any]):
+def _dedup_key(action: str, action_obj: Dict[str, Any]) -> Optional[Tuple[Any, ...]]:
     """
     Purpose:
         Build a key identifying a repeated action, so the agent can be told it is looping.
@@ -330,7 +330,7 @@ def _dedup_key(action: str, action_obj: Dict[str, Any]):
         action_obj: The action arguments.
 
     Returns:
-        A key, or None when the action is not one worth deduplicating.
+        A key, or None when the action is not one worth deduplicating. Keys differ in length by action (three parts for a read, two for a command); they are only compared for equality, and the leading action name keeps the two shapes from colliding.
 
     Implementation notes:
         Only the read and command actions are keyed. An agent that reads the same file or runs the same command twice has stalled, and telling it so is what breaks the loop -- whereas repeating an instrumentation script can be legitimate, since the app's state changes between runs.
@@ -624,7 +624,7 @@ def run_dynamic_verification(
     """
     source_root = source_root or jadx_output_dir
     findings = findings if findings is not None else []
-    progress = progress or (lambda *a, **k: None)
+    progress = progress or (lambda *_unused_args, **_unused_kwargs: None)
     is_cancelled = is_cancelled or (lambda: False)
 
     def _raise_if_cancelled():

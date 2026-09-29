@@ -112,13 +112,10 @@ class TestAutoConfirmedPairings:
         assert "Net0.java" in flow and "Net3.java" in flow
         assert len(chains[0]["chain"]["components"]) >= MAX_AUTO_CHAINS
 
-    def test_auto_chains_survive_alongside_model_confirmed_ones(self, monkeypatch=None):
+    def test_auto_chains_survive_alongside_model_confirmed_ones(self):
         """
         Purpose:
             Pin that the deterministic chain still appears when a provider is present and returns nothing.
-
-        Parameters:
-            monkeypatch: Unused; retained so the signature matches the surrounding tests.
 
         Implementation notes:
             The deterministic pairing does not go through candidate generation at all, so a model that confirms nothing must not be able to suppress it.
@@ -133,18 +130,14 @@ class TestAutoConfirmedPairings:
             Implementation notes:
                 Defined inline because it exists only for this test and carries no state between calls.
             """
-            def analyze(self, prompt, system_message=None, schema=None, images=None, max_tokens=None, session_key=None):
+            def analyze(self, *_unused_args, **_unused_kwargs):
                 """
                 Purpose:
                     Confirm nothing, so the deterministic chain is the only one that can appear.
 
                 Parameters:
-                    prompt: The prompt; unused by the fake.
-                    system_message: The system prompt; unused by the fake.
-                    schema: The response schema; unused by the fake.
-                    images: Image payloads; unused by the fake.
-                    max_tokens: Output cap; unused by the fake.
-                    session_key: Session identifier; unused by the fake.
+                    _unused_args: The prompt; unused by the fake.
+                    _unused_kwargs: The system prompt, schema, images, output cap and session identifier; unused by the fake.
 
                 Returns:
                     The canned response.
@@ -252,18 +245,14 @@ class TestRejectionLogging:
             Implementation notes:
                 Defined inline because it exists only for this test and carries no state between calls.
             """
-            def analyze(self, prompt, system_message=None, schema=None, images=None, max_tokens=None, session_key=None):
+            def analyze(self, *_unused_args, **_unused_kwargs):
                 """
                 Purpose:
                     Reject the candidate with a stated reason, so the trace can be inspected.
 
                 Parameters:
-                    prompt: The prompt; unused by the fake.
-                    system_message: The system prompt; unused by the fake.
-                    schema: The response schema; unused by the fake.
-                    images: Image payloads; unused by the fake.
-                    max_tokens: Output cap; unused by the fake.
-                    session_key: Session identifier; unused by the fake.
+                    _unused_args: The prompt; unused by the fake.
+                    _unused_kwargs: The system prompt, schema, images, output cap and session identifier; unused by the fake.
 
                 Returns:
                     The canned response.
@@ -273,7 +262,8 @@ class TestRejectionLogging:
                     [{"id": 0, "confirmed": False,
                      "reason": "unrelated Activities, no data flow between them"}])}
 
-        build_chains(pair, provider=_Judge(), verbose=True)
+        chains = build_chains(pair, provider=_Judge(), verbose=True)
+        assert chains == []
         out = capsys.readouterr().out
         assert "rejected" in out
         assert "unrelated Activities" in out

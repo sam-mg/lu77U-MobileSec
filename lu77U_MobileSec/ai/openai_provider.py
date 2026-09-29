@@ -26,7 +26,6 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from .base_provider import BaseAIProvider
-from .errors import classify
 from .registry import CURATED_MODELS, DEFAULT_MODELS
 from .schema import coerce_to_vuln_list
 from ..utils.verbose import verbose_print

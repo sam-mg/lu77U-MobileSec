@@ -54,7 +54,6 @@ export default function ScanDetail() {
 
   const sum = meta.summary || {};
   const app = result?.application_info;
-  const fw = result?.framework_detection;
   const title = sum.app_name || app?.app_name || meta.filename;
 
   async function remove() {

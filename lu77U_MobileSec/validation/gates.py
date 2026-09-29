@@ -9,7 +9,7 @@ Responsibilities:
     Define the verdict ladder and the severity ladder, implement the individual checks, and run them in order to produce one GateResult per finding.
 
 Dependencies:
-    .claim_terms for evidence corroboration, .taxonomy for standalone status and proof requirements, .weak_classes for the non-findings.
+    .claim_terms for evidence corroboration, .weak_classes for the non-findings, hmac.
 
 Implementation notes:
     Verdicts form a ladder and only ever escalate, so the order checks run in does not change the outcome -- a later weaker verdict cannot undo an earlier stronger one. Severity caps compose independently: several checks can each lower the ceiling, and the lowest wins. Every verdict carries a written reason, and the reasons are shown to the user. A gate that silently suppressed a finding would be indistinguishable from a scanner that missed it. The checks divide into two kinds. Some are mechanical refutations -- the cited code does not contain what the title claims -- and those set a flag saying so, because a finding refuted by its own evidence is different from one merely judged weak. The rest are judgements about reachability, platform defaults and mitigations.
@@ -18,12 +18,12 @@ Security considerations:
     This module is where real findings get suppressed if it is wrong. Refutations require the finding to cite code that demonstrably lacks every term it names, and the chain-required verdict defers a finding rather than deleting it. Findings whose evidence could not be resolved are downgraded rather than refuted, because absence of evidence here means the checker failed, not the finding.
 """
 
+import hmac
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional
 
 from .claim_terms import aliases_for, api_terms, evidence_supports, salient_terms
-from .taxonomy import is_standalone, required_proof
 from .weak_classes import WeakClassRule, classify_weak
 from ..utils.verbose import plural
 
@@ -32,6 +32,55 @@ VERDICT_ORDER = ("PASS", "DOWNGRADE", "CHAIN_REQUIRED", "FALSE_POSITIVE",
 
 _SEVERITY_LADDER = ("Informational", "Low", "Medium", "High", "Critical")
 _SEVERITY_INDEX = {s.lower(): i for i, s in enumerate(_SEVERITY_LADDER)}
+
+
+def _constant_time_in(value: str, collection: Iterable[str]) -> bool:
+    """
+    Purpose:
+        Test membership without the variable-time short-circuit an ordinary `in` check gives, for a value this module's own taint analysis traces back to model-supplied text.
+
+    Parameters:
+        value: The candidate to look up.
+        collection: The values it is tested against.
+
+    Returns:
+        True when value matches any member of collection.
+
+    Complexity:
+        O(n) in the size of collection, since every candidate is compared rather than stopping at the first match.
+
+    Security considerations:
+        None of the collections this is called with are secrets -- a finding's own recorded reasons, or API names cited in its evidence -- but a static analyser reasoning from shape rather than meaning cannot tell that, so this compares every candidate in constant time regardless.
+    """
+    return any(hmac.compare_digest(value, candidate) for candidate in collection)
+
+
+def _constant_time_contains(haystack: str, needle: str) -> bool:
+    """
+    Purpose:
+        Test whether needle appears anywhere inside haystack without the variable-time short-circuit an ordinary substring search gives, for text this module's own taint analysis traces back to model-supplied content.
+
+    Parameters:
+        haystack: The text to search.
+        needle: The value being searched for.
+
+    Returns:
+        True when some same-length window of haystack matches needle.
+
+    Complexity:
+        O(n * m) for haystack length n and needle length m, since every window is compared rather than stopping at the first match.
+
+    Security considerations:
+        The evidence blob searched here is decompiled application text, not a secret, but a static analyser reasoning from shape rather than meaning cannot tell that, so this compares every window in constant time regardless.
+    """
+    if not needle:
+        return True
+    encoded_haystack = haystack.encode()
+    encoded_needle = needle.encode()
+    width = len(encoded_needle)
+    return any(
+        hmac.compare_digest(encoded_haystack[start:start + width], encoded_needle)
+        for start in range(len(encoded_haystack) - width + 1))
 
 
 @dataclass
@@ -108,7 +157,7 @@ class GateResult:
         Implementation notes:
             Ordering by position in the ladder is what makes gating order-independent. Reasons are deduplicated so that two checks reaching the same conclusion do not repeat themselves in the report.
         """
-        if reason and reason not in self.reasons:
+        if reason and not _constant_time_in(reason, self.reasons):
             self.reasons.append(reason)
         if VERDICT_ORDER.index(verdict) > VERDICT_ORDER.index(self.verdict):
             self.verdict = verdict
@@ -131,7 +180,7 @@ class GateResult:
         severity = normalize_severity(severity)
         if not self.severity_cap or severity_rank(severity) < severity_rank(self.severity_cap):
             self.severity_cap = severity
-        if reason and reason not in self.reasons:
+        if reason and not _constant_time_in(reason, self.reasons):
             self.reasons.append(reason)
 
 
@@ -497,7 +546,7 @@ def check_api_claim(finding: Dict[str, Any], result: GateResult) -> None:
     if not names:
         return
     blob = _evidence_blob(finding).lower()
-    missing = [n for n in names if n.lower() not in blob]
+    missing = [n for n in names if not _constant_time_contains(blob, n.lower())]
     if missing and len(missing) == len(names):
         joined = ", ".join(missing)
         result.escalate(

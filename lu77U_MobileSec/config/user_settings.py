@@ -6,10 +6,10 @@ Purpose:
     Persist everything the user configures -- active AI provider and its model, external tool paths, output location, feature toggles, agent budgets and prompt overrides -- in one JSON file, and serve it through typed accessors.
 
 Responsibilities:
-    Define the default settings tree, load and cache it, merge it over whatever is on disk, migrate from the legacy module on first run, and expose one accessor pair per setting.
+    Define the default settings tree, load and cache it, merge it over whatever is on disk, migrate from the legacy module on first run, expose one accessor pair per setting, and resolve the output base directory from the configured value.
 
 Dependencies:
-    json, copy, .paths for the settings file location.
+    json, copy, pathlib, .paths for the settings file location and the default output base.
 
 Implementation notes:
     Reads go through a process-wide cache because settings are consulted on nearly every operation and the file is small but the disk round trip is not free. Writes always rewrite the whole document, which is simple and correct for a file of this size. Loading deep-merges the stored document over DEFAULT_SETTINGS rather than replacing it. That is what lets a new setting ship with a default and appear for existing users without a migration step, and why a partial or hand-edited file still loads. API keys are deliberately absent from this file. They live in the OS keychain via .credentials, so this document stays safe to read, copy and inspect.
@@ -21,11 +21,13 @@ Security considerations:
     Tool paths stored here are executed later. They are operator-supplied and are not validated on the way in, so the executing code is responsible for invoking them as argument vectors rather than through a shell.
 """
 
+import contextlib
 import copy
 import json
+from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .paths import get_settings_path
+from .paths import default_output_base, get_settings_path
 
 PROVIDERS = (
     "ollama", "claude", "openai", "gemini", "custom",
@@ -122,10 +124,10 @@ def _migrate_from_legacy() -> Dict[str, Any]:
         A complete settings tree.
 
     Implementation notes:
-        Only three values are carried over -- the JADX path, the Ollama model and the Ollama host -- because those are the ones a user had to set by hand in the old module. The literal "path_goes_here" is rejected explicitly: it is the placeholder shipped in the legacy module, and importing it would present a configured-looking path that cannot work. The whole body is guarded so that a missing or broken legacy module yields plain defaults rather than preventing startup.
+        Only three values are carried over -- the JADX path, the Ollama model and the Ollama host -- because those are the ones a user had to set by hand in the old module. The literal "path_goes_here" is rejected explicitly: it is the placeholder shipped in the legacy module, and importing it would present a configured-looking path that cannot work. The whole body runs under a suppressed Exception so that a missing or broken legacy module yields plain defaults rather than preventing startup; any value copied before the failure is kept, which is harmless because each one is individually valid.
     """
     seeded = copy.deepcopy(DEFAULT_SETTINGS)
-    try:
+    with contextlib.suppress(Exception):
         from . import settings as legacy
         jadx = getattr(legacy, "JADX_PATH", "")
         if jadx and jadx != "path_goes_here":
@@ -136,8 +138,6 @@ def _migrate_from_legacy() -> Dict[str, Any]:
         host = getattr(legacy, "OLLAMA_API_HOST", "")
         if host:
             seeded["providers"]["ollama"]["cloud_host"] = host
-    except Exception:
-        pass
     return seeded
 
 def load(force: bool = False) -> Dict[str, Any]:
@@ -427,9 +427,34 @@ def get_output_dir() -> str:
         Read the configured base directory for scan output.
 
     Returns:
-        The configured path, or an empty string meaning "use the default". Resolution of that default belongs to .paths, not here.
+        The configured path, or an empty string meaning "use the default". Resolving that into a real directory is get_output_base's job.
     """
     return load().get("output_dir", "")
+
+def get_output_base() -> Path:
+    """
+    Purpose:
+        Resolve the base directory scans write into, honouring the user setting when one is configured.
+
+    Returns:
+        The directory as a Path, guaranteed to exist on return.
+
+    Raises:
+        OSError: When the directory cannot be created -- typically a configured path that is unwritable or on a disconnected volume.
+
+    Side effects:
+        Reads user settings and creates the directory tree.
+
+    Implementation notes:
+        This lives here rather than in .paths because it needs the stored setting, and .paths must not import this module: this module already imports .paths for the settings file location, and the reverse import formed a cycle. The configured value is expanded with expanduser so that a setting written as a tilde path behaves as the user expects. An empty or whitespace-only setting falls back to .paths.default_output_base, so clearing the field in the UI restores default behaviour rather than resolving to the current working directory.
+
+    Security considerations:
+        The configured path is operator-supplied and is used as given. It is not constrained to any root, which is intended -- the operator chooses where their own reports go -- but it means a mistyped value can create a directory anywhere the user can write.
+    """
+    configured = (get_output_dir() or "").strip()
+    base = Path(configured).expanduser() if configured else default_output_base()
+    base.mkdir(parents=True, exist_ok=True)
+    return base
 
 def set_output_dir(path: str) -> None:
     """

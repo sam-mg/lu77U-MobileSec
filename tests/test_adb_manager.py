@@ -79,16 +79,16 @@ class FakeAdb:
             "upload_apk_enable": "1",
         }
 
-    def run(self, cmd, capture_output, text, timeout):
+    def run(self, cmd, capture_output_unused, text_unused, timeout_unused):
         """
         Purpose:
             Answer one device command, recording it and updating the fake settings.
 
         Parameters:
             cmd: The argument vector.
-            capture_output: Accepted to match the real signature; unused.
-            text: Accepted to match the real signature; unused.
-            timeout: Accepted to match the real signature; unused.
+            capture_output_unused: Accepted to match the real signature; unused.
+            text_unused: Accepted to match the real signature; unused.
+            timeout_unused: Accepted to match the real signature; unused.
 
         Returns:
             The scripted result for this command shape.

@@ -196,7 +196,6 @@ def _strip_thinking_tokens(text: str) -> str:
     Implementation notes:
         The trace routinely contains a draft action or a draft finding in braces, which the extractor would find before the real one. It has to go first.
     """
-    import re
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
     lower = text.lower()
     if "</think>" in lower:
@@ -558,6 +557,13 @@ def _describe_request(action: str, path: str, paths: List[str], pattern: str,
     return f"The LLM requested an unknown action: {action!r}."
 
 
+_TOOL_ERROR_REASONS = (
+    "path escapes sandbox", "not a native library", "not a file", "not found",
+    "could not read", "empty pattern", "no call graph is available",
+    "no app method matches",
+)
+
+
 def _describe_response(action: str, path: str, paths: List[str],
                        observation: str) -> str:
     """
@@ -572,9 +578,15 @@ def _describe_response(action: str, path: str, paths: List[str],
 
     Returns:
         The description.
+
+    Security considerations:
+        No branch copies the tool's output into the line, including the error branch, which names the failure from _TOOL_ERROR_REASONS and adds only the path the model asked for. The same variable carries native signal summaries with credential candidates, model-chosen search terms and exception text holding the analyst's absolute paths, and this line reaches the terminal and the shareable dashboard feed, so echoing even the head of an error would put tool-produced text there. An error outside the list is reported generically rather than quoted.
     """
     if observation.startswith("ERROR"):
-        return f"Could not satisfy that request: {observation[:160]}"
+        reason = next((r for r in _TOOL_ERROR_REASONS if observation.startswith(f"ERROR: {r}")),
+                      "the tool reported an error")
+        target = ", ".join(paths[:3]) if paths else path
+        return f"Could not satisfy that request: {reason}" + (f": {target}" if target else "")
     if observation.startswith("NOTE: already read to the end"):
         target = (", ".join(f"`{p}`" for p in paths[:3]) if paths else f"`{path}`")
         return f"{target}: nothing new (already fully read)."
@@ -596,14 +608,13 @@ def _describe_response(action: str, path: str, paths: List[str],
 _ALWAYS_LOADED = ("vulnerability_classes", "finding_quality")
 
 
-def _planned_skills(static_signals: Dict[str, Any], profile: SourceProfile) -> List[str]:
+def _planned_skills(static_signals: Dict[str, Any]) -> List[str]:
     """
     Purpose:
         Choose the skills to load for a region, from what the deterministic passes found there.
 
     Parameters:
         static_signals: What the scanners established.
-        profile: The framework profile.
 
     Returns:
         The skill names.
@@ -882,7 +893,7 @@ def run_agent_analysis(
         Makes many provider requests, reads the decompiled tree, and invokes the checkpoint callback.
 
     Implementation notes:
-        Findings are merged as they are reported rather than collected at the end, so a region that exhausts its budget, fails, or is cancelled still contributes what it established. The loop ends on an explicit report, on the step ceiling, or on the deadline. In the last two cases a final report is forced if nothing has been recorded, because an investigation that read the code and never got to report would otherwise be a total loss. Checkpointing is a callback rather than a direct write, so this module stays independent of where the state is stored. Coverage is written into the telemetry mapping and returned, so the report can state what this region actually examined.
+        Findings are merged as they are reported rather than collected at the end, so a region that exhausts its budget, fails, or is cancelled still contributes what it established. The loop ends on an explicit report, on the step ceiling, or on the deadline. In the last two cases a final report is forced if nothing has been recorded, because an investigation that read the code and never got to report would otherwise be a total loss. Checkpointing is a callback rather than a direct write, so this module stays independent of where the state is stored. A malformed resume state is applied as far as it parses and the failure is logged, so a region that resumes with partial coverage state leaves a trace instead of silently re-reading files. Coverage is written into the telemetry mapping and returned, so the report can state what this region actually examined.
 
     Security considerations:
         Every tool call is confined to the decompiled tree by the tool surface. The model chooses the actions; it cannot reach outside or write.
@@ -897,7 +908,7 @@ def run_agent_analysis(
 
     initial_context = _build_initial_context(tools, static_signals, code_graph)
 
-    skill_names: List[str] = _planned_skills(static_signals, profile)
+    skill_names: List[str] = _planned_skills(static_signals)
     system = agent_system + "\n\n# Reference skills\n\n" + load_skills(
         skill_names, verbose, core=core_skill)
     verbose_print(
@@ -1007,14 +1018,14 @@ def run_agent_analysis(
             Writes the region checkpoint.
 
         Implementation notes:
-            Written as the region progresses rather than only at the end, since the expensive thing to lose is the provider calls already made.
+            Written as the region progresses rather than only at the end, since the expensive thing to lose is the provider calls already made. A failed save is logged and otherwise ignored: it costs the ability to resume this region, never the region's work, so the investigation carries on with its findings intact.
         """
         if on_checkpoint is None:
             return
         try:
             on_checkpoint(_snapshot(done_reason, done_ok))
-        except Exception:
-            pass
+        except Exception as exc:
+            verbose_print(f"Region checkpoint could not be saved: {exc}", verbose)
 
     if resume_state:
         try:
@@ -1025,8 +1036,8 @@ def run_agent_analysis(
             exploratory_actions = int(resume_state.get("exploratory_actions", 0) or 0)
             if accumulated:
                 progressed = True
-        except Exception:
-            pass
+        except Exception as exc:
+            verbose_print(f"Resume state could not be fully restored: {exc}", verbose)
 
     def _merge_findings(raw_vulns, origin: str = "report") -> int:
         """

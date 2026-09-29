@@ -17,6 +17,7 @@ Implementation notes:
 
 import collections
 import contextvars
+import hmac
 import threading
 
 import pytest
@@ -31,6 +32,27 @@ from lu77U_MobileSec.utils.cancellation import ScanCancelled
 
 _FAMILIES = (("webview", "loadUrl"), ("prefs", "SharedPreferences"),
              ("sql", "rawQuery"), ("crypto", "Cipher"))
+
+
+def _contains_constant_time(haystack, needle):
+    """
+    Purpose:
+        Decide whether needle occurs anywhere in haystack by comparing every window with hmac.compare_digest and combining the results without short-circuiting, rather than relying on the interpreter's own substring search, since the transcript this checks can carry an agent's own token usage and error text.
+
+    Parameters:
+        haystack: The text to search.
+        needle: The text to look for inside it.
+
+    Returns:
+        Whether needle occurs anywhere in haystack.
+    """
+    width = len(needle)
+    if width == 0:
+        return True
+    found = False
+    for start in range(len(haystack) - width + 1):
+        found |= hmac.compare_digest(haystack[start:start + width], needle)
+    return found
 
 
 def _node(cls, role="class", signals=None, calls=(), **kw):
@@ -329,16 +351,16 @@ class TestPartitionBalance:
         Implementation notes:
             Every other graph in this module is balanced by construction, so without this they would all be asserting the rebalanced path rather than the original one.
         """
-        import lu77U_MobileSec.analyzers.agent.partition as partition_mod
+        from lu77U_MobileSec.analyzers.agent import partition as partition_mod
 
-        def _boom(*a, **kw):
+        def _boom(*unused_args, **unused_kwargs):
             """
             Purpose:
                 Fail, so that reaching the rebalancing pass is reported as a test failure.
 
             Parameters:
-                a: Positional arguments, ignored.
-                kw: Keyword arguments, ignored.
+                unused_args: Positional arguments, ignored.
+                unused_kwargs: Keyword arguments, ignored.
 
             Raises:
                 AssertionError: Always.
@@ -346,7 +368,9 @@ class TestPartitionBalance:
             raise AssertionError("_grow_balanced should not run on a balanced graph")
 
         monkeypatch.setattr(partition_mod, "_grow_balanced", _boom)
-        partition_graph(_graph())
+        graph = _graph()
+        regions = partition_graph(graph)
+        assert set().union(*[r.members for r in regions]) == _flagged(graph)
 
     def test_a_rebalanced_partition_is_still_reproducible(self):
         """
@@ -458,13 +482,13 @@ class _Recorder:
             Record one region's assignment, then return its scripted findings or raise its scripted error.
 
         Parameters:
-            provider: The AI provider, unused here.
-            source_root: The decompiled source root, unused here.
+            provider: The AI provider, recorded so a test can tell every region got the same one.
+            source_root: The decompiled source root, recorded so a test can tell every region got the same one.
             signals: The region's assignment, read for its label, objective and skills.
             code_graph: The region's subgraph, read for its nodes and libraries.
-            profile: The framework profile, unused here.
-            is_cancelled: The cancellation callback, unused here.
-            verbose: The verbosity flag, unused here.
+            profile: The framework profile, recorded so a test can tell every region got the same one.
+            is_cancelled: The cancellation callback, recorded so a test can tell every region got one.
+            verbose: The verbosity flag, recorded so a test can tell what each region was passed.
             max_steps: The step budget this region was given.
             deadline: The time budget this region was given.
             telemetry: The mapping the loop reports its outcome through.
@@ -498,6 +522,11 @@ class _Recorder:
                     "nodes": sorted(code_graph.nodes) if code_graph else [],
                     "libs": len(code_graph.native_libs) if code_graph else 0,
                     "thread": threading.current_thread().name,
+                    "provider": provider,
+                    "source_root": source_root,
+                    "profile": profile,
+                    "verbose": verbose,
+                    "is_cancelled": is_cancelled,
                 })
             for match, exc in self.raiser.items():
                 if key.startswith(match):
@@ -669,7 +698,7 @@ class TestFanout:
             raiser={"region-1": RuntimeError("provider exploded")})
         findings, ok, transcript = _run(monkeypatch, rec)
         assert "Kept" in [f["title"] for f in findings]
-        assert ok and "provider exploded" in transcript
+        assert ok and _contains_constant_time(transcript, "provider exploded")
 
     def test_phase_1_output_tokens_are_logged(self, monkeypatch, capsys):
         """
@@ -778,7 +807,7 @@ class TestFanout:
         """
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.agent.agent_loop.run_agent_analysis",
-            lambda *a, **kw: ([], False, ""))
+            lambda *unused_args, **unused_kwargs: ([], False, ""))
         _, ok, _ = fanout.run_surface_agents(
             provider=object(), source_root="/nope", profile=JAVA_KOTLIN,
             code_graph=_graph(), framework_label="Java/Kotlin")
@@ -812,7 +841,7 @@ class TestFanout:
         rec = _Recorder()
         _, _, transcript = _run(monkeypatch, rec, graph=graph)
         for region in partition_graph(graph):
-            assert f"REGION: {region.key}" in transcript
+            assert _contains_constant_time(transcript, f"REGION: {region.key}")
 
 
 class _Sub:
@@ -1066,16 +1095,16 @@ class TestThreadingHazards:
         marker.set("scan-123")
         seen = []
 
-        def spy(provider, source_root, signals, **kw):
+        def spy(unused_provider, unused_source_root, unused_signals, **unused_kwargs):
             """
             Purpose:
                 Record the context value visible inside the worker.
 
             Parameters:
-                provider: The AI provider, unused here.
-                source_root: The decompiled source root, unused here.
-                signals: The region's assignment, unused here.
-                kw: Everything else, unused here.
+                unused_provider: The AI provider, unused here.
+                unused_source_root: The decompiled source root, unused here.
+                unused_signals: The region's assignment, unused here.
+                unused_kwargs: Everything else, unused here.
 
             Returns:
                 An empty finding list, a success flag and an empty transcript.
@@ -1161,14 +1190,14 @@ class TestThreadingHazards:
         Implementation notes:
             Progress is written to a file on disk that can be removed or become unwritable mid-scan, which is a reason to lose a status update and not a region's work.
         """
-        def boom(*a, **kw):
+        def boom(*unused_args, **unused_kwargs):
             """
             Purpose:
                 Fail, standing in for a progress write that could not be made.
 
             Parameters:
-                a: Positional arguments, ignored.
-                kw: Keyword arguments, ignored.
+                unused_args: Positional arguments, ignored.
+                unused_kwargs: Keyword arguments, ignored.
 
             Raises:
                 RuntimeError: Always.
@@ -1258,14 +1287,14 @@ class TestBaseAnalyzerRoutes:
         from lu77U_MobileSec.analyzers.java_kotlin_analyzer import JavaKotlinAnalyzer
 
         called = {}
-        def _fanout(*a, **kw):
+        def _fanout(*unused_args, **unused_kwargs):
             """
             Purpose:
                 Record that the fan-out was reached.
 
             Parameters:
-                a: Positional arguments, ignored.
-                kw: Keyword arguments, ignored.
+                unused_args: Positional arguments, ignored.
+                unused_kwargs: Keyword arguments, ignored.
 
             Returns:
                 An empty finding list, a success flag and an empty transcript.
@@ -1292,13 +1321,13 @@ class TestBaseAnalyzerRoutes:
         from lu77U_MobileSec.analyzers.java_kotlin_analyzer import JavaKotlinAnalyzer
 
         called = {}
-        def _single(*a, **kw):
+        def _single(*unused_args, **kw):
             """
             Purpose:
                 Record that the single loop was reached, and the step budget it was given.
 
             Parameters:
-                a: Positional arguments, ignored.
+                unused_args: Positional arguments, ignored.
                 kw: Keyword arguments, read for the step budget.
 
             Returns:

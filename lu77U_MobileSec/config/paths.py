@@ -3,16 +3,16 @@
 Module: lu77U_MobileSec.config.paths
 
 Purpose:
-    Resolve the two filesystem locations the tool owns -- the per-user configuration directory and the base directory scans write into -- so that platform conventions are applied in one place.
+    Resolve the filesystem locations the tool owns -- the per-user configuration directory and the default base directory scans write into -- so that platform conventions are applied in one place.
 
 Responsibilities:
-    Locate and create the config directory, name the settings file, and resolve the output base from user settings with a documented default.
+    Locate and create the config directory, name the settings file, and state the default output base.
 
 Dependencies:
     platformdirs for the per-platform config location, .._metadata for the application name.
 
 Implementation notes:
-    Configuration follows the platform convention via platformdirs, while output defaults to Documents rather than a hidden directory. That split is deliberate: settings are machine state the user should rarely see, whereas reports are documents the user needs to find and share.
+    Configuration follows the platform convention via platformdirs, while output defaults to Documents rather than a hidden directory. That split is deliberate: settings are machine state the user should rarely see, whereas reports are documents the user needs to find and share. Resolving the configured output directory lives in .user_settings.get_output_base, not here: this module sits below user_settings in the import graph, and reaching back up into it formed an import cycle.
 
 Security considerations:
     The config directory holds the encrypted credential fallback. Its permissions come from the platform default rather than being tightened here; the credential module sets restrictive modes on the files themselves.
@@ -76,29 +76,3 @@ def default_output_base() -> Path:
         The Documents path is assembled literally rather than through platformdirs, so it is wrong on a system where the user directory has been relocated or localised.
     """
     return Path.home() / "Documents" / APP_NAME
-
-def get_output_base() -> Path:
-    """
-    Purpose:
-        Resolve the base directory scans write into, honouring the user setting when one is configured.
-
-    Returns:
-        The directory as a Path, guaranteed to exist on return.
-
-    Raises:
-        OSError: When the directory cannot be created -- typically a configured path that is unwritable or on a disconnected volume.
-
-    Side effects:
-        Reads user settings and creates the directory tree.
-
-    Implementation notes:
-        user_settings is imported inside the function to break an import cycle: user_settings needs get_settings_path from this module. The configured value is expanded with expanduser so that a setting written as a tilde path behaves as the user expects. An empty or whitespace-only setting falls back to the default, so clearing the field in the UI restores default behaviour rather than resolving to the current working directory.
-
-    Security considerations:
-        The configured path is operator-supplied and is used as given. It is not constrained to any root, which is intended -- the operator chooses where their own reports go -- but it means a mistyped value can create a directory anywhere the user can write.
-    """
-    from . import user_settings
-    configured = (user_settings.get_output_dir() or "").strip()
-    base = Path(configured).expanduser() if configured else default_output_base()
-    base.mkdir(parents=True, exist_ok=True)
-    return base

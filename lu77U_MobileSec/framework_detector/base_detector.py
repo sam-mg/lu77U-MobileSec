@@ -163,10 +163,7 @@ class BaseFrameworkDetector:
             Class names, empty when nothing is loaded or extraction failed.
 
         Implementation notes:
-            Class names are strong framework evidence because a framework's runtime classes are present under recognisable package prefixes regardless of how the app's own code is obfuscated.
-
-        Known limitations:
-            The loop iterates the DEX files but reads classes from the whole-APK analysis each time, so with multiple DEX files the same class list is appended once per file. Duplicates inflate the list length but do not change what a substring search finds, which is why this has not affected detection results.
+            Class names are strong framework evidence because a framework's runtime classes are present under recognisable package prefixes regardless of how the app's own code is obfuscated. The list is read once from the whole-APK analysis, which already spans every DEX file; reading it once per DEX file repeated every class name for each extra DEX. The DEX list is still checked first, because an APK with no DEX code has no classes worth asking the analysis about.
         """
         verbose_print("Retrieving classes from APK", self.verbose)
         if not self.dalvik_files:
@@ -174,12 +171,8 @@ class BaseFrameworkDetector:
             return []
         
         try:
-            classes = []
             verbose_print(f"Processing {len(self.dalvik_files)} dalvik files", self.verbose)
-            for dex in self.dalvik_files:
-                dex_classes = [class_analysis.name for class_analysis in self.analysis.get_classes()]
-                classes.extend(dex_classes)
-                verbose_print(f"Found {len(dex_classes)} classes in dalvik file", self.verbose)
+            classes = [class_analysis.name for class_analysis in self.analysis.get_classes()]
             verbose_print(f"Total classes found: {len(classes)}", self.verbose)
             return classes
         except Exception as e:
@@ -524,7 +517,6 @@ class BaseFrameworkDetector:
                             verbose_print(f"Read config file {config} ({len(config_content)} characters)", self.verbose)
                     except Exception as e:
                         verbose_print(f"Error reading config file {config}: {e}", self.verbose)
-                        pass
                 else:
                     verbose_print(f"Config file not found: {config}", self.verbose)
             

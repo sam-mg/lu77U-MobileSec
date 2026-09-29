@@ -74,8 +74,8 @@ def setup_androguard_logging(verbose=False):
             import sys
             set_log(50, sys.stderr)
             verbose_print("Androguard global log level set to CRITICAL", verbose)
-        except Exception as e:
-            verbose_print(f"Androguard logging setup note: {e}", verbose)
+        except Exception as exc:
+            verbose_print(f"Androguard logging setup note: {exc}", verbose)
     else:
         log_level_num = 20
         verbose_print(f"ANDROGUARD_LOGGING is True - enabling androguard loggers at INFO", verbose)
@@ -92,8 +92,8 @@ def setup_androguard_logging(verbose=False):
             import sys
             set_log(log_level_num, sys.stderr)
             verbose_print(f"Androguard global log level set to INFO", verbose)
-        except Exception as e:
-            verbose_print(f"Androguard logging setup note: {e}", verbose)
+        except Exception as exc:
+            verbose_print(f"Androguard logging setup note: {exc}", verbose)
     
     try:
         from loguru import logger
@@ -131,6 +131,6 @@ def setup_androguard_logging(verbose=False):
             
             logger.add(colored_sink, level="DEBUG")
         else:
-            logger.add(lambda msg: None, level="CRITICAL")
+            logger.add(lambda unused_msg: None, level="CRITICAL")
     except ImportError:
         verbose_print("Loguru not available - skipping loguru configuration", verbose)

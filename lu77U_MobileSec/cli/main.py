@@ -11,19 +11,21 @@ Responsibilities:
 Dependencies:
     argparse (via .parser), ..web.server for the dashboard, colorama on Windows only, ..utils.verbose for opt-in tracing.
 
+Implementation notes:
+    colorama is optional: when it is not installed the ImportError is suppressed and Windows output simply keeps raw ANSI sequences, which is cosmetic and never stops the CLI starting.
+
 Security considerations:
     The dashboard is bound by ..web.server, not here; this module never widens that binding. Tracebacks are printed only under --verbose so that filesystem paths are not leaked to a casual terminal observer.
 """
 
+import contextlib
 import sys
 import platform
 
 if platform.system() == "Windows":
-    try:
+    with contextlib.suppress(ImportError):
         import colorama
         colorama.init(autoreset=True, convert=True, strip=False, wrap=True)
-    except ImportError:
-        pass
 
 from .parser import parse_args
 from .._metadata import NAME

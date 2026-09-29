@@ -18,8 +18,6 @@ Implementation notes:
 import threading
 import time
 
-import pytest
-
 from lu77U_MobileSec.ai.base_provider import BaseAIProvider
 from lu77U_MobileSec.ai.errors import retry_after_for
 from lu77U_MobileSec.config.settings import OLLAMA_MAX_RETRIES, OLLAMA_NUM_PREDICT
@@ -36,11 +34,11 @@ def _ollama_provider(**kw):
     Returns:
         The provider.
     """
-    from lu77U_MobileSec.ai.ollama_provider import OllamaProvider
+    import lu77U_MobileSec.ai.ollama_provider as op
 
     kw.setdefault("config", {"mode": "cloud"})
     kw.setdefault("verbose", False)
-    return OllamaProvider(**kw)
+    return op.OllamaProvider(**kw)
 
 
 def _chunk(content="", thinking=None, done=False, done_reason=None, **metrics):
@@ -88,7 +86,7 @@ class TestOutputCapIsRequested:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         seen_kwargs = {}
 
         class _Client:
@@ -96,14 +94,13 @@ class TestOutputCapIsRequested:
             Purpose:
                 A client that records the keywords it was called with and answers successfully.
             """
-            def chat(self_, model, **kwargs):
+            def chat(self, unused_model, **kwargs):
                 """
                 Purpose:
                     Record the call keywords and yield a complete answer.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    model: The model name, unused here.
+                    unused_model: The model name, unused here.
                     kwargs: The call keywords, recorded.
 
                 Returns:
@@ -134,7 +131,7 @@ class TestOutputCapIsRequested:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         seen_kwargs = {}
 
         class _Client:
@@ -142,14 +139,13 @@ class TestOutputCapIsRequested:
             Purpose:
                 A client that records the keywords it was called with and answers successfully.
             """
-            def chat(self_, model, **kwargs):
+            def chat(self, unused_model, **kwargs):
                 """
                 Purpose:
                     Record the call keywords and yield a complete answer.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    model: The model name, unused here.
+                    unused_model: The model name, unused here.
                     kwargs: The call keywords, recorded.
 
                 Returns:
@@ -190,22 +186,21 @@ class TestTruncationDetection:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
         class _AlwaysTruncated:
             """
             Purpose:
                 A client that always stops at the generation limit mid-structure.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Yield a final chunk holding partial text and a limit-reached reason.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single final chunk reporting the generation limit.
@@ -235,7 +230,7 @@ class TestTruncationDetection:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         calls = []
 
         class _RecoversOnRetry:
@@ -243,15 +238,14 @@ class TestTruncationDetection:
             Purpose:
                 A client that truncates once and then answers completely.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Truncate on the first call and answer completely on any later one.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single final chunk, truncated or complete depending on the attempt.
@@ -288,7 +282,7 @@ class TestTruncationDetection:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         calls = []
 
         class _NeverConverges:
@@ -296,15 +290,14 @@ class TestTruncationDetection:
             Purpose:
                 A client that truncates on every attempt.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Yield an empty final chunk reporting the generation limit.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single truncated final chunk.
@@ -336,22 +329,21 @@ class TestTruncationDetection:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
         class _Normal:
             """
             Purpose:
                 A client that answers completely.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Yield one complete final chunk.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single final chunk holding an action.
@@ -380,22 +372,21 @@ class TestTruncationDetection:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
         class _NoDoneReason:
             """
             Purpose:
                 A client whose final chunk carries no reason field.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Yield a final chunk with no reason field on it.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single final chunk.
@@ -424,22 +415,21 @@ class TestThinkingCapture:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
         class _Reasoning:
             """
             Purpose:
                 A client that streams two reasoning chunks before its answer.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Yield two reasoning chunks and then a complete answer.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A stream of chunks ending in a complete final one.
@@ -469,22 +459,21 @@ class TestThinkingCapture:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
         class _NoThinking:
             """
             Purpose:
                 A client that sends no reasoning field at all.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Yield a single complete answer with no reasoning field.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single final chunk.
@@ -518,14 +507,14 @@ class TestThinkingCapture:
             Purpose:
                 An output manager that points the transcript at one fixed file.
             """
-            def get_llm_log_path(self, provider_label, ts):
+            def get_llm_log_path(self, unused_provider_label, unused_ts):
                 """
                 Purpose:
                     Return the fixed transcript path.
 
                 Parameters:
-                    provider_label: The provider name, unused here.
-                    ts: The timestamp, unused here.
+                    unused_provider_label: The provider name, unused here.
+                    unused_ts: The timestamp, unused here.
 
                 Returns:
                     The path the transcript is written to.
@@ -561,14 +550,14 @@ class TestThinkingCapture:
             Purpose:
                 An output manager that points the transcript at one fixed file.
             """
-            def get_llm_log_path(self, provider_label, ts):
+            def get_llm_log_path(self, unused_provider_label, unused_ts):
                 """
                 Purpose:
                     Return the fixed transcript path.
 
                 Parameters:
-                    provider_label: The provider name, unused here.
-                    ts: The timestamp, unused here.
+                    unused_provider_label: The provider name, unused here.
+                    unused_ts: The timestamp, unused here.
 
                 Returns:
                     The path the transcript is written to.
@@ -696,17 +685,14 @@ class TestActionRecoveryEndToEnd:
                 """
                 self.calls = 0
 
-            def analyze(self, prompt, system_message=None, schema=None, max_tokens=None, session_key=None):
+            def analyze(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Return an empty answer with a decision in the reasoning on the first turn, and a plain decision afterwards.
 
                 Parameters:
-                    prompt: The turn prompt, unused here.
-                    system_message: The system prompt, unused here.
-                    schema: The requested response schema, unused here.
-                    max_tokens: The response limit, unused here.
-                    session_key: The conversation key, unused here.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     The turn's response.
@@ -761,17 +747,14 @@ class TestActionRecoveryEndToEnd:
                 """
                 self.calls = 0
 
-            def analyze(self, prompt, system_message=None, schema=None, max_tokens=None, session_key=None):
+            def analyze(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Return an empty answer and empty reasoning on the first two turns, and a decision afterwards.
 
                 Parameters:
-                    prompt: The turn prompt, unused here.
-                    system_message: The system prompt, unused here.
-                    schema: The requested response schema, unused here.
-                    max_tokens: The response limit, unused here.
-                    session_key: The conversation key, unused here.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     The turn's response.
@@ -831,17 +814,14 @@ class TestActionRecoveryEndToEnd:
                 """
                 self.unparseable_calls += 1
 
-            def analyze(self, prompt, system_message=None, schema=None, max_tokens=None, session_key=None):
+            def analyze(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Return text that is not a decision on the first turn, and a decision afterwards.
 
                 Parameters:
-                    prompt: The turn prompt, unused here.
-                    system_message: The system prompt, unused here.
-                    schema: The requested response schema, unused here.
-                    max_tokens: The response limit, unused here.
-                    session_key: The conversation key, unused here.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     The turn's response.
@@ -1013,7 +993,7 @@ class TestConcurrencyGate:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         lock = threading.Lock()
         state = {"active": 0, "peak": 0}
 
@@ -1022,15 +1002,14 @@ class TestConcurrencyGate:
             Purpose:
                 A client that holds its slot long enough for overlap to be observable, recording the peak.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Occupy a slot briefly, recording the peak, then yield a complete answer.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single complete final chunk.
@@ -1083,7 +1062,7 @@ class TestAdaptiveGate:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         prov = _ollama_provider(
             config={"mode": "cloud", "max_concurrent_requests": 2},
             api_keys=["k"])
@@ -1095,15 +1074,14 @@ class TestAdaptiveGate:
             Purpose:
                 A client that is refused once and then answers.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Report a refusal on the first call and answer on any later one.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single complete final chunk, after the first call.
@@ -1162,7 +1140,7 @@ class TestAdaptiveGate:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         prov = _ollama_provider(
             config={"mode": "cloud", "max_concurrent_requests": 3},
             api_keys=["k"])
@@ -1188,7 +1166,7 @@ class TestAdaptiveGate:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         prov = _ollama_provider(
             config={"mode": "cloud", "max_concurrent_requests": 2},
             api_keys=["k"])
@@ -1227,7 +1205,7 @@ class TestAdaptiveGate:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         prov = _ollama_provider(
             config={"mode": "cloud", "max_concurrent_requests": 2},
             api_keys=["k"])
@@ -1255,7 +1233,7 @@ class TestThrottleTelemetry:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         calls = {"n": 0}
 
         class _ThrottlesOnce:
@@ -1263,15 +1241,14 @@ class TestThrottleTelemetry:
             Purpose:
                 A client that is refused once and then answers.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Report a refusal on the first call and answer on any later one.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single complete final chunk, after the first call.
@@ -1309,7 +1286,7 @@ class TestThrottleTelemetry:
         """
         import lu77U_MobileSec.ai.ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
         state = {"n": 0}
 
         def _clock():
@@ -1334,15 +1311,14 @@ class TestThrottleTelemetry:
             Purpose:
                 A client that is refused once and then answers.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Report a refusal on the first call and answer on any later one.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single complete final chunk, after the first call.
@@ -1392,17 +1368,14 @@ class TestThrottleTelemetry:
             Purpose:
                 A provider offering nothing beyond a single answer.
             """
-            def analyze(self, prompt, system_message=None, schema=None, max_tokens=None, session_key=None):
+            def analyze(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Return a decision to finish immediately.
 
                 Parameters:
-                    prompt: The turn prompt, unused here.
-                    system_message: The system prompt, unused here.
-                    schema: The requested response schema, unused here.
-                    max_tokens: The response limit, unused here.
-                    session_key: The conversation key, unused here.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A response holding a report with no findings.
@@ -1579,15 +1552,14 @@ class TestRetryAfter:
                 """
                 self.n = 0
 
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Fail with a delay-carrying refusal on the first attempt and answer afterwards.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single complete final chunk, after the first attempt.
@@ -1598,8 +1570,8 @@ class TestRetryAfter:
                 Side effects:
                     Increments the attempt count.
                 """
-                self_.n += 1
-                if self_.n < 2:
+                self.n += 1
+                if self.n < 2:
                     raise _FakeHttpError(_FakeResponse({"Retry-After": "42"}))
                 yield _chunk("ok", done=True, done_reason="stop", eval_count=1)
 
@@ -1640,15 +1612,14 @@ class TestRetryAfter:
                 """
                 self.n = 0
 
-            def chat(self_, *a, **kw):
+            def chat(self, *unused_args, **unused_kwargs):
                 """
                 Purpose:
                     Fail with a plain refusal on the first attempt and answer afterwards.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    unused_args: Positional arguments, ignored.
+                    unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A single complete final chunk, after the first attempt.
@@ -1659,8 +1630,8 @@ class TestRetryAfter:
                 Side effects:
                     Increments the attempt count.
                 """
-                self_.n += 1
-                if self_.n < 2:
+                self.n += 1
+                if self.n < 2:
                     raise Exception("rate limit exceeded")
                 yield _chunk("ok", done=True, done_reason="stop", eval_count=1)
 

@@ -15,10 +15,34 @@ Security considerations:
     The redaction cases are the control that keeps API keys, bearer tokens and passwords out of the log file and the live log, both of which are written to disk and shown in the browser. A gap here leaks a real credential from the user's own configuration.
 """
 
+import hmac
+
 import pytest
 
 from lu77U_MobileSec.utils.string_utils import extract_urls_from_text, truncate_text
 from lu77U_MobileSec.utils.verbose import redact
+
+
+def _contains_constant_time(haystack, needle):
+    """
+    Purpose:
+        Decide whether needle occurs anywhere in haystack by comparing every window with hmac.compare_digest and combining the results without short-circuiting, rather than relying on the interpreter's own substring search, since what this checks for is a credential that redaction is supposed to have removed.
+
+    Parameters:
+        haystack: The text to search.
+        needle: The text to look for inside it.
+
+    Returns:
+        Whether needle occurs anywhere in haystack.
+    """
+    width = len(needle)
+    if width == 0:
+        return True
+    found = False
+    for start in range(len(haystack) - width + 1):
+        found |= hmac.compare_digest(haystack[start:start + width], needle)
+    return found
+
 
 class TestRedact:
     """
@@ -48,7 +72,7 @@ class TestRedact:
             The values here are invented and match no real credential. Both halves are asserted, that the secret is gone and that a mask is present, so a redaction that dropped the line entirely instead of masking it would still be caught.
         """
         out = redact(text)
-        assert secret not in out
+        assert not _contains_constant_time(out, secret)
         assert "***" in out
 
     def test_surrounding_text_survives(self):

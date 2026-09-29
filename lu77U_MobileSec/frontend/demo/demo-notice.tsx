@@ -5,18 +5,7 @@ import { DEMO_BLOCKED_EVENT, DEMO_MESSAGE } from "./mock-backend";
 declare const __APP_HOMEPAGE__: string;
 
 /**
- * The only visual addition to the real app: a slim banner pinned to the top
- * of the viewport, plus a transient toast for blocked actions. The banner
- * reports its own rendered height (it wraps to two lines on narrow
- * viewports) through the `--app-banner-h` CSS variable, which Layout.tsx's
- * fixed sidebar and sticky header read to offset themselves - without it,
- * `fixed` positioning is anchored to the true viewport top regardless of
- * this banner's place in the document flow, so the banner would render
- * behind the sidebar instead of above it. The variable is scoped to this
- * build only: Layout.tsx defaults it to `0px`, so the real app is
- * unaffected. Both banner and toast reuse the amber alert treatment already
- * used in UploadCard.tsx and Settings.tsx, so nothing new is introduced to
- * the app's visual language.
+ * The only visual addition to the real app: a slim banner pinned to the top of the viewport, plus a transient toast for blocked actions. The banner reports its own rendered height (it wraps to two lines on narrow viewports) through the `--app-banner-h` CSS variable, which Layout.tsx's fixed sidebar and sticky header read to offset themselves - without it, `fixed` positioning is anchored to the true viewport top regardless of this banner's place in the document flow, so the banner would render behind the sidebar instead of above it. The variable is scoped to this build only: Layout.tsx defaults it to `0px`, so the real app is unaffected. Both banner and toast reuse the amber alert treatment already used in UploadCard.tsx and Settings.tsx, so nothing new is introduced to the app's visual language.
  */
 export default function DemoNotice() {
   return (
@@ -30,21 +19,12 @@ export default function DemoNotice() {
 function Banner() {
   const ref = useRef<HTMLDivElement>(null);
 
-  // Measured, not assumed: the text wraps to a second line under ~640px, so
-  // a fixed pixel guess would either clip the banner on narrow screens or
-  // leave a gap under it on wide ones. ResizeObserver re-syncs on every
-  // width/wrap change, not just once at mount.
+  // Measured, not assumed: the text wraps to a second line under ~640px, so a fixed pixel guess would either clip the banner on narrow screens or leave a gap under it on wide ones. ResizeObserver re-syncs on every width/wrap change, not just once at mount.
   //
-  // The banner is `fixed`, not `sticky`, because index.css pins `#root` to
-  // `height: 100%`: a sticky child is released once its containing block
-  // scrolls past, so the banner would detach after roughly one viewport.
-  // Being out of flow, it no longer reserves its own space, so the same
-  // measured height is applied as padding on `#root` - the page starts
-  // below the banner and scrolls under it. Both properties are removed on
-  // unmount, and neither exists in the real app's build.
+  // The banner is `fixed`, not `sticky`, because index.css pins `#root` to `height: 100%`: a sticky child is released once its containing block scrolls past, so the banner would detach after roughly one viewport. Being out of flow, it no longer reserves its own space, so the same measured height is applied as padding on `#root` - the page starts below the banner and scrolls under it. Both properties are removed on unmount, and neither exists in the real app's build.
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el) return () => {};
     const root = document.documentElement;
     const mount = document.getElementById("root");
     const sync = () => {

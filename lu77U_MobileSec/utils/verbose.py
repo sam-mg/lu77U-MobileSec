@@ -9,7 +9,7 @@ Responsibilities:
     Redact credential-shaped substrings, maintain the sink registry that the web UI attaches to, classify a message as milestone or noise, and emit.
 
 Dependencies:
-    re, ..ui.colors for the terminal colour codes.
+    contextlib, re, ..ui.colors for the terminal colour codes.
 
 Implementation notes:
     Two audiences want different volumes from the same call sites. An operator running with -V wants everything; the dashboard's progress feed wants the couple of dozen lines that mark real progress, or it becomes an unreadable scroll. Rather than make every call site choose, one function serves both and _MILESTONE_PATTERNS decides what is worth surfacing. The pattern list is anchored and specific by design. A loose filter would leak thousands of lines into the UI; an allowlist keeps the feed curated, at the cost of needing an entry when a new milestone message is introduced.
@@ -21,6 +21,7 @@ Security considerations:
     Redaction happens before anything is printed or forwarded, so no sink can receive an unredacted message. The patterns are best-effort heuristics over known credential shapes, not a guarantee: a secret in an unrecognised format will pass through. Never log a credential on the assumption that this module will catch it.
 """
 
+import contextlib
 import re
 from typing import Callable, List, Optional
 
@@ -97,12 +98,10 @@ def unregister_sink(sink: Callable[[str], None]) -> None:
         Mutates module-global state.
 
     Implementation notes:
-        The ValueError is swallowed because cleanup runs on paths that may execute twice -- a finally block plus an error handler -- and a failed unregister must never mask the error being handled.
+        The ValueError from removing an absent sink is suppressed because cleanup runs on paths that may execute twice -- a finally block plus an error handler -- and a failed unregister must never mask the error being handled.
     """
-    try:
+    with contextlib.suppress(ValueError):
         _SINKS.remove(sink)
-    except ValueError:
-        pass
 
 def plural(count: int, singular: str, plural_form: Optional[str] = None) -> str:
     """
@@ -242,7 +241,7 @@ def verbose_print(message: str, verbose: bool = False):
         O(n) in message length, plus the milestone classification.
 
     Implementation notes:
-        The terminal and sink paths are deliberately decoupled. A dashboard user starts no terminal and passes no -V, but still needs progress; tying the feed to the verbose flag would leave the UI silent. Sinks are iterated over a copy, so a sink that registers or unregisters during the call cannot mutate the list mid-iteration. Every sink call is individually wrapped: a dashboard client that disconnected mid-scan raises on write, and that must not propagate into the analysis that happened to emit the line.
+        The terminal and sink paths are deliberately decoupled. A dashboard user starts no terminal and passes no -V, but still needs progress; tying the feed to the verbose flag would leave the UI silent. Sinks are iterated over a copy, so a sink that registers or unregisters during the call cannot mutate the list mid-iteration. Every sink call is individually wrapped: a dashboard client that disconnected mid-scan raises on write, and that must not propagate into the analysis that happened to emit the line. The failure is suppressed rather than traced: reporting it through verbose_print would hand it straight back to the sinks and recurse.
 
     Security considerations:
         Redaction runs first, so both the terminal and every sink see only the masked text.
@@ -252,7 +251,5 @@ def verbose_print(message: str, verbose: bool = False):
         print(f"{Colors.YELLOW}[VERBOSE] {safe}{Colors.RESET}")
     if _SINKS and is_milestone(safe):
         for sink in list(_SINKS):
-            try:
+            with contextlib.suppress(Exception):
                 sink(safe)
-            except Exception:
-                pass

@@ -18,7 +18,6 @@ Implementation notes:
 import json
 
 import httpx
-import pytest
 
 from lu77U_MobileSec.ai.custom_provider import CustomProvider
 from lu77U_MobileSec.ai.schema import VULNERABILITY_SCHEMA
@@ -71,22 +70,20 @@ class TestArraySchemaWrapUnwrap:
         """
         seen = {}
 
-        def fake_post(url, headers=None, json=None, timeout=None):
+        def fake_post(url_unused, json=None, **_unused_kwargs):
             """
             Purpose:
                 Stand in for the HTTP call, recording the request body and returning a wrapped findings list.
 
             Parameters:
-                url: The endpoint; unused by the fake.
-                headers: Request headers; unused by the fake.
+                url_unused: The endpoint; unused by the fake.
                 json: The request body, which the assertions inspect.
-                timeout: Request timeout; unused by the fake.
+                _unused_kwargs: Request headers and timeout; unused by the fake.
 
             Returns:
                 The canned response.
             """
             seen["body"] = json
-            wrapped = json["response_format"]["json_schema"]["schema"]
             reply = {"vulnerabilities": [{"title": "x", "file": "f.java", "line": "1"}]}
             return _resp(200, json={"choices": [{"message": {"content": __import__("json").dumps(reply)}}]})
 
@@ -117,16 +114,15 @@ class TestArraySchemaWrapUnwrap:
                           "required": ["action"]}
         seen = {}
 
-        def fake_post(url, headers=None, json=None, timeout=None):
+        def fake_post(url_unused, json=None, **_unused_kwargs):
             """
             Purpose:
                 Stand in for the HTTP call, recording the request body and returning a next-action object.
 
             Parameters:
-                url: The endpoint; unused by the fake.
-                headers: Request headers; unused by the fake.
+                url_unused: The endpoint; unused by the fake.
                 json: The request body, which the assertions inspect.
-                timeout: Request timeout; unused by the fake.
+                _unused_kwargs: Request headers and timeout; unused by the fake.
 
             Returns:
                 The canned response.
@@ -165,16 +161,15 @@ class TestGracefulDowngrade:
         """
         calls = []
 
-        def fake_post(url, headers=None, json=None, timeout=None):
+        def fake_post(url_unused, json=None, **_unused_kwargs):
             """
             Purpose:
                 Stand in for the HTTP call, rejecting any request carrying the structured-output field and accepting the rest.
 
             Parameters:
-                url: The endpoint; unused by the fake.
-                headers: Request headers; unused by the fake.
+                url_unused: The endpoint; unused by the fake.
                 json: The request body, which the assertions inspect.
-                timeout: Request timeout; unused by the fake.
+                _unused_kwargs: Request headers and timeout; unused by the fake.
 
             Returns:
                 The canned response.
@@ -210,16 +205,14 @@ class TestGracefulDowngrade:
         Implementation notes:
             Treating any rejection as a capability signal would permanently disable structured output because of a transient or unrelated fault, silently degrading every later request.
         """
-        def fake_post(url, headers=None, json=None, timeout=None):
+        def fake_post(*_unused_args, **_unused_kwargs):
             """
             Purpose:
                 Stand in for the HTTP call, rejecting every request for an unrelated reason.
 
             Parameters:
-                url: The endpoint; unused by the fake.
-                headers: Request headers; unused by the fake.
-                json: The request body, which the assertions inspect.
-                timeout: Request timeout; unused by the fake.
+                _unused_args: The endpoint, unused by the fake.
+                _unused_kwargs: The request headers, body and timeout, unused by the fake.
 
             Returns:
                 The canned response.
@@ -244,16 +237,14 @@ class TestGracefulDowngrade:
         Implementation notes:
             An endpoint that accepts the field but ignores it returns a normal success, never an HTTP error, so the downgrade must key on the rejection rather than on the content being unusable.
         """
-        def fake_post(url, headers=None, json=None, timeout=None):
+        def fake_post(*_unused_args, **_unused_kwargs):
             """
             Purpose:
                 Stand in for the HTTP call, succeeding with content that does not match the requested schema.
 
             Parameters:
-                url: The endpoint; unused by the fake.
-                headers: Request headers; unused by the fake.
-                json: The request body, which the assertions inspect.
-                timeout: Request timeout; unused by the fake.
+                _unused_args: The endpoint, unused by the fake.
+                _unused_kwargs: The request headers, body and timeout, unused by the fake.
 
             Returns:
                 The canned response.

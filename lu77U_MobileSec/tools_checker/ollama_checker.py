@@ -43,7 +43,7 @@ def check_ai_provider_configured(verbose: bool = False) -> bool:
         Local Ollama returns True unconditionally, because it needs no credential; whether the server is actually running is a separate question answered at request time. A CLI provider counts as configured when either an explicit binary path points at a real file or the binary is on PATH -- the same resolution the provider itself uses, so the check cannot disagree with reality.
 
     Security considerations:
-        Uses has_api_key, which returns only a boolean, so no key is read into this code path.
+        Uses has_api_key, which returns only a boolean, so no key is read into this code path. The log line is picked from fixed text rather than formatted from the result, so nothing derived from the credential store reaches the log even if that call ever returns more than a flag.
     """
     name = user_settings.get_active_provider()
     cfg = user_settings.get_provider_config(name)
@@ -65,7 +65,7 @@ def check_ai_provider_configured(verbose: bool = False) -> bool:
     else:
         configured = credentials.has_api_key(name)
 
-    verbose_print(f"  Configured: {configured}", verbose)
+    verbose_print("  Configured: True" if configured else "  Configured: False", verbose)
     return configured
 
 def check_ollama_configured(verbose: bool = False) -> bool:

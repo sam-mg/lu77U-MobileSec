@@ -4,6 +4,9 @@
 
 A comprehensive mobile security analysis framework that provides advanced APK analysis, multi-framework detection, and professional reporting - driven from a **local web dashboard** in your browser.
 
+# Overview - Click Below [↘️](https://youtu.be/BXUWfv8SFUE)
+[![Watch the Overview Video](https://img.youtube.com/vi/BXUWfv8SFUE/maxresdefault.jpg)](https://youtu.be/BXUWfv8SFUE)
+
 ## Installation
 
 ```bash

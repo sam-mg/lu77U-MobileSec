@@ -92,13 +92,19 @@ def _run_named(name: str, fn: Callable[[], Any]) -> Any:
         Side effects:
             Records either the return value or the exception for the caller to retrieve.
 
+        Raises:
+            BaseException: A non-Exception such as KeyboardInterrupt or SystemExit, after it has been recorded for the caller.
+
         Implementation notes:
-            Catches the broadest exception base rather than Exception, so a cancellation raised inside the thread is captured and re-raised on the caller's thread too. Letting that escape here would lose the cancellation and leave the caller treating the phase as merely empty.
+            An ordinary Exception, ScanCancelled included since it subclasses Exception, is recorded and re-raised on the caller's thread so the phase's own error handling applies. A BaseException that is not an Exception is an interpreter-level stop rather than an analysis failure, so it is recorded for the caller and then re-raised here as well instead of being quietly converted into an ordinary error.
         """
         try:
             outcome["result"] = fn()
+        except Exception as exc:
+            outcome["error"] = exc
         except BaseException as exc:
             outcome["error"] = exc
+            raise
 
     thread = threading.Thread(target=context.run, args=(_target,),
                               name=name, daemon=True)
@@ -169,7 +175,7 @@ class AnalysisService:
             checkpoint: Records progress for resumption.
         """
         self.verbose = verbose
-        self._progress = progress or (lambda **kw: None)
+        self._progress = progress or (lambda **unused_kw: None)
         self.is_cancelled = is_cancelled or (lambda: False)
         self.checkpoint = checkpoint
 
@@ -185,13 +191,16 @@ class AnalysisService:
 
         Side effects:
             Invokes the progress callback, which raises when the scan has been asked to stop.
+
+        Implementation notes:
+            Any other callback failure is logged and otherwise ignored, because a dashboard that cannot take an update must not end the scan. contextlib.suppress cannot replace the handler because ScanCancelled subclasses Exception and has to be re-raised first.
         """
         try:
             self._progress(phase=phase, percent=percent, message=message)
         except ScanCancelled:
             raise
-        except Exception:
-            pass
+        except Exception as exc:
+            verbose_print(f"Progress update could not be delivered: {exc}", self.verbose)
 
     def run(self, apk_path: str) -> Dict[str, Any]:
         """
@@ -421,7 +430,7 @@ class AnalysisService:
             _run_named("validation", lambda: validate_findings(
                 vulnerabilities, provider=judge_provider,
                 verbose=self.verbose, is_cancelled=self.is_cancelled,
-                progress=lambda phase, percent, message="":
+                progress=lambda phase, unused_percent, message="":
                     self.progress(phase, 88, message)))
         except ScanCancelled:
             raise

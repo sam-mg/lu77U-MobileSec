@@ -20,7 +20,6 @@ Security considerations:
 
 import os
 from ..config import user_settings
-from ..ui.colors import Colors
 from ..utils.verbose import verbose_print
 
 def check_jadx_configured(verbose: bool = False) -> bool:

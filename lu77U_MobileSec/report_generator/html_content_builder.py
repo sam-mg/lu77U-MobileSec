@@ -19,7 +19,6 @@ Security considerations:
 """
 
 from datetime import datetime
-from typing import Optional
 from lu77U_MobileSec.detection.results import DetectionResult
 from .._metadata import HOMEPAGE
 from ..config.settings import APP_NAME, APP_VERSION

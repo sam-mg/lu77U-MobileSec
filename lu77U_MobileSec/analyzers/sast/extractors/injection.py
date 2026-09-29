@@ -18,6 +18,7 @@ Security considerations:
     This is text analysis over decompiled code, not dataflow. It can miss a taint path that crosses a method boundary and can misjudge one it cannot trace, which is why an untraceable operand keeps a middling severity rather than being dismissed.
 """
 
+import contextlib
 import re
 from pathlib import Path
 from typing import List, Tuple
@@ -169,7 +170,7 @@ def resolve_sql_provenance(text: str, line: int, enum_lookup=None) -> str:
         The provenance verdict.
 
     Implementation notes:
-        Runs the narrow analysis first and accepts a decisive answer. Only an unknown verdict triggers the more expensive work. A wider window is then searched for schema-catalogue evidence, because the assignment that establishes a column name is frequently further from the query than the immediate window reaches. Finally, an operand read from an enum accessor is treated as constant. Enum-backed column names are a common idiom, and without this check they read as untraceable and get reported at a middling severity -- which is a false positive with a plausible-looking justification.
+        Runs the narrow analysis first and accepts a decisive answer. Only an unknown verdict triggers the more expensive work. A wider window is then searched for schema-catalogue evidence, because the assignment that establishes a column name is frequently further from the query than the immediate window reaches. Finally, an operand read from an enum accessor is treated as constant. Enum-backed column names are a common idiom, and without this check they read as untraceable and get reported at a middling severity -- which is a false positive with a plausible-looking justification. The lookup is caller-supplied and searches the decompiled tree, so any exception it raises is suppressed and counts as no evidence that the type is an enum: the operand keeps its earlier verdict and the remaining operands are still checked.
     """
     base = _operand_provenance(text, line)
     if base in ("external", "catalogue", "constant"):
@@ -196,11 +197,9 @@ def resolve_sql_provenance(text: str, line: int, enum_lookup=None) -> str:
             if not m:
                 continue
             type_name = m.group(1).split(".")[-1]
-            try:
+            with contextlib.suppress(Exception):
                 if enum_lookup(type_name):
                     return "constant"
-            except Exception:
-                pass
     return base
 
 

@@ -11,9 +11,6 @@ Responsibilities:
 Dependencies:
     .html_content_builder, .path_utils, .report_builder, .comprehensive_report_builder, .comprehensive_html_builder eagerly; the PDF modules and WeasyPrint only on accessor call.
 
-Known limitations:
-    PDF_MODULES_AVAILABLE is declared but never resolved; availability is determined per call by the accessors instead, so the module-level flag carries no information and should not be relied on.
-
 Security considerations:
     Reports embed attacker-controlled strings recovered from the APK. The escaping that makes that safe lives in the HTML builders; this facade performs no sanitisation of its own.
 """
@@ -24,8 +21,6 @@ from .path_utils import ReportPathManager
 from .report_builder import ReportBuilder
 from .comprehensive_report_builder import ComprehensiveReportBuilder
 from .comprehensive_html_builder import ComprehensiveHTMLBuilder
-
-PDF_MODULES_AVAILABLE = None
 
 def get_pdf_generator():
     """

@@ -66,13 +66,13 @@ class _FakeDx:
         return []
 
 
-def _fake_analyze_apk(apk_path):
+def _fake_analyze_apk(_):
     """
     Purpose:
         Stand in for the androguard entry point, returning the fake objects.
 
     Parameters:
-        apk_path: Accepted to match the real signature; unused.
+        _: The APK path, accepted positionally to match the real signature; unused.
 
     Returns:
         The fake APK, a placeholder for the DEX list, and the fake analysis.

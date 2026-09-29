@@ -117,7 +117,7 @@ class BaseAnalyzer(ABC):
             is_cancelled: Polled between phases.
         """
         self.verbose = verbose
-        self._progress = progress or (lambda *a, **kw: None)
+        self._progress = progress or (lambda *unused_a, **unused_kw: None)
         self.is_cancelled = is_cancelled or (lambda: False)
         self.ai_provider = None
 
@@ -130,13 +130,19 @@ class BaseAnalyzer(ABC):
             phase: Stage identifier.
             percent: Overall completion.
             message: Human-readable description.
+
+        Raises:
+            ScanCancelled: When the callback signals that the user stopped the scan.
+
+        Implementation notes:
+            A cancellation raised by the callback is re-raised because it is how a stop request reaches the analysis. Any other failure is logged and dropped, since an undeliverable progress update must not end a scan. contextlib.suppress cannot express this, because ScanCancelled subclasses Exception and has to be let through first.
         """
         try:
             self._progress(phase, percent, message)
         except ScanCancelled:
             raise
-        except Exception:
-            pass
+        except Exception as exc:
+            verbose_print(f"Progress update could not be delivered: {exc}", self.verbose)
 
     @abstractmethod
     def preflight(self) -> Tuple[bool, str]:
@@ -594,7 +600,7 @@ class BaseAnalyzer(ABC):
                 vuln["code_snippet"] = context.pop("snippet")
                 vuln["code_context"] = context
                 self._attach_evidence_fields(
-                    vuln, source_lines, start, end, source_path, source_root, _enum_cache)
+                    vuln, source_lines, start, end, source_root, _enum_cache)
                 verbose_print(
                     f"Attached code context for "
                     f"'{vuln.get('vulnerability_type', vuln.get('title', 'finding'))}': "
@@ -604,7 +610,7 @@ class BaseAnalyzer(ABC):
                 verbose_print(f"Could not enrich vulnerability with source context: {e}", self.verbose)
 
     def _attach_evidence_fields(self, vuln: Dict, source_lines: List[str],
-                                start: int, end: int, source_path: Path,
+                                start: int, end: int,
                                 source_root, enum_cache: Dict[str, bool]) -> None:
         """
         Purpose:
@@ -615,7 +621,6 @@ class BaseAnalyzer(ABC):
             source_lines: The resolved file's lines.
             start: First line of the located span.
             end: Last line of the located span.
-            source_path: The resolved file, recorded on the finding and used for vendor attribution.
             source_root: Root of the decompiled tree, for relative paths.
             enum_cache: Shared cache of enum lookups, reused across findings.
 
@@ -623,7 +628,7 @@ class BaseAnalyzer(ABC):
             Mutates the finding.
 
         Implementation notes:
-            Nearby mitigating calls are detected within a window around the cited line and recorded on the finding, which is what the WebView gate later uses to lower a ceiling. Detecting them here, where the source is already loaded, avoids a second pass over the file. The enum cache is passed in rather than held per call, because the same type is asked about repeatedly across a result set and each lookup searches the decompiled tree.
+            Nearby mitigating calls are detected within a window around the cited line and recorded on the finding, which is what the WebView gate later uses to lower a ceiling. Detecting them here, where the source is already loaded, avoids a second pass over the file. The enum cache is passed in rather than held per call, because the same type is asked about repeatedly across a result set and each lookup searches the decompiled tree. SQL provenance and vendor tagging are both optional enrichment, so a failure in either is logged and leaves that field off the finding rather than losing the rest of its evidence.
         """
         n = len(source_lines)
         w_start = max(1, start - MITIGATION_WINDOW_LINES)
@@ -672,13 +677,13 @@ class BaseAnalyzer(ABC):
 
             try:
                 vuln["operand_provenance"] = resolve_sql_provenance(text, start, _enum_lookup)
-            except Exception:
-                pass
+            except Exception as exc:
+                verbose_print(f"SQL operand provenance could not be resolved for {vuln.get('file', '')}: {exc}", self.verbose)
 
         try:
             from .agent.code_graph import vendor_sdk_for_path
             sdk = vendor_sdk_for_path(str(vuln.get("file", "")))
             if sdk:
                 vuln["vendor_sdk"] = sdk
-        except Exception:
-            pass
+        except Exception as exc:
+            verbose_print(f"Vendor SDK tagging failed for {vuln.get('file', '')}: {exc}", self.verbose)

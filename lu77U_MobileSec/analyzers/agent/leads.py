@@ -199,13 +199,7 @@ def render_leads(leads: Sequence[Lead], total: int) -> str:
         return ""
     lines = [
         f"## Confirmed leads - start here ({len(leads)} of {total})",
-        "Deterministic scanners already found these and they are already in "
-        "the report. They are facts about this build, not guesses. Your job "
-        "is to confirm or refute each one against the code and add what a "
-        "regex cannot see: where the value comes from, whether the path is "
-        "reachable, and what an attacker actually gets. Do NOT re-report a "
-        "lead as a new finding - report the flow you proved, or say it is "
-        "refuted and why.",
+        ("Deterministic scanners already found these and they are already in the report. They are facts about this build, not guesses. Your job is to confirm or refute each one against the code and add what a regex cannot see: where the value comes from, whether the path is reachable, and what an attacker actually gets. Do NOT re-report a lead as a new finding - report the flow you proved, or say it is refuted and why."),
         "",
     ]
     for index, lead in enumerate(leads, start=1):

@@ -17,8 +17,6 @@ Implementation notes:
 
 import subprocess
 
-import pytest
-
 from lu77U_MobileSec.decompiler import blutter_runner, hermes_runner, rn_bundle_decompiler
 
 class FakeCompleted:
@@ -79,14 +77,14 @@ class TestBlutterRunner:
                             lambda: "/opt/blutter/blutter.py")
         captured = {}
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(cmd, **_):
             """
             Purpose:
                 Record the command line and produce the artifact the runner looks for.
 
             Parameters:
                 cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The call options, ignored.
 
             Returns:
                 A successful completed process.
@@ -122,14 +120,14 @@ class TestBlutterRunner:
         """
         monkeypatch.setattr(blutter_runner.user_settings, "get_blutter_path", lambda: "/x/blutter.py")
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(_, **__):
             """
             Purpose:
                 Produce disassembly output and report a non-zero exit.
 
             Parameters:
-                cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The command line the runner built, ignored.
+                __: The call options, ignored.
 
             Returns:
                 A completed process reporting failure.
@@ -158,7 +156,7 @@ class TestBlutterRunner:
         """
         monkeypatch.setattr(blutter_runner.user_settings, "get_blutter_path", lambda: "/x/blutter.py")
         monkeypatch.setattr(blutter_runner.subprocess, "run",
-                            lambda cmd, **kw: FakeCompleted(returncode=0))
+                            lambda _, **__: FakeCompleted(returncode=0))
         assert blutter_runner.run_blutter(tmp_path / "lib", tmp_path / "out") is None
 
     def test_missing_executable_returns_none(self, monkeypatch, tmp_path):
@@ -172,14 +170,14 @@ class TestBlutterRunner:
         """
         monkeypatch.setattr(blutter_runner.user_settings, "get_blutter_path", lambda: "/x/blutter.py")
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(_, **__):
             """
             Purpose:
                 Report the executable as missing.
 
             Parameters:
-                cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The command line the runner built, ignored.
+                __: The call options, ignored.
 
             Raises:
                 FileNotFoundError: Always.
@@ -200,14 +198,14 @@ class TestBlutterRunner:
         """
         monkeypatch.setattr(blutter_runner.user_settings, "get_blutter_path", lambda: "/x/blutter.py")
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(_, **__):
             """
             Purpose:
                 Report the run as having exceeded its time limit.
 
             Parameters:
-                cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The command line the runner built, ignored.
+                __: The call options, ignored.
 
             Raises:
                 subprocess.TimeoutExpired: Always.
@@ -251,14 +249,14 @@ class TestHermesRunner:
                             lambda: "/usr/local/bin/hermes-decomp")
         calls = []
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(cmd, **_):
             """
             Purpose:
                 Record every call and write the decompiled file for the main one.
 
             Parameters:
                 cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The call options, ignored.
 
             Returns:
                 A successful completed process.
@@ -293,14 +291,14 @@ class TestHermesRunner:
         """
         monkeypatch.setattr(hermes_runner.user_settings, "get_hermes_decomp_path", lambda: "/x/hd")
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(_, **__):
             """
             Purpose:
                 Report success without producing anything.
 
             Parameters:
-                cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The command line the runner built, ignored.
+                __: The call options, ignored.
 
             Returns:
                 A successful completed process.
@@ -325,14 +323,14 @@ class TestHermesRunner:
         monkeypatch.setattr(hermes_runner.user_settings, "get_hermes_decomp_path", lambda: "/x/hd")
         calls = []
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(cmd, **_):
             """
             Purpose:
                 Succeed for the main call and report every other subcommand as missing.
 
             Parameters:
                 cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The call options, ignored.
 
             Returns:
                 A successful completed process, for the main call.
@@ -367,7 +365,7 @@ class TestHermesRunner:
         """
         monkeypatch.setattr(hermes_runner.user_settings, "get_hermes_decomp_path", lambda: "/x/hd")
         monkeypatch.setattr(hermes_runner.subprocess, "run",
-                            lambda cmd, **kw: (_ for _ in ()).throw(FileNotFoundError()))
+                            lambda _, **__: (x for x in ()).throw(FileNotFoundError()))
         assert hermes_runner.decompile_hbc(tmp_path / "b.hbc", tmp_path / "out") is None
 
 
@@ -404,14 +402,14 @@ class TestRnBundleDecompiler:
                             lambda: "/usr/local/bin/react-native-decompiler")
         captured = {}
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(cmd, **_):
             """
             Purpose:
                 Record the command line and produce one decompiled module.
 
             Parameters:
                 cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The call options, ignored.
 
             Returns:
                 A successful completed process.
@@ -445,7 +443,7 @@ class TestRnBundleDecompiler:
         """
         monkeypatch.setattr(rn_bundle_decompiler.user_settings, "get_rn_decompiler_path", lambda: "/x/rnd")
         monkeypatch.setattr(rn_bundle_decompiler.subprocess, "run",
-                            lambda cmd, **kw: FakeCompleted(returncode=0))
+                            lambda _, **__: FakeCompleted(returncode=0))
         assert rn_bundle_decompiler.decompile_js_bundle(tmp_path / "b.js", tmp_path / "out") is None
 
     def test_nonzero_returncode_with_partial_output_still_succeeds(self, monkeypatch, tmp_path):
@@ -462,14 +460,14 @@ class TestRnBundleDecompiler:
         """
         monkeypatch.setattr(rn_bundle_decompiler.user_settings, "get_rn_decompiler_path", lambda: "/x/rnd")
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(_, **__):
             """
             Purpose:
                 Produce one module and report a non-zero exit.
 
             Parameters:
-                cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The command line the runner built, ignored.
+                __: The call options, ignored.
 
             Returns:
                 A completed process reporting failure.
@@ -497,14 +495,14 @@ class TestRnBundleDecompiler:
         """
         monkeypatch.setattr(rn_bundle_decompiler.user_settings, "get_rn_decompiler_path", lambda: "/x/rnd")
 
-        def fake_run(cmd, **kwargs):
+        def fake_run(_, **__):
             """
             Purpose:
                 Report the run as having exceeded its time limit.
 
             Parameters:
-                cmd: The command line the runner built.
-                kwargs: The call options, unused here.
+                _: The command line the runner built, ignored.
+                __: The call options, ignored.
 
             Raises:
                 subprocess.TimeoutExpired: Always.

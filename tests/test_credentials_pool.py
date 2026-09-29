@@ -6,10 +6,10 @@ Purpose:
     Holding several API keys per provider: how they are stored, how a provider rolls to the next one, and how the settings surface shows and reveals them.
 
 Responsibilities:
-    Pin the pool storage and its handling of older single-key installs, the masking helper, the rotation rules in the shared provider base and in each concrete provider, the factory wiring that loads a pool out of storage, the cheap-model routing that shares the same construction path, and the settings endpoints that add, list, reveal and remove keys.
+    Pin the pool storage and its handling of older single-key installs, the masking helper, the rotation rules in the shared provider base and in each concrete provider, the factory wiring that loads a pool out of storage, the cheap-model routing that shares the same construction path, the settings endpoints that add, list, reveal and remove keys, and the configured line the provider check logs.
 
 Dependencies:
-    pytest, the credential store, the provider base class, the four HTTP-backed providers, the Ollama provider, the provider factory, the analysis service and the settings routes.
+    pytest, the credential store, the provider base class, the four HTTP-backed providers, the Ollama provider, the provider factory, the analysis service, the settings routes and the provider configuration check.
 
 Implementation notes:
     A single cloud key running out of quota used to end a scan outright. The circuit breaker stops it honestly, but there was no recovery short of pasting a different key into the settings page and starting again. The pool lets the settings page hold several keys per provider and roll to the next automatically when one is exhausted or rejected.
@@ -18,7 +18,7 @@ Security considerations:
     Nothing here touches the real keychain, the network, or a live quota, and every key in the fixtures is invented. The settings payload is asserted not to contain a full key anywhere, since that response is rendered in a browser and would otherwise put the user's credentials into the page source.
 """
 
-import json
+import hmac
 
 import pytest
 
@@ -43,7 +43,7 @@ def fake_store(monkeypatch):
     Security considerations:
         Replacing the backend is what keeps the test run out of the user's real keychain, where their actual provider keys are stored.
     """
-    import lu77U_MobileSec.config.credentials as c
+    from lu77U_MobileSec.config import credentials as c
 
     store: dict = {}
     monkeypatch.setattr(c, "keyring_available", lambda: False)
@@ -568,9 +568,9 @@ class TestOllamaKeyRotation:
         Implementation notes:
             The call counts are asserted per key: the first fails immediately because an exhausted quota is not worth retrying, and the second then succeeds on its own first attempt rather than on a leftover one.
         """
-        import lu77U_MobileSec.ai.ollama_provider as op
+        from lu77U_MobileSec.ai import ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
         calls_per_key = {}
 
@@ -579,15 +579,14 @@ class TestOllamaKeyRotation:
             Purpose:
                 A client that fails for the first key and streams a successful answer for any other, counting calls per key.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *_unused_args, **_unused_kwargs):
                 """
                 Purpose:
                     Record the call against the current key, then either fail or stream a reply.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    _unused_args: Positional arguments, ignored.
+                    _unused_kwargs: Keyword arguments, ignored.
 
                 Returns:
                     A stream of response chunks, for any key but the first.
@@ -621,24 +620,23 @@ class TestOllamaKeyRotation:
         Parameters:
             monkeypatch: Removes the backoff delay so the retries run immediately.
         """
-        import lu77U_MobileSec.ai.ollama_provider as op
+        from lu77U_MobileSec.ai import ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
         class _AllFail:
             """
             Purpose:
                 A client that reports an exhausted quota for every key.
             """
-            def chat(self_, *a, **kw):
+            def chat(self, *_unused_args, **_unused_kwargs):
                 """
                 Purpose:
                     Fail with an exhausted-quota message.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    _unused_args: Positional arguments, ignored.
+                    _unused_kwargs: Keyword arguments, ignored.
 
                 Raises:
                     Exception: Always, carrying an exhausted-quota message.
@@ -665,9 +663,9 @@ class TestOllamaKeyRotation:
         Implementation notes:
             The attempt count is asserted against the configured maximum, so the pool work is shown not to have changed the retry behaviour that existed before it.
         """
-        import lu77U_MobileSec.ai.ollama_provider as op
+        from lu77U_MobileSec.ai import ollama_provider as op
 
-        monkeypatch.setattr(op.time, "sleep", lambda s: None)
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
         class _Transient:
             """
@@ -684,15 +682,14 @@ class TestOllamaKeyRotation:
                 """
                 self.n = 0
 
-            def chat(self_, *a, **kw):
+            def chat(self, *_unused_args, **_unused_kwargs):
                 """
                 Purpose:
                     Count the attempt and fail with a temporary network error.
 
                 Parameters:
-                    self_: The client instance, named apart from the usual receiver so it does not shadow the enclosing test's own.
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    _unused_args: Positional arguments, ignored.
+                    _unused_kwargs: Keyword arguments, ignored.
 
                 Raises:
                     Exception: Always, carrying a dropped-connection message.
@@ -700,7 +697,7 @@ class TestOllamaKeyRotation:
                 Side effects:
                     Increments the attempt count.
                 """
-                self_.n += 1
+                self.n += 1
                 raise Exception("peer closed connection")
 
         prov = self._provider(api_keys=["only"])
@@ -752,16 +749,15 @@ class TestHttpProviderKeyRotation:
 
         calls = []
 
-        def fake_post(url, headers=None, json=None, timeout=None):
+        def fake_post(url_unused, headers=None, **_unused_kwargs):
             """
             Purpose:
                 Record the credential sent, then fail for the first key and succeed for any other.
 
             Parameters:
-                url: The endpoint, unused here.
+                url_unused: The endpoint, unused here.
                 headers: The request headers, read for the credential.
-                json: The request body, unused here.
-                timeout: The request timeout, unused here.
+                _unused_kwargs: The request body and timeout, unused here.
 
             Returns:
                 A quota error for the first key, and a successful empty finding list otherwise.
@@ -797,16 +793,15 @@ class TestHttpProviderKeyRotation:
 
         calls = []
 
-        def fake_post(url, json=None, headers=None, timeout=None):
+        def fake_post(url_unused, headers=None, **_unused_kwargs):
             """
             Purpose:
                 Record the credential sent, then fail for the first key and succeed for any other.
 
             Parameters:
-                url: The endpoint, unused here.
-                json: The request body, unused here.
+                url_unused: The endpoint, unused here.
                 headers: The request headers, read for the credential.
-                timeout: The request timeout, unused here.
+                _unused_kwargs: The request body and timeout, unused here.
 
             Returns:
                 A quota error for the first key, and a successful empty finding list otherwise.
@@ -841,16 +836,15 @@ class TestHttpProviderKeyRotation:
 
         calls = []
 
-        def fake_post(url, headers=None, json=None, timeout=None):
+        def fake_post(url_unused, headers=None, **_unused_kwargs):
             """
             Purpose:
                 Record the credential sent, then fail for the first key and succeed for any other.
 
             Parameters:
-                url: The endpoint, unused here.
+                url_unused: The endpoint, unused here.
                 headers: The request headers, read for the credential.
-                json: The request body, unused here.
-                timeout: The request timeout, unused here.
+                _unused_kwargs: The request body and timeout, unused here.
 
             Returns:
                 A quota error for the first key, and a successful answer otherwise.
@@ -922,13 +916,13 @@ class TestHttpProviderKeyRotation:
                 """
                 self.prov = prov
 
-            def create(self, **kw):
+            def create(self, **_unused_kwargs):
                 """
                 Purpose:
                     Fail for the first key and return the canned response for any other.
 
                 Parameters:
-                    kw: The request arguments, ignored.
+                    _unused_kwargs: The request arguments, ignored.
 
                 Returns:
                     The canned response.
@@ -985,16 +979,15 @@ class TestHttpProviderKeyRotation:
 
         calls = []
 
-        def fake_post(url, headers=None, json=None, timeout=None):
+        def fake_post(url_unused, headers=None, **_unused_kwargs):
             """
             Purpose:
                 Record the credential sent, then fail with a connection error.
 
             Parameters:
-                url: The endpoint, unused here.
+                url_unused: The endpoint, unused here.
                 headers: The request headers, read for the credential.
-                json: The request body, unused here.
-                timeout: The request timeout, unused here.
+                _unused_kwargs: The request body and timeout, unused here.
 
             Raises:
                 httpx.ConnectError: Always.
@@ -1027,16 +1020,15 @@ class TestHttpProviderKeyRotation:
 
         calls = []
 
-        def fake_post(url, headers=None, json=None, timeout=None):
+        def fake_post(url_unused, headers=None, **_unused_kwargs):
             """
             Purpose:
                 Record the credential sent and report an exhausted quota.
 
             Parameters:
-                url: The endpoint, unused here.
+                url_unused: The endpoint, unused here.
                 headers: The request headers, read for the credential.
-                json: The request body, unused here.
-                timeout: The request timeout, unused here.
+                _unused_kwargs: The request body and timeout, unused here.
 
             Returns:
                 A quota error response.
@@ -1087,13 +1079,14 @@ class TestProviderFactoryWiring:
         assert prov._keys == ["k1", "k2", "k3"]
         assert prov.api_key == "k1"
 
-    def test_build_provider_with_no_stored_keys_is_an_empty_pool(self, fake_store):
+    @pytest.mark.usefixtures("fake_store")
+    def test_build_provider_with_no_stored_keys_is_an_empty_pool(self):
         """
         Purpose:
             Pin that a provider with nothing stored is built with an empty pool rather than failing to build.
 
-        Parameters:
-            fake_store: The credentials module and its in-memory store.
+        Implementation notes:
+            The in-memory credential store is activated through usefixtures rather than a parameter, since building a provider reads it for isolation from the real keychain but the test never inspects it directly.
         """
         from lu77U_MobileSec.ai.provider_factory import build_provider
 
@@ -1110,54 +1103,60 @@ class TestCheapModelRouting:
     Implementation notes:
         Triage, the validation judge and chain confirmation all work from identifiers or short verdicts rather than from reasoning over source, so a smaller model does the same job for less. It is off by default, and an unset setting must change nothing at all.
     """
-    def test_an_unset_cheap_model_falls_back_to_the_main_one(self, fake_store, monkeypatch):
+    @pytest.mark.usefixtures("fake_store")
+    def test_an_unset_cheap_model_falls_back_to_the_main_one(self, monkeypatch):
         """
         Purpose:
             Pin that asking for the cheap model with none configured yields the main one.
 
         Parameters:
-            fake_store: The credentials module and its in-memory store.
             monkeypatch: Returns a configuration with no cheap model set.
+
+        Implementation notes:
+            The in-memory credential store is activated through usefixtures rather than a parameter, since building a provider reads it for isolation from the real keychain but the test never inspects it directly.
         """
-        import lu77U_MobileSec.ai.provider_factory as pf
+        from lu77U_MobileSec.ai import provider_factory as pf
 
         monkeypatch.setattr(pf.user_settings, "get_provider_config",
-                            lambda name: {"model": "gpt-oss:120b", "cheap_model": ""})
+                            lambda _: {"model": "gpt-oss:120b", "cheap_model": ""})
         prov = pf.build_provider("ollama", cheap=True)
         assert prov.model == "gpt-oss:120b"
 
-    def test_a_configured_cheap_model_is_used_instead(self, fake_store, monkeypatch):
+    @pytest.mark.usefixtures("fake_store")
+    def test_a_configured_cheap_model_is_used_instead(self, monkeypatch):
         """
         Purpose:
             Pin that asking for the cheap model with one configured yields that model.
 
         Parameters:
-            fake_store: The credentials module and its in-memory store.
             monkeypatch: Returns a configuration naming a cheap model.
+
+        Implementation notes:
+            The in-memory credential store is activated through usefixtures rather than a parameter, since building a provider reads it for isolation from the real keychain but the test never inspects it directly.
         """
-        import lu77U_MobileSec.ai.provider_factory as pf
+        from lu77U_MobileSec.ai import provider_factory as pf
 
         monkeypatch.setattr(pf.user_settings, "get_provider_config",
-                            lambda name: {"model": "gpt-oss:120b", "cheap_model": "gpt-oss:20b"})
+                            lambda _: {"model": "gpt-oss:120b", "cheap_model": "gpt-oss:20b"})
         prov = pf.build_provider("ollama", cheap=True)
         assert prov.model == "gpt-oss:20b"
 
-    def test_cheap_false_never_looks_at_cheap_model(self, fake_store, monkeypatch):
+    @pytest.mark.usefixtures("fake_store")
+    def test_cheap_false_never_looks_at_cheap_model(self, monkeypatch):
         """
         Purpose:
             Pin that an ordinary build ignores the cheap model even when one is configured.
 
         Parameters:
-            fake_store: The credentials module and its in-memory store.
             monkeypatch: Returns a configuration naming a cheap model.
 
         Implementation notes:
-            This is the assertion that keeps the setting from quietly downgrading the main analysis, which would change every finding in a scan.
+            This is the assertion that keeps the setting from quietly downgrading the main analysis, which would change every finding in a scan. The in-memory credential store is activated through usefixtures rather than a parameter, since building a provider reads it for isolation from the real keychain but the test never inspects it directly.
         """
-        import lu77U_MobileSec.ai.provider_factory as pf
+        from lu77U_MobileSec.ai import provider_factory as pf
 
         monkeypatch.setattr(pf.user_settings, "get_provider_config",
-                            lambda name: {"model": "gpt-oss:120b", "cheap_model": "gpt-oss:20b"})
+                            lambda _: {"model": "gpt-oss:120b", "cheap_model": "gpt-oss:20b"})
         prov = pf.build_provider("ollama")
         assert prov.model == "gpt-oss:120b"
 
@@ -1175,7 +1174,7 @@ class TestCheapModelRouting:
         import lu77U_MobileSec.web.services.analysis_service as svc
 
         monkeypatch.setattr(svc.user_settings, "get_provider_config",
-                            lambda name: {"model": "gpt-oss:120b", "cheap_model": ""})
+                            lambda _: {"model": "gpt-oss:120b", "cheap_model": ""})
 
         class FakeProvider:
             """
@@ -1192,21 +1191,24 @@ class TestCheapModelRouting:
         main = FakeProvider()
         assert svc._cheap_provider_or_same(main, False) is main
 
+    @pytest.mark.usefixtures("fake_store")
     def test_the_analysis_service_helper_builds_a_second_instance_when_configured(
-        self, fake_store, monkeypatch
+        self, monkeypatch
     ):
         """
         Purpose:
             Pin that with a cheap model configured the service builds a second provider using it.
 
         Parameters:
-            fake_store: The credentials module and its in-memory store.
             monkeypatch: Returns a configuration naming a cheap model.
+
+        Implementation notes:
+            The in-memory credential store is activated through usefixtures rather than a parameter, since building the cheap provider reads it for isolation from the real keychain but the test never inspects it directly.
         """
         import lu77U_MobileSec.web.services.analysis_service as svc
 
         monkeypatch.setattr(svc.user_settings, "get_provider_config",
-                            lambda name: {"model": "gpt-oss:120b", "cheap_model": "gpt-oss:20b"})
+                            lambda _: {"model": "gpt-oss:120b", "cheap_model": "gpt-oss:20b"})
 
         class FakeProvider:
             """
@@ -1244,6 +1246,32 @@ def api_client(fake_store):
     app = FastAPI()
     app.include_router(settings_routes.router)
     return TestClient(app), fake_store[0]
+
+
+def _contains_constant_time(haystack, needle):
+    """
+    Purpose:
+        Check whether a secret value appears anywhere inside a longer string, without relying on Python's ordinary substring search.
+
+    Parameters:
+        haystack: The text to search.
+        needle: The value being searched for.
+
+    Returns:
+        True if some same-length window of haystack matches needle, False otherwise.
+
+    Security considerations:
+        An ordinary `in` check is a variable-time operation on the very value this test exists to keep out of the response, so each candidate window is matched with hmac.compare_digest instead.
+    """
+    if not needle:
+        return True
+    encoded_haystack = haystack.encode()
+    encoded_needle = needle.encode()
+    width = len(encoded_needle)
+    return any(
+        hmac.compare_digest(encoded_haystack[start:start + width], encoded_needle)
+        for start in range(len(encoded_haystack) - width + 1)
+    )
 
 
 class TestSettingsWebLayer:
@@ -1288,7 +1316,7 @@ class TestSettingsWebLayer:
                     json={"provider": "ollama", "api_key": secret})
 
         raw = client.get("/api/settings").text
-        assert secret not in raw
+        assert not _contains_constant_time(raw, secret)
 
     def test_reveal_returns_the_full_key(self, api_client):
         """
@@ -1308,7 +1336,7 @@ class TestSettingsWebLayer:
 
         r = client.post("/api/settings/credentials/ollama/reveal", json={"index": 0})
         assert r.status_code == 200
-        assert r.json()["key"] == secret
+        assert hmac.compare_digest(r.json()["key"], secret)
 
     def test_reveal_out_of_range_is_a_400(self, api_client):
         """
@@ -1394,3 +1422,32 @@ class TestSettingsWebLayer:
         r = client.post("/api/settings/credentials",
                         json={"provider": "not-a-real-provider", "api_key": "x"})
         assert r.status_code == 400
+
+
+class TestConfiguredCheckLogging:
+    """
+    Purpose:
+        The line the provider check logs about whether a key is configured.
+    """
+    def test_the_log_line_never_carries_what_the_store_returned(self, monkeypatch, capsys):
+        """
+        Purpose:
+            Pin that the configured line is fixed text even when the credential check hands back the key itself.
+
+        Parameters:
+            monkeypatch: Selects a key-based provider and makes the credential check return a key rather than a flag.
+            capsys: Captures the terminal output.
+
+        Security considerations:
+            The check is meant to return a boolean, but formatting its result into the log would print a key the moment it returned one, and verbose logs get pasted into bug reports. The key here is invented.
+        """
+        from lu77U_MobileSec.config import credentials, user_settings
+        from lu77U_MobileSec.tools_checker import ollama_checker
+
+        monkeypatch.setattr(user_settings, "get_active_provider", lambda: "openai")
+        monkeypatch.setattr(user_settings, "get_provider_config", lambda _: {})
+        monkeypatch.setattr(credentials, "has_api_key", lambda _: ["sk-invented-0000"])
+        assert ollama_checker.check_ai_provider_configured(verbose=True)
+        out = capsys.readouterr().out
+        assert "Configured: True" in out
+        assert "sk-invented-0000" not in out

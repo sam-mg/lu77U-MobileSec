@@ -149,8 +149,8 @@ def _with_additional_properties_false(schema: Any) -> Any:
     return schema
 
 
-def _claude_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
-                  schema_path: Optional[Path], output_path: Optional[Path],
+def _claude_argv(p: "CLIBackedProvider", system_message: str, stdin_payload_unused: str,
+                  schema_path: Optional[Path], output_path_unused: Optional[Path],
                   session_id: Optional[str] = None) -> List[str]:
     """
     Purpose:
@@ -159,9 +159,9 @@ def _claude_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str
     Parameters:
         p: The provider, consulted for the resolved binary and the model.
         system_message: System prompt, where this CLI takes one as a flag.
-        stdin_payload: The prompt text, for CLIs that take it as an argument rather than on stdin.
+        stdin_payload_unused: The prompt text; unused here because Claude Code takes the prompt on stdin, which the caller supplies separately, but the parameter stays for the shared build_argv call shape every CLISpec entry shares.
         schema_path: Path to the schema file, where this CLI supports native schemas.
-        output_path: Path the CLI should write structured output to, where it supports that.
+        output_path_unused: Path the CLI should write structured output to; unused because this CLI reports on stdout, but the parameter stays for the shared build_argv call shape.
         session_id: Identifier for a new conversation, where this CLI accepts a caller-assigned one.
 
     Returns:
@@ -171,9 +171,8 @@ def _claude_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str
         Returned as a list and executed without a shell, so prompt text containing shell metacharacters is passed as data.
 
     Implementation notes:
-        Tools are disabled outright, safe mode is on, setting sources are cleared and permission prompts are answered without asking. Together these keep the CLI from reading the user's global configuration or taking file-system actions on behalf of a prompt that contains untrusted source. Session persistence is disabled when no session is in use, so a one-off analysis leaves nothing behind in the user's session history. The schema is passed as the file's contents rather than its path, which is what this CLI expects. stdin_payload is unused here because Claude Code takes the prompt on stdin, which the caller supplies separately.
+        Tools are disabled outright, safe mode is on, setting sources are cleared and permission prompts are answered without asking. Together these keep the CLI from reading the user's global configuration or taking file-system actions on behalf of a prompt that contains untrusted source. Session persistence is disabled when no session is in use, so a one-off analysis leaves nothing behind in the user's session history. The schema is passed as the file's contents rather than its path, which is what this CLI expects.
     """
-    del stdin_payload
     argv = [
         p.resolved_binary, "-p",
         "--output-format", "json",
@@ -195,8 +194,8 @@ def _claude_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str
     return argv
 
 
-def _claude_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
-                        schema_path: Optional[Path], output_path: Optional[Path],
+def _claude_resume_argv(p: "CLIBackedProvider", stdin_payload_unused: str,
+                        schema_path: Optional[Path], output_path_unused: Optional[Path],
                         session_id: str) -> List[str]:
     """
     Purpose:
@@ -204,9 +203,9 @@ def _claude_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
 
     Parameters:
         p: The provider, consulted for the resolved binary and the model.
-        stdin_payload: The prompt text, for CLIs that take it as an argument.
+        stdin_payload_unused: The prompt text; unused because this CLI's resume call takes it on stdin, but the parameter stays for the shared resume_argv call shape every CLISpec entry shares.
         schema_path: Path to the schema file, where supported.
-        output_path: Path for structured output, where supported.
+        output_path_unused: Path for structured output; unused because this CLI reports on stdout, but the parameter stays for the shared resume_argv call shape.
         session_id: The conversation to resume.
 
     Returns:
@@ -215,7 +214,6 @@ def _claude_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
     Implementation notes:
         The same hardening flags as a fresh call are repeated, because they are per-invocation rather than remembered with the session. The schema is re-sent on resume, since the CLI does not carry it across turns.
     """
-    del stdin_payload
     argv = [
         p.resolved_binary, "-p",
         "--output-format", "json",
@@ -232,14 +230,14 @@ def _claude_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
     return argv
 
 
-def _claude_extract(proc: subprocess.CompletedProcess, output_path: Optional[Path]) -> str:
+def _claude_extract(proc: subprocess.CompletedProcess, output_path_unused: Optional[Path]) -> str:
     """
     Purpose:
         Pull the answer out of Claude Code's JSON output.
 
     Parameters:
         proc: The completed process.
-        output_path: Unused; this CLI reports on stdout.
+        output_path_unused: Unused; this CLI reports on stdout, but the parameter stays for the shared extract call shape every CLISpec entry shares.
 
     Returns:
         The structured output as JSON text when present, otherwise the plain result text.
@@ -266,20 +264,20 @@ _COPILOT_DENIED_TOOLS = (
     "bash", "apply_patch", "write", "write_agent", "session_store_sql", "sql")
 
 
-def _copilot_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
-                  schema_path: Optional[Path], output_path: Optional[Path],
-                  session_id: Optional[str] = None) -> List[str]:
+def _copilot_argv(p: "CLIBackedProvider", system_message_unused: str, stdin_payload: str,
+                  schema_path_unused: Optional[Path], output_path_unused: Optional[Path],
+                  session_id_unused: Optional[str] = None) -> List[str]:
     """
     Purpose:
         Build the argument vector for a fresh GitHub Copilot invocation.
 
     Parameters:
         p: The provider, consulted for the resolved binary and the model.
-        system_message: System prompt, where this CLI takes one as a flag.
+        system_message_unused: System prompt; unused because this CLI has no system-prompt flag and the caller folds it into stdin_payload before calling, but the parameter stays for the shared build_argv call shape every CLISpec entry shares.
         stdin_payload: The prompt text, for CLIs that take it as an argument rather than on stdin.
-        schema_path: Path to the schema file, where this CLI supports native schemas.
-        output_path: Path the CLI should write structured output to, where it supports that.
-        session_id: Identifier for a new conversation, where this CLI accepts a caller-assigned one.
+        schema_path_unused: Path to the schema file; unused because this CLI has no native schema support, but the parameter stays for the shared build_argv call shape.
+        output_path_unused: Path the CLI should write structured output to; unused because this CLI reports on stdout, but the parameter stays for the shared build_argv call shape.
+        session_id_unused: Identifier for a new conversation; unused because this CLI assigns no caller-chosen identifier, but the parameter stays for the shared build_argv call shape.
 
     Returns:
         The argument vector.
@@ -290,7 +288,6 @@ def _copilot_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: st
     Implementation notes:
         The prompt is passed as an argument because this CLI does not read stdin. Every tool that could modify the machine is denied by name -- shell execution, patch application, file writes and SQL access -- since the prompt carries untrusted decompiled source and this CLI is otherwise willing to act on it. Builtin integrations are disabled for the same reason. Colour is disabled so the JSON event stream is not interleaved with escape sequences.
     """
-    del session_id
     argv = [p.resolved_binary, "--prompt", stdin_payload,
             "--output-format", "json", "--no-color", "--disable-builtin-mcps"]
     for tool in _COPILOT_DENIED_TOOLS:
@@ -301,8 +298,8 @@ def _copilot_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: st
 
 
 def _copilot_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
-                         schema_path: Optional[Path], output_path: Optional[Path],
-                         session_id: Optional[str] = None) -> List[str]:
+                         schema_path_unused: Optional[Path], output_path_unused: Optional[Path],
+                         session_id_unused: Optional[str] = None) -> List[str]:
     """
     Purpose:
         Build the argument vector that continues an existing GitHub Copilot conversation.
@@ -310,9 +307,9 @@ def _copilot_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
     Parameters:
         p: The provider, consulted for the resolved binary and the model.
         stdin_payload: The prompt text, for CLIs that take it as an argument.
-        schema_path: Path to the schema file, where supported.
-        output_path: Path for structured output, where supported.
-        session_id: The conversation to resume.
+        schema_path_unused: Path to the schema file; unused because this CLI has no native schema support, but the parameter stays for the shared resume_argv call shape every CLISpec entry shares.
+        output_path_unused: Path for structured output; unused because this CLI reports on stdout, but the parameter stays for the shared resume_argv call shape.
+        session_id_unused: The conversation to resume; unused because continuation uses the CLI's own most-recent-conversation flag rather than an explicit identifier, but the parameter stays for the shared resume_argv call shape.
 
     Returns:
         The argument vector.
@@ -320,7 +317,6 @@ def _copilot_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
     Implementation notes:
         Continuation uses the CLI's own most-recent-conversation flag rather than an explicit identifier, so the session id is read back only for bookkeeping. The tool denials are repeated, because they apply per invocation.
     """
-    del session_id
     argv = [p.resolved_binary, "--prompt", stdin_payload, "--continue",
             "--output-format", "json", "--no-color", "--disable-builtin-mcps"]
     for tool in _COPILOT_DENIED_TOOLS:
@@ -330,14 +326,14 @@ def _copilot_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
     return argv
 
 
-def _copilot_extract(proc: subprocess.CompletedProcess, output_path: Optional[Path]) -> str:
+def _copilot_extract(proc: subprocess.CompletedProcess, output_path_unused: Optional[Path]) -> str:
     """
     Purpose:
         Pull the assistant's answer out of Copilot's line-delimited JSON event stream.
 
     Parameters:
         proc: The completed process.
-        output_path: Unused.
+        output_path_unused: Unused, but the parameter stays for the shared extract call shape every CLISpec entry shares.
 
     Returns:
         The content of the last assistant message, or the raw stdout when no such event was found.
@@ -392,20 +388,20 @@ def _copilot_session_id(stdout: str) -> Optional[str]:
     return None
 
 
-def _kimi_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
-              schema_path: Optional[Path], output_path: Optional[Path],
-              session_id: Optional[str] = None) -> List[str]:
+def _kimi_argv(p: "CLIBackedProvider", system_message_unused: str, stdin_payload: str,
+              schema_path_unused: Optional[Path], output_path_unused: Optional[Path],
+              session_id_unused: Optional[str] = None) -> List[str]:
     """
     Purpose:
         Build the argument vector for a fresh Kimi invocation.
 
     Parameters:
         p: The provider, consulted for the resolved binary and the model.
-        system_message: System prompt, where this CLI takes one as a flag.
+        system_message_unused: System prompt; unused because this CLI has no system-prompt flag and the caller folds it into stdin_payload before calling, but the parameter stays for the shared build_argv call shape every CLISpec entry shares.
         stdin_payload: The prompt text, for CLIs that take it as an argument rather than on stdin.
-        schema_path: Path to the schema file, where this CLI supports native schemas.
-        output_path: Path the CLI should write structured output to, where it supports that.
-        session_id: Identifier for a new conversation, where this CLI accepts a caller-assigned one.
+        schema_path_unused: Path to the schema file; unused because this CLI has no native schema support, but the parameter stays for the shared build_argv call shape.
+        output_path_unused: Path the CLI should write structured output to; unused because this CLI reports on stdout, but the parameter stays for the shared build_argv call shape.
+        session_id_unused: Identifier for a new conversation; unused because this CLI assigns no caller-chosen identifier, but the parameter stays for the shared build_argv call shape.
 
     Returns:
         The argument vector.
@@ -416,7 +412,6 @@ def _kimi_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
     Implementation notes:
         The prompt is passed as an argument, and text output is requested rather than JSON because this CLI has no native schema support. The schema is instead described in the prompt by the caller.
     """
-    del session_id
     argv = [p.resolved_binary, "-p", stdin_payload, "--output-format", "text"]
     if p.model:
         argv += ["--model", p.model]
@@ -424,8 +419,8 @@ def _kimi_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
 
 
 def _kimi_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
-                      schema_path: Optional[Path], output_path: Optional[Path],
-                      session_id: Optional[str] = None) -> List[str]:
+                      schema_path_unused: Optional[Path], output_path_unused: Optional[Path],
+                      session_id_unused: Optional[str] = None) -> List[str]:
     """
     Purpose:
         Build the argument vector that continues an existing Kimi conversation.
@@ -433,9 +428,9 @@ def _kimi_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
     Parameters:
         p: The provider, consulted for the resolved binary and the model.
         stdin_payload: The prompt text, for CLIs that take it as an argument.
-        schema_path: Path to the schema file, where supported.
-        output_path: Path for structured output, where supported.
-        session_id: The conversation to resume.
+        schema_path_unused: Path to the schema file; unused because this CLI has no native schema support, but the parameter stays for the shared resume_argv call shape every CLISpec entry shares.
+        output_path_unused: Path for structured output; unused because this CLI reports on stdout, but the parameter stays for the shared resume_argv call shape.
+        session_id_unused: The conversation to resume; unused because continuation uses the CLI's own continue flag, so no identifier is tracked for this provider at all, but the parameter stays for the shared resume_argv call shape.
 
     Returns:
         The argument vector.
@@ -443,7 +438,6 @@ def _kimi_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
     Implementation notes:
         Continuation uses the CLI's own continue flag, so no identifier is tracked for this provider at all.
     """
-    del session_id
     argv = [p.resolved_binary, "-p", stdin_payload, "-c", "--output-format", "text"]
     if p.model:
         argv += ["--model", p.model]
@@ -453,14 +447,14 @@ def _kimi_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
 _KIMI_VERSION_BANNER_RE = re.compile(r"^kimi version \S+\s*\n", re.IGNORECASE)
 
 
-def _kimi_extract(proc: subprocess.CompletedProcess, output_path: Optional[Path]) -> str:
+def _kimi_extract(proc: subprocess.CompletedProcess, output_path_unused: Optional[Path]) -> str:
     """
     Purpose:
         Return Kimi's answer with its version banner removed.
 
     Parameters:
         proc: The completed process.
-        output_path: Unused.
+        output_path_unused: Unused, but the parameter stays for the shared extract call shape every CLISpec entry shares.
 
     Returns:
         The answer text.
@@ -473,7 +467,7 @@ def _kimi_extract(proc: subprocess.CompletedProcess, output_path: Optional[Path]
     return text.strip()
 
 
-def _codex_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
+def _codex_argv(p: "CLIBackedProvider", system_message_unused: str, stdin_payload_unused: str,
                 schema_path: Optional[Path], output_path: Optional[Path],
                 session_id: Optional[str] = None) -> List[str]:
     """
@@ -482,8 +476,8 @@ def _codex_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
 
     Parameters:
         p: The provider, consulted for the resolved binary and the model.
-        system_message: System prompt, where this CLI takes one as a flag.
-        stdin_payload: The prompt text, for CLIs that take it as an argument rather than on stdin.
+        system_message_unused: System prompt; unused because the system message is folded into the stdin payload by the caller, but the parameter stays for the shared build_argv call shape every CLISpec entry shares.
+        stdin_payload_unused: The prompt text; unused here because this CLI reads the prompt from the process's own stdin, which the caller supplies separately, but the parameter stays for the shared build_argv call shape.
         schema_path: Path to the schema file, where this CLI supports native schemas.
         output_path: Path the CLI should write structured output to, where it supports that.
         session_id: Identifier for a new conversation, where this CLI accepts a caller-assigned one.
@@ -495,9 +489,8 @@ def _codex_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
         Returned as a list and executed without a shell, so prompt text containing shell metacharacters is passed as data.
 
     Implementation notes:
-        Invoked in exec mode with a bare dash, which makes it read the prompt from stdin. The sandbox is set to read-only, which is this CLI's own containment rather than something imposed here. The git repository check is skipped because the working directory is a scratch directory and is deliberately not a repository. Ephemeral mode is used for one-off calls so no thread is persisted. Structured output goes to a file rather than stdout, which is why both a schema path and an output path are required before the flags are added. system_message and stdin_payload are unused: the system message is folded into the stdin payload by the caller, and the payload itself is written to the process rather than passed as an argument.
+        Invoked in exec mode with a bare dash, which makes it read the prompt from stdin. The sandbox is set to read-only, which is this CLI's own containment rather than something imposed here. The git repository check is skipped because the working directory is a scratch directory and is deliberately not a repository. Ephemeral mode is used for one-off calls so no thread is persisted. Structured output goes to a file rather than stdout, which is why both a schema path and an output path are required before the flags are added.
     """
-    del system_message, stdin_payload
     argv = [
         p.resolved_binary, "exec", "-",
         "--json",
@@ -513,7 +506,7 @@ def _codex_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
     return argv
 
 
-def _codex_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
+def _codex_resume_argv(p: "CLIBackedProvider", stdin_payload_unused: str,
                        schema_path: Optional[Path], output_path: Optional[Path],
                        session_id: str) -> List[str]:
     """
@@ -522,7 +515,7 @@ def _codex_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
 
     Parameters:
         p: The provider, consulted for the resolved binary and the model.
-        stdin_payload: The prompt text, for CLIs that take it as an argument.
+        stdin_payload_unused: The prompt text; unused here because this CLI's resume call reads the new turn from the process's own stdin, which the caller supplies separately, but the parameter stays for the shared resume_argv call shape every CLISpec entry shares.
         schema_path: Path to the schema file, where supported.
         output_path: Path for structured output, where supported.
         session_id: The conversation to resume.
@@ -533,7 +526,6 @@ def _codex_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
     Implementation notes:
         Resume takes the thread identifier positionally, followed by a bare dash so the new turn is still read from stdin. The sandbox flag is absent because it is fixed by the thread being resumed.
     """
-    del stdin_payload
     argv = [
         p.resolved_binary, "exec", "resume", session_id, "-",
         "--json",
@@ -594,20 +586,20 @@ def _codex_session_id(stdout: str) -> Optional[str]:
     return None
 
 
-def _antigravity_argv(p: "CLIBackedProvider", system_message: str, stdin_payload: str,
-                      schema_path: Optional[Path], output_path: Optional[Path],
-                      session_id: Optional[str] = None) -> List[str]:
+def _antigravity_argv(p: "CLIBackedProvider", system_message_unused: str, stdin_payload: str,
+                      schema_path: Optional[Path], output_path_unused: Optional[Path],
+                      session_id_unused: Optional[str] = None) -> List[str]:
     """
     Purpose:
         Build the argument vector for a fresh Antigravity invocation.
 
     Parameters:
         p: The provider, consulted for the resolved binary and the model.
-        system_message: System prompt, where this CLI takes one as a flag.
+        system_message_unused: System prompt; unused because this CLI has no system-prompt flag and the caller folds it into stdin_payload before calling, but the parameter stays for the shared build_argv call shape every CLISpec entry shares.
         stdin_payload: The prompt text, for CLIs that take it as an argument rather than on stdin.
         schema_path: Path to the schema file, where this CLI supports native schemas.
-        output_path: Path the CLI should write structured output to, where it supports that.
-        session_id: Identifier for a new conversation, where this CLI accepts a caller-assigned one.
+        output_path_unused: Path the CLI should write structured output to; unused because this CLI reports on stdout, but the parameter stays for the shared build_argv call shape.
+        session_id_unused: Identifier for a new conversation; unused because a fresh call opens no conversation yet, but the parameter stays for the shared build_argv call shape.
 
     Returns:
         The argument vector.
@@ -618,7 +610,6 @@ def _antigravity_argv(p: "CLIBackedProvider", system_message: str, stdin_payload
     Implementation notes:
         The prompt is passed as an argument, and the schema is passed by path rather than by contents -- the opposite of Claude Code, which is precisely the kind of difference the spec table exists to absorb.
     """
-    del session_id
     argv = [p.resolved_binary, "-p", stdin_payload, "--output-format", "json"]
     if p.model:
         argv += ["--model", p.model]
@@ -628,7 +619,7 @@ def _antigravity_argv(p: "CLIBackedProvider", system_message: str, stdin_payload
 
 
 def _antigravity_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
-                             schema_path: Optional[Path], output_path: Optional[Path],
+                             schema_path: Optional[Path], output_path_unused: Optional[Path],
                              session_id: str) -> List[str]:
     """
     Purpose:
@@ -638,7 +629,7 @@ def _antigravity_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
         p: The provider, consulted for the resolved binary and the model.
         stdin_payload: The prompt text, for CLIs that take it as an argument.
         schema_path: Path to the schema file, where supported.
-        output_path: Path for structured output, where supported.
+        output_path_unused: Path for structured output; unused because this CLI reports on stdout, but the parameter stays for the shared resume_argv call shape every CLISpec entry shares.
         session_id: The conversation to resume.
 
     Returns:
@@ -656,14 +647,14 @@ def _antigravity_resume_argv(p: "CLIBackedProvider", stdin_payload: str,
     return argv
 
 
-def _antigravity_extract(proc: subprocess.CompletedProcess, output_path: Optional[Path]) -> str:
+def _antigravity_extract(proc: subprocess.CompletedProcess, output_path_unused: Optional[Path]) -> str:
     """
     Purpose:
         Pull the answer out of Antigravity's JSON response.
 
     Parameters:
         proc: The completed process.
-        output_path: Unused.
+        output_path_unused: Unused, but the parameter stays for the shared extract call shape every CLISpec entry shares.
 
     Returns:
         The result or response field as text, or the raw stdout when neither is present or the output is not JSON.
@@ -846,15 +837,19 @@ class CLIBackedProvider(BaseAIProvider):
         if cwd is not None:
             shutil.rmtree(cwd, ignore_errors=True)
 
-    def default_model(self) -> str:
+    @classmethod
+    def default_model(cls) -> str:
         """
         Purpose:
             The model used when the user has configured none.
 
         Returns:
             The first model the spec lists, or an empty string when the CLI chooses for itself.
+
+        Implementation notes:
+            A classmethod because BaseAIProvider.__init__ calls it before the instance is fully built, and the answer depends only on the class-level spec. Reading the spec from the class rather than from self means the override can never observe a partially initialised instance; calling it on an instance still works exactly as before.
         """
-        return self.spec.models[0] if self.spec.models else ""
+        return cls.spec.models[0] if cls.spec.models else ""
 
     def supports_vision(self) -> bool:
         """

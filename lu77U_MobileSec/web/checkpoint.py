@@ -9,7 +9,7 @@ Responsibilities:
     Track the stage reached, store per-region agent state, and persist both durably.
 
 Dependencies:
-    The scan store, for the directory layout.
+    The scan store, for the directory layout, and the verbose module, for reporting checkpoint writes that fail.
 
 Implementation notes:
     A full scan can take an hour and cost real money in model calls, so losing it to a crash, a quota pause or a restart is expensive. Checkpointing makes that recoverable. Stages are ordered, and progress only moves forward, so an out-of-order mark cannot make a resumed scan repeat work it has already done.
@@ -20,10 +20,12 @@ Security considerations:
 
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..utils.verbose import verbose_print
 from . import store
 
 STAGES = ("decompiled", "sast_done", "agents_done")
@@ -80,7 +82,7 @@ def _write_json(path: Path, data: Any) -> None:
         Writes through a temporary file in the same directory and replaces the destination.
 
     Implementation notes:
-        Atomic because a checkpoint is written repeatedly while a scan is running, which is exactly when the process is most likely to be killed. A direct write interrupted partway would leave a truncated file, and the resume path would then discard real progress. The temporary file is created in the destination's own directory so the replacement is a rename within one filesystem, which is what makes it atomic.
+        Atomic because a checkpoint is written repeatedly while a scan is running, which is exactly when the process is most likely to be killed. A direct write interrupted partway would leave a truncated file, and the resume path would then discard real progress. The temporary file is created in the destination's own directory so the replacement is a rename within one filesystem, which is what makes it atomic. A failed write is logged and otherwise ignored: the scan carries on, and only its ability to resume from this point is lost.
     """
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -91,8 +93,8 @@ def _write_json(path: Path, data: Any) -> None:
             os.replace(tmp, path)
         finally:
             Path(tmp).unlink(missing_ok=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        verbose_print(f"Checkpoint could not be written to {path.name}: {exc}")
 
 
 class ScanCheckpoint:
@@ -324,16 +326,11 @@ class ScanCheckpoint:
             Recursively removes the stored progress.
 
         Implementation notes:
-            Called once a scan completes, so a finished scan does not offer to resume. Failures are swallowed, since a checkpoint left behind is harmless -- the next run over that scan would find stale progress, and the stage checks would simply redo the work.
+            Called once a scan completes, so a finished scan does not offer to resume. Removal runs with ignore_errors, so a failure leaves the directory behind rather than raising; that is harmless, since the next run over that scan would find stale progress and the stage checks would simply redo the work.
         """
         if self._dir is None or not self._dir.exists():
             return
-        try:
-            import shutil
-
-            shutil.rmtree(self._dir, ignore_errors=True)
-        except Exception:
-            pass
+        shutil.rmtree(self._dir, ignore_errors=True)
 
 
 def _safe(key: str) -> str:

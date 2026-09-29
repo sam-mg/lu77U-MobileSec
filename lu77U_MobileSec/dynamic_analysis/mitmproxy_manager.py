@@ -90,7 +90,7 @@ def ensure_macos_firewall_exception(verbose: bool = False) -> Tuple[bool, str]:
         Non-macOS platforms return success immediately, as do cases where the state is already permitted or cannot be read. Only a definite denial triggers the prompt, so the user is not asked for privileges unnecessarily. Without the exception, macOS silently drops the device's connections to the proxy and the whole interception check fails with no visible cause.
 
     Security considerations:
-        Adding a firewall exception requires elevated privileges and widens what this machine accepts. It is requested for the specific interpreter path rather than broadly, and only when the firewall has actually denied it.
+        Adding a firewall exception requires elevated privileges and widens what this machine accepts. It is requested for the specific interpreter path rather than broadly, and only when the firewall has actually denied it. The helper script is made owner-only (0o700) rather than world-readable, because osascript runs it as root and root only needs an execute bit to be set, so no other local user has any reason to read or run it.
     """
     if platform.system() != "Darwin":
         return True, "Not macOS; no firewall exception needed."
@@ -115,7 +115,7 @@ def ensure_macos_firewall_exception(verbose: bool = False) -> Tuple[bool, str]:
                 f'"{_SOCKETFILTERFW}" --unblockapp "{python_path}"\n'
             )
             script_path = f.name
-        os.chmod(script_path, 0o755)
+        os.chmod(script_path, 0o700)
         prompt = (f"{APP_NAME} needs a one-time firewall exception so mitmproxy "
                  "can accept HTTPS-interception connections from the test device.")
         applescript = (
@@ -233,7 +233,7 @@ class MitmproxyManager:
             Sends termination signals to matching processes.
 
         Implementation notes:
-            A previous scan that crashed or was killed leaves mitmdump holding the port, and the next start then fails with a bind error that looks like a configuration problem. Processes are matched on the exact port-bearing command line, so an unrelated mitmdump the user is running on another port is left alone. Each process id is checked as a digit string before conversion. A short pause follows, since the port is not free the instant the signal is sent.
+            A previous scan that crashed or was killed leaves mitmdump holding the port, and the next start then fails with a bind error that looks like a configuration problem. Processes are matched on the exact port-bearing command line, so an unrelated mitmdump the user is running on another port is left alone. Each process id is checked as a digit string before conversion. A process that has already exited is skipped silently, but one this user may not signal (typically a mitmdump started by another account) is logged, because it will keep holding the port and the next start will fail. A short pause follows, since the port is not free the instant the signal is sent.
         """
         try:
             result = subprocess.run(
@@ -247,8 +247,10 @@ class MitmproxyManager:
             try:
                 os.kill(int(pid_str), signal.SIGTERM)
                 verbose_print(f"Killed orphaned mitmdump process {pid_str}", self.verbose)
-            except (ProcessLookupError, PermissionError):
-                pass
+            except ProcessLookupError:
+                continue
+            except PermissionError as exc:
+                verbose_print(f"Could not kill orphaned mitmdump process {pid_str}: {exc}", self.verbose)
         if pids:
             time.sleep(0.3)
 

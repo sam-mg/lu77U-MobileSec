@@ -107,7 +107,7 @@ def list_used_cloud_models(host: str = DEFAULT_LOCAL_HOST) -> List[str]:
     return out
 
 def list_models_for_mode(
-    mode: str, host: str, api_key: Optional[str] = None,
+    mode: str, host: str, api_key_unused: Optional[str] = None,
     local_host: str = DEFAULT_LOCAL_HOST,
 ) -> List[str]:
     """
@@ -117,7 +117,7 @@ def list_models_for_mode(
     Parameters:
         mode: "local" or anything else, which is treated as cloud.
         host: Base URL for local mode.
-        api_key: Accepted for interface symmetry with other providers; unused, because the cloud list is assembled from local knowledge and a static fallback rather than fetched.
+        api_key_unused: Accepted for interface symmetry with other providers; unused, because the cloud list is assembled from local knowledge and a static fallback rather than fetched.
         local_host: Local server consulted in cloud mode to find already-pulled cloud models.
 
     Returns:

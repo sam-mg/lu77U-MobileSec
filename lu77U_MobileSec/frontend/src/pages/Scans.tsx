@@ -7,6 +7,16 @@ import { Card, EmptyState, Spinner } from "../components/ui";
 const FILTERS = ["all", "running", "paused", "completed", "failed", "cancelled"] as const;
 const FILTER_LABEL: Record<string, string> = { cancelled: "stopped" };
 
+/** Loose but real shape check on one parsed-JSON scan entry - enough to trust it before it is searched and filtered below. */
+function isScanMeta(value: unknown): value is ScanMeta {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === "string" &&
+    typeof (value as { status?: unknown }).status === "string"
+  );
+}
+
 export default function Scans() {
   const [scans, setScans] = useState<ScanMeta[] | null>(null);
   const [q, setQ] = useState("");
@@ -17,7 +27,8 @@ export default function Scans() {
     setRefreshing(true);
     try {
       const r = await api.listScans();
-      setScans(r.scans);
+      // Validate the fetched list right where it enters the component, so the search/filter memo below never has to trust unverified JSON.
+      setScans(Array.isArray(r.scans) ? r.scans.filter(isScanMeta) : []);
     } catch {
       setScans([]);
     } finally {
@@ -43,8 +54,7 @@ export default function Scans() {
     setScans((cur) => (cur ? cur.filter((s) => s.id !== id) : cur));
   }
 
-  // Pause / Stop / Resume act at once - all three are recoverable, so no
-  // confirmation (only Delete, the one irreversible action, keeps its prompt).
+  // Pause / Stop / Resume act at once - all three are recoverable, so no confirmation (only Delete, the one irreversible action, keeps its prompt).
   const pause = (id: string) => api.pauseScan(id).catch(() => {}).finally(load);
   const stop = (id: string) => api.stopScan(id).catch(() => {}).finally(load);
   const resume = (id: string) => api.resumeScan(id).catch(() => {}).finally(load);

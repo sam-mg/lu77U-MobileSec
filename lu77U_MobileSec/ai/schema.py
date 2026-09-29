@@ -18,7 +18,6 @@ Security considerations:
     The schema is the only thing constraining what a model may put into a report. The length caps bound a hostile or degenerate response, and the enum on vuln_class -- when the taxonomy loaded -- keeps classification within a known set. Everything a model returns remains untrusted text that the renderer must still escape.
 """
 
-import json as _json
 import re as _re
 from typing import Optional, Tuple
 

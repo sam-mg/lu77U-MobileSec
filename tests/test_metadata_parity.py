@@ -21,7 +21,7 @@ from lu77U_MobileSec.ai.schema import VULNERABILITY_SCHEMA
 from lu77U_MobileSec.analyzers.sast.findings import (
     SastFinding, default_cvss_vector, to_scan_finding)
 from lu77U_MobileSec.utils.cvss import severity_from_vector
-from lu77U_MobileSec.validation import build_chains, validate_findings
+from lu77U_MobileSec.validation import validate_findings
 
 
 class TestSastDefaultVector:

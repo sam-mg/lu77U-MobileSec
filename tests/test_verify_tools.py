@@ -61,15 +61,15 @@ class FakeADB:
         """
         self.commands = []
 
-    def shell(self, device, command, timeout=20):
+    def shell(self, _, command, **__):
         """
         Purpose:
             Record one shell command and return a successful result.
 
         Parameters:
-            device: The device serial, unused here.
+            _: The device serial, ignored.
             command: The command as it would be sent to the device.
-            timeout: The command timeout, unused here.
+            __: The keyword options the real bridge accepts, such as the timeout, ignored.
 
         Returns:
             A successful result.
@@ -85,16 +85,13 @@ class FakeFrida:
     Purpose:
         An instrumentation runner that reports success without touching a device.
     """
-    def run_script(self, adb, device, package, script):
+    def run_script(self, *_):
         """
         Purpose:
             Pretend to run an instrumentation script.
 
         Parameters:
-            adb: The device bridge, unused here.
-            device: The device serial, unused here.
-            package: The target package, unused here.
-            script: The script text, unused here.
+            _: The positional arguments the real runner takes (the device bridge, the device serial, the target package and the script text), ignored.
 
         Returns:
             A success flag and a fixed output string.

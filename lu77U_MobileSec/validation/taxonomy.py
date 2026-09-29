@@ -12,7 +12,7 @@ Dependencies:
     dataclasses only.
 
 Implementation notes:
-    A single code drives three separate things: the CWE and OWASP identifiers that appear in the report, whether the finding survives gating on its own, and what evidence the AI is told to produce. Asking the model for one code rather than three related identifiers is both easier to get right and impossible to make self-contradictory. The standalone flag is the substantive judgement encoded here. Several classes -- missing pinning, cleartext capability, an unencrypted database, backup extractability -- describe a weakness that is only a finding when something else makes it reachable. Marking them non-standalone is what stops a report padding itself with configuration observations presented as vulnerabilities. The proof strings are written as instructions to the model and are deliberately specific about what would distinguish a real finding from a theoretical one.
+    A single code drives three separate things: the CWE and OWASP identifiers that appear in the report, whether the finding survives gating on its own, and what evidence the AI is told to produce. Asking the model for one code rather than three related identifiers is both easier to get right and impossible to make self-contradictory. The standalone flag is the substantive judgement encoded here. Several classes -- missing pinning, cleartext capability, an unencrypted database, backup extractability -- describe a weakness that is only a finding when something else makes it reachable. Marking them non-standalone is what stops a report padding itself with configuration observations presented as vulnerabilities. The proof strings are written as instructions to the model and are deliberately specific about what would distinguish a real finding from a theoretical one. The public surface is declared in __all__ because some of it, ALL_CODES in particular, is read only by importers and would otherwise look unused to static analysis.
 
 Security considerations:
     This table decides what gets reported and how severe it looks. Marking a class standalone that should not be inflates reports with noise; the reverse silently suppresses real findings.
@@ -20,6 +20,18 @@ Security considerations:
 
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
+
+__all__ = [
+    "VulnClass",
+    "VULN_CLASSES",
+    "BY_CODE",
+    "ALL_CODES",
+    "BY_GROUP",
+    "describe",
+    "is_standalone",
+    "required_proof",
+    "schema_hint",
+]
 
 
 @dataclass(frozen=True)

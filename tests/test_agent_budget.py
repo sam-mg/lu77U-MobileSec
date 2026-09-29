@@ -77,18 +77,14 @@ class _Provider:
         """
         return self._unavailable
 
-    def analyze(self, prompt, system_message=None, schema=None, images=None, max_tokens=None, session_key=None):
+    def analyze(self, *args_unused, **kwargs_unused):
         """
         Purpose:
             Answer one turn and count the call.
 
         Parameters:
-            prompt: The turn prompt, unused here.
-            system_message: The system prompt, unused here.
-            schema: The requested response schema, unused here.
-            images: Attached images, unused here.
-            max_tokens: The response limit, unused here.
-            session_key: The conversation key, unused here.
+            args_unused: The prompt and any other positional arguments the loop calls with, ignored.
+            kwargs_unused: The system message, schema, images, token limit and session key the loop calls with, ignored.
 
         Returns:
             The next scripted response, or the listing action once the script is spent.
@@ -369,14 +365,14 @@ class TestDeadlineCrediting:
             """
             name = "test"
 
-            def analyze(self, *a, **kw):
+            def analyze(self, *args_unused, **kwargs_unused):
                 """
                 Purpose:
                     Answer any turn with an empty finding list.
 
                 Parameters:
-                    a: Positional arguments, ignored.
-                    kw: Keyword arguments, ignored.
+                    args_unused: Positional arguments, ignored.
+                    kwargs_unused: Keyword arguments, ignored.
 
                 Returns:
                     A response holding an empty JSON list.
@@ -504,7 +500,8 @@ class TestBudgetSetting:
         """
         monkeypatch.setattr(
             user_settings, "load",
-            lambda *a, **kw: {"agent_budget": {"max_steps_per_region": "lots"}})
+            lambda *args_unused, **kwargs_unused: {
+                "agent_budget": {"max_steps_per_region": "lots"}})
         budget = user_settings.get_agent_budget()
         assert budget["max_steps_per_region"] == (
             user_settings.DEFAULT_SETTINGS["agent_budget"]["max_steps_per_region"])
@@ -532,24 +529,18 @@ class TestFanoutBudget:
 
         seen = []
 
-        def _recorder(provider, source_root, signals, code_graph=None, profile=None,
-                      is_cancelled=None, verbose=False, max_steps=None,
-                      deadline=None, telemetry=None):
+        def _recorder(*args_unused, max_steps=None, deadline=None, telemetry=None,
+                      **kwargs_unused):
             """
             Purpose:
                 Stand in for the agent loop and record the budgets each region was given.
 
             Parameters:
-                provider: The AI provider, unused here.
-                source_root: The decompiled source root, unused here.
-                signals: The static pre-pass signals, unused here.
-                code_graph: The code graph for the region, unused here.
-                profile: The framework profile, unused here.
-                is_cancelled: The cancellation callback, unused here.
-                verbose: The verbosity flag, unused here.
+                args_unused: The provider, source root and static signals the fan-out passes positionally, ignored.
                 max_steps: The step budget the fan-out handed this region.
                 deadline: The time budget the fan-out handed this region.
                 telemetry: The mapping the loop reports its outcome through.
+                kwargs_unused: The code graph, profile, cancellation callback and verbosity flag the fan-out passes by keyword, ignored.
 
             Returns:
                 An empty finding list, a success flag and an empty error string.
@@ -587,24 +578,15 @@ class TestFanoutBudget:
         from lu77U_MobileSec.analyzers.agent.profiles import JAVA_KOTLIN
         from test_fanout import _graph
 
-        def _recorder(provider, source_root, signals, code_graph=None, profile=None,
-                      is_cancelled=None, verbose=False, max_steps=None,
-                      deadline=None, telemetry=None):
+        def _recorder(*args_unused, telemetry=None, **kwargs_unused):
             """
             Purpose:
                 Stand in for the agent loop and report every region as stopped by an unavailable provider.
 
             Parameters:
-                provider: The AI provider, unused here.
-                source_root: The decompiled source root, unused here.
-                signals: The static pre-pass signals, unused here.
-                code_graph: The code graph for the region, unused here.
-                profile: The framework profile, unused here.
-                is_cancelled: The cancellation callback, unused here.
-                verbose: The verbosity flag, unused here.
-                max_steps: The step budget the fan-out handed this region.
-                deadline: The time budget the fan-out handed this region.
+                args_unused: The provider, source root and static signals the fan-out passes positionally, ignored.
                 telemetry: The mapping the loop reports its outcome through.
+                kwargs_unused: The code graph, profile, cancellation callback, verbosity flag, step budget and deadline the fan-out passes by keyword, ignored.
 
             Returns:
                 An empty finding list, a success flag and an empty error string.
@@ -642,24 +624,15 @@ class TestFanoutBudget:
         from lu77U_MobileSec.analyzers.agent.profiles import JAVA_KOTLIN
         from test_fanout import _graph
 
-        def _recorder(provider, source_root, signals, code_graph=None, profile=None,
-                      is_cancelled=None, verbose=False, max_steps=None,
-                      deadline=None, telemetry=None):
+        def _recorder(*args_unused, telemetry=None, **kwargs_unused):
             """
             Purpose:
                 Stand in for the agent loop and report every region as having submitted its report.
 
             Parameters:
-                provider: The AI provider, unused here.
-                source_root: The decompiled source root, unused here.
-                signals: The static pre-pass signals, unused here.
-                code_graph: The code graph for the region, unused here.
-                profile: The framework profile, unused here.
-                is_cancelled: The cancellation callback, unused here.
-                verbose: The verbosity flag, unused here.
-                max_steps: The step budget the fan-out handed this region.
-                deadline: The time budget the fan-out handed this region.
+                args_unused: The provider, source root and static signals the fan-out passes positionally, ignored.
                 telemetry: The mapping the loop reports its outcome through.
+                kwargs_unused: The code graph, profile, cancellation callback, verbosity flag, step budget and deadline the fan-out passes by keyword, ignored.
 
             Returns:
                 An empty finding list, a success flag and an empty error string.

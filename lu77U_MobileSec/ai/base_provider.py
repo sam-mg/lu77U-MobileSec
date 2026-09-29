@@ -21,6 +21,7 @@ Security considerations:
     Providers hold live API keys in memory for their lifetime. Transcripts written by log_exchange contain the full prompt, including decompiled application source, and are written in plaintext beside the APK.
 """
 
+import contextlib
 import json
 import threading
 from abc import ABC, abstractmethod
@@ -139,14 +140,14 @@ class BaseAIProvider(ABC):
         """
         self._throttle_observers.append(fn)
 
-    def on_throttled(self, exc: Optional[BaseException] = None,
+    def on_throttled(self, exc_unused: Optional[BaseException] = None,
                      blocked_s: float = 0.0) -> None:
         """
         Purpose:
             Record a throttling response and permanently narrow this provider to a single in-flight request.
 
         Parameters:
-            exc: The throttling exception, accepted for interface completeness and currently unused.
+            exc_unused: The throttling exception, accepted for interface completeness and currently unused.
             blocked_s: Seconds spent blocked, added to the usage counters.
 
         Side effects:
@@ -165,10 +166,8 @@ class BaseAIProvider(ABC):
             self.usage["failed_attempt_seconds"] += blocked
             self.usage["wall_clock_s"] += blocked
         for observer in list(self._throttle_observers):
-            try:
+            with contextlib.suppress(Exception):
                 observer(blocked_s)
-            except Exception:
-                pass
         should_start = False
         with self._gate_lock:
             if not self._gate_shrink_started.is_set():
@@ -303,7 +302,7 @@ class BaseAIProvider(ABC):
         get_path = getattr(self.output_manager, "get_llm_metrics_path", None)
         if not callable(get_path):
             return
-        try:
+        with contextlib.suppress(Exception):
             row = {
                 "ts": datetime.now().isoformat(),
                 "region": threading.current_thread().name,
@@ -322,8 +321,6 @@ class BaseAIProvider(ABC):
             with self._metrics_file_lock:
                 with open(get_path(), "a", encoding="utf-8") as f:
                     f.write(json.dumps(row) + "\n")
-        except Exception:
-            pass
 
     def log_exchange(
         self,
@@ -603,10 +600,8 @@ class BaseAIProvider(ABC):
             self.usage["calls"] += 1
             if not ok:
                 self.usage["failed"] += 1
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 self.usage["wall_clock_s"] += float(elapsed or 0.0)
-            except (TypeError, ValueError):
-                pass
             for field, key in (("prompt_eval_count", "prompt_tokens"),
                                ("eval_count", "completion_tokens"),
                                ("cache_read_tokens", "cache_read_tokens"),

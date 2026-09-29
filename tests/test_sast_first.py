@@ -15,8 +15,6 @@ Implementation notes:
     This exists because of a real scan where the deterministic pass found 66 issues across 26 files in 15 seconds, and the agent, given no worklist, then spent 48 minutes and opened one of those 26 files.
 """
 
-import pytest
-
 from lu77U_MobileSec.analyzers.agent.leads import (
     Lead, leads_from_findings, render_leads)
 
@@ -435,19 +433,18 @@ class TestSastRunsBeforeTheAgent:
             The analyzer and its output directory.
         """
         import lu77U_MobileSec.analyzers.java_kotlin_analyzer as jk_mod
-        from lu77U_MobileSec.analyzers.java_kotlin_analyzer import JavaKotlinAnalyzer
 
-        analyzer = JavaKotlinAnalyzer()
+        analyzer = jk_mod.JavaKotlinAnalyzer()
         jadx_dir = tmp_path / "jadx_out"
         jadx_dir.mkdir()
 
-        def _fake_decompile(apk_path):
+        def _fake_decompile(apk_path_unused):
             """
             Purpose:
                 Point the analyzer at the prepared output directory without decompiling anything.
 
             Parameters:
-                apk_path: The application file, unused here.
+                apk_path_unused: The application file, unused here.
 
             Returns:
                 True, reporting success.
@@ -459,7 +456,7 @@ class TestSastRunsBeforeTheAgent:
             return True
 
         monkeypatch.setattr(analyzer, "decompile_apk", _fake_decompile)
-        monkeypatch.setattr(jk_mod, "get_active_provider", lambda **kw: object())
+        monkeypatch.setattr(jk_mod, "get_active_provider", lambda **_: object())
         return analyzer, jadx_dir
 
     def test_order_is_sast_then_agent(self, tmp_path, monkeypatch):
@@ -474,14 +471,14 @@ class TestSastRunsBeforeTheAgent:
         analyzer, jadx_dir = self._analyzer(tmp_path, monkeypatch)
         order = []
 
-        def _fake_sast(source_root, apk_path=None):
+        def _fake_sast(source_root_unused, **_):
             """
             Purpose:
                 Record that the deterministic pass ran and return nothing.
 
             Parameters:
-                source_root: The decompiled source root, unused here.
-                apk_path: The application file, unused here.
+                source_root_unused: The decompiled source root, unused here.
+                _: The keyword arguments the real run_sast accepts (apk_path), ignored.
 
             Returns:
                 An empty finding list.
@@ -492,16 +489,15 @@ class TestSastRunsBeforeTheAgent:
             order.append("sast")
             return []
 
-        def _fake_run_agent(source_root, code_graph, framework_label=None, leads=None):
+        def _fake_run_agent(source_root_unused, code_graph_unused, **_):
             """
             Purpose:
                 Record that the agent ran and return nothing.
 
             Parameters:
-                source_root: The decompiled source root, unused here.
-                code_graph: The code graph, unused here.
-                framework_label: The framework name, unused here.
-                leads: The worklist built from the static pass.
+                source_root_unused: The decompiled source root, unused here.
+                code_graph_unused: The code graph, unused here.
+                _: The framework label and worklist the real run_agent accepts, ignored.
 
             Returns:
                 An empty finding list, a success flag and an empty transcript.
@@ -516,7 +512,7 @@ class TestSastRunsBeforeTheAgent:
         monkeypatch.setattr(analyzer, "run_agent", _fake_run_agent)
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.agent.code_graph.build_code_graph",
-            lambda *a, **kw: None)
+            lambda *_, **__: None)
 
         apk_path = str(tmp_path / "fake.apk")
         result = analyzer.analyze_java_kotlin_apk(apk_path, defer_cleanup=True)
@@ -538,20 +534,20 @@ class TestSastRunsBeforeTheAgent:
 
         monkeypatch.setattr(
             analyzer, "run_sast",
-            lambda source_root, apk_path=None: [
+            lambda source_root_unused, **_: [
                 {"title": "Hardcoded AES key", "file": "A.java", "line_number": 8,
                  "severity": "High", "detector": "secrets", "confidence": "HIGH"}])
 
-        def _fake_run_agent(source_root, code_graph, framework_label=None, leads=None):
+        def _fake_run_agent(source_root_unused, code_graph_unused, leads=None, **_):
             """
             Purpose:
                 Record the worklist the agent was given and return nothing.
 
             Parameters:
-                source_root: The decompiled source root, unused here.
-                code_graph: The code graph, unused here.
-                framework_label: The framework name, unused here.
+                source_root_unused: The decompiled source root, unused here.
+                code_graph_unused: The code graph, unused here.
                 leads: The worklist built from the static pass.
+                _: The framework label the real run_agent accepts, ignored.
 
             Returns:
                 An empty finding list, a success flag and an empty transcript.
@@ -565,7 +561,7 @@ class TestSastRunsBeforeTheAgent:
         monkeypatch.setattr(analyzer, "run_agent", _fake_run_agent)
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.agent.code_graph.build_code_graph",
-            lambda *a, **kw: None)
+            lambda *_, **__: None)
 
         analyzer.analyze_java_kotlin_apk(str(tmp_path / "fake.apk"), defer_cleanup=True)
 
@@ -590,18 +586,17 @@ class TestSastRunsBeforeTheAgent:
 
         monkeypatch.setattr(
             analyzer, "run_sast",
-            lambda source_root, apk_path=None: [dict(shared, severity="Low")])
+            lambda source_root_unused, **_: [dict(shared, severity="Low")])
 
-        def _fake_run_agent(source_root, code_graph, framework_label=None, leads=None):
+        def _fake_run_agent(source_root_unused, code_graph_unused, **_):
             """
             Purpose:
                 Report the shared issue at a higher severity, attributed to the agent.
 
             Parameters:
-                source_root: The decompiled source root, unused here.
-                code_graph: The code graph, unused here.
-                framework_label: The framework name, unused here.
-                leads: The worklist built from the static pass.
+                source_root_unused: The decompiled source root, unused here.
+                code_graph_unused: The code graph, unused here.
+                _: The framework label and worklist the real run_agent accepts, ignored.
 
             Returns:
                 The one finding, a success flag and an empty transcript.
@@ -611,7 +606,7 @@ class TestSastRunsBeforeTheAgent:
         monkeypatch.setattr(analyzer, "run_agent", _fake_run_agent)
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.agent.code_graph.build_code_graph",
-            lambda *a, **kw: None)
+            lambda *_, **__: None)
 
         result = analyzer.analyze_java_kotlin_apk(
             str(tmp_path / "fake.apk"), defer_cleanup=True)
@@ -639,20 +634,20 @@ class TestSastRunsBeforeTheAgent:
 
         monkeypatch.setattr(
             analyzer, "run_sast",
-            lambda source_root, apk_path=None: [
+            lambda source_root_unused, **_: [
                 {"title": "SAST finding", "file": "A.java", "line": "1",
                  "severity": "Medium", "detector": "secrets"}])
         monkeypatch.setattr(
             analyzer, "run_agent",
-            lambda source_root, code_graph, framework_label=None, leads=None: ([], False, ""))
+            lambda source_root_unused, code_graph_unused, **_: ([], False, ""))
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.agent.code_graph.build_code_graph",
-            lambda *a, **kw: None)
+            lambda *_, **__: None)
         monkeypatch.setattr(
             analyzer, "extract_files_for_analysis",
             lambda: {"java_files": {"A.java": "class A {}"}})
         monkeypatch.setattr(
-            analyzer, "analyze_files_for_vulnerabilities", lambda files: [])
+            analyzer, "analyze_files_for_vulnerabilities", lambda files_unused: [])
 
         result = analyzer.analyze_java_kotlin_apk(
             str(tmp_path / "fake.apk"), defer_cleanup=True)
@@ -679,19 +674,18 @@ class TestAndroguardJadxOverlap:
             monkeypatch: Replaces the decompilation, the provider lookup, both phases, the early pass and the graph build.
         """
         import lu77U_MobileSec.analyzers.java_kotlin_analyzer as jk_mod
-        from lu77U_MobileSec.analyzers.java_kotlin_analyzer import JavaKotlinAnalyzer
 
-        analyzer = JavaKotlinAnalyzer()
+        analyzer = jk_mod.JavaKotlinAnalyzer()
         jadx_dir = tmp_path / "jadx_out"
         jadx_dir.mkdir()
 
-        def _fake_decompile(apk_path):
+        def _fake_decompile(apk_path_unused):
             """
             Purpose:
                 Point the analyzer at the prepared output directory without decompiling anything.
 
             Parameters:
-                apk_path: The application file, unused here.
+                apk_path_unused: The application file, unused here.
 
             Returns:
                 True, reporting success.
@@ -703,31 +697,28 @@ class TestAndroguardJadxOverlap:
             return True
 
         monkeypatch.setattr(analyzer, "decompile_apk", _fake_decompile)
-        monkeypatch.setattr(jk_mod, "get_active_provider", lambda **kw: object())
-        monkeypatch.setattr(analyzer, "run_sast", lambda source_root, apk_path=None: [])
+        monkeypatch.setattr(jk_mod, "get_active_provider", lambda **_: object())
+        monkeypatch.setattr(analyzer, "run_sast", lambda source_root_unused, **_: [])
         monkeypatch.setattr(
             analyzer, "run_agent",
-            lambda source_root, code_graph, framework_label=None, leads=None: ([], True, ""))
+            lambda source_root_unused, code_graph_unused, **_: ([], True, ""))
 
         sentinel = object()
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.agent.code_graph.analyze_apk_for_code_graph",
-            lambda apk_path, verbose=False: sentinel)
+            lambda apk_path_unused, verbose_unused=False: sentinel)
 
         received = {}
 
-        def _fake_build_code_graph(apk_path, jadx_output_dir=None, verbose=False,
-                                   preloaded=None, leads=None):
+        def _fake_build_code_graph(apk_path_unused, preloaded=None, **_):
             """
             Purpose:
                 Record what the graph build was handed and return no graph.
 
             Parameters:
-                apk_path: The application file, unused here.
-                jadx_output_dir: The decompiled output directory, unused here.
-                verbose: The verbosity flag, unused here.
+                apk_path_unused: The application file, unused here.
                 preloaded: The result of the early pass, recorded.
-                leads: The worklist, unused here.
+                _: The decompiled output directory, verbosity flag and worklist the real build_code_graph accepts, ignored.
 
             Returns:
                 Nothing, standing in for a graph that could not be built.
@@ -759,19 +750,18 @@ class TestAndroguardJadxOverlap:
             The early pass is an optimisation, so its failure has to cost time rather than the scan.
         """
         import lu77U_MobileSec.analyzers.java_kotlin_analyzer as jk_mod
-        from lu77U_MobileSec.analyzers.java_kotlin_analyzer import JavaKotlinAnalyzer
 
-        analyzer = JavaKotlinAnalyzer()
+        analyzer = jk_mod.JavaKotlinAnalyzer()
         jadx_dir = tmp_path / "jadx_out"
         jadx_dir.mkdir()
 
-        def _fake_decompile(apk_path):
+        def _fake_decompile(apk_path_unused):
             """
             Purpose:
                 Point the analyzer at the prepared output directory without decompiling anything.
 
             Parameters:
-                apk_path: The application file, unused here.
+                apk_path_unused: The application file, unused here.
 
             Returns:
                 True, reporting success.
@@ -783,17 +773,17 @@ class TestAndroguardJadxOverlap:
             return True
 
         monkeypatch.setattr(analyzer, "decompile_apk", _fake_decompile)
-        monkeypatch.setattr(jk_mod, "get_active_provider", lambda **kw: object())
-        monkeypatch.setattr(analyzer, "run_sast", lambda source_root, apk_path=None: [])
+        monkeypatch.setattr(jk_mod, "get_active_provider", lambda **_: object())
+        monkeypatch.setattr(analyzer, "run_sast", lambda source_root_unused, **_: [])
         monkeypatch.setattr(
             analyzer, "run_agent",
-            lambda source_root, code_graph, framework_label=None, leads=None: ([], True, ""))
+            lambda source_root_unused, code_graph_unused, **_: ([], True, ""))
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.agent.code_graph.analyze_apk_for_code_graph",
-            lambda apk_path, verbose=False: None)
+            lambda apk_path_unused, verbose_unused=False: None)
         monkeypatch.setattr(
             "lu77U_MobileSec.analyzers.agent.code_graph.build_code_graph",
-            lambda *a, **kw: None)
+            lambda *_, **__: None)
 
         result = analyzer.analyze_java_kotlin_apk(
             str(tmp_path / "fake.apk"), defer_cleanup=True)

@@ -109,8 +109,9 @@ SECRET_PATTERNS: Tuple[SecretPattern, ...] = (
        r"(?i)twilio[_\-]?auth[_\-]?token['\"\s:=]+['\"]?([a-f0-9]{32})['\"]?", "High"),
     _p("Twilio Account SID", r"AC[a-f0-9]{32}", "Medium"),
 
-    _p("GitHub Token", r"gh[ps]_[A-Za-z0-9]{36}", "High"),
+    _p("GitHub Token", r"gh[psur]_[A-Za-z0-9]{36}", "High"),
     _p("GitHub OAuth Token", r"gho_[A-Za-z0-9]{36}", "High"),
+    _p("GitHub Fine-Grained Token", r"github_pat_[A-Za-z0-9]{22}_[A-Za-z0-9]{59}", "High"),
     _p("GitLab Token", r"glpat-[A-Za-z0-9\-]{20}", "High"),
 
     _p("RSA Private Key", r"-----BEGIN (?:RSA )?PRIVATE KEY-----", "Critical"),

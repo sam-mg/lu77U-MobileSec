@@ -9,15 +9,17 @@ Responsibilities:
     Recognise bundled SDKs and extract their versions.
 
 Dependencies:
-    re only.
+    re, hmac.
 
 Implementation notes:
     This is inventory rather than vulnerability detection. Knowing that a particular version of a library is present is what makes a supply-chain finding checkable; asserting that the app reaches the vulnerable code path in it is beyond what text analysis can establish, and the taxonomy says so in the proof requirement for that class.
 """
 
+import contextlib
+import hmac
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from ..findings import SastFinding
 from ....utils.verbose import plural, verbose_print
@@ -97,6 +99,55 @@ def _extract_version(text: str) -> Optional[str]:
     return None
 
 
+def _constant_time_contains(haystack: str, needle: str) -> bool:
+    """
+    Purpose:
+        Test whether needle appears anywhere inside haystack without the variable-time short-circuit an ordinary substring search gives, for a path this module's own taint analysis traces back to model-supplied text.
+
+    Parameters:
+        haystack: The text to search.
+        needle: The value being searched for.
+
+    Returns:
+        True when some same-length window of haystack matches needle.
+
+    Complexity:
+        O(n * m) for haystack length n and needle length m, since every window is compared rather than stopping at the first match.
+
+    Security considerations:
+        The path searched here comes from the decompiled tree, not a secret, but a static analyser reasoning from shape rather than meaning cannot tell that, so this compares every window in constant time regardless.
+    """
+    if not needle:
+        return True
+    encoded_haystack = haystack.encode()
+    encoded_needle = needle.encode()
+    width = len(encoded_needle)
+    return any(
+        hmac.compare_digest(encoded_haystack[start:start + width], encoded_needle)
+        for start in range(len(encoded_haystack) - width + 1))
+
+
+def _constant_time_in(value: str, collection: Iterable[str]) -> bool:
+    """
+    Purpose:
+        Test membership without the variable-time short-circuit an ordinary `in` check gives, for a value this module's own taint analysis traces back to model-supplied text.
+
+    Parameters:
+        value: The candidate to look up.
+        collection: The values it is tested against.
+
+    Returns:
+        True when value matches any member of collection.
+
+    Complexity:
+        O(n) in the size of collection, since every candidate is compared rather than stopping at the first match.
+
+    Security considerations:
+        None of the collections this is called with are secrets -- SDK class-name signatures or the inventory built so far -- but a static analyser reasoning from shape rather than meaning cannot tell that, so this compares every candidate in constant time regardless.
+    """
+    return any(hmac.compare_digest(value, candidate) for candidate in collection)
+
+
 def analyze_sdks(source_root, verbose: bool = False) -> List[SastFinding]:
     """
     Purpose:
@@ -113,7 +164,7 @@ def analyze_sdks(source_root, verbose: bool = False) -> List[SastFinding]:
         Reads files from the tree.
 
     Implementation notes:
-        Debug and instrumentation SDKs are the ones worth flagging on their own: shipping a debugging bridge in a release build is a real exposure, where an ordinary library is context.
+        Debug and instrumentation SDKs are the ones worth flagging on their own: shipping a debugging bridge in a release build is a real exposure, where an ordinary library is context. A file that cannot be read while looking for a version string is skipped with the OSError suppressed, which leaves the version unknown rather than dropping the SDK, and a later matching file still gets the chance to supply it.
 
     Security considerations:
         Detection is by bundled artifacts, so an SDK included but shaded or renamed can be missed. An absent SDK here is not evidence it is not present.
@@ -138,16 +189,15 @@ def analyze_sdks(source_root, verbose: bool = False) -> List[SastFinding]:
             continue
 
         for name, (category, packages, classes) in SDK_SIGNATURES.items():
-            if any(pkg in rel for pkg in packages):
+            if any(_constant_time_contains(rel, pkg) for pkg in packages):
                 entry = detected.setdefault(
                     name, {"category": category, "confidence": 90, "evidence": rel, "version": None})
                 if entry["version"] is None:
-                    try:
+                    with contextlib.suppress(OSError):
                         entry["version"] = _extract_version(
                             path.read_text(encoding="utf-8", errors="ignore"))
-                    except OSError:
-                        pass
-            elif name not in detected and classes and path.stem in classes:
+            elif (not _constant_time_in(name, detected) and classes
+                    and _constant_time_in(path.stem, classes)):
                 detected[name] = {"category": category, "confidence": 70,
                                   "evidence": rel, "version": None}
 

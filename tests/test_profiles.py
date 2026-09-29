@@ -203,7 +203,7 @@ class TestFlutterProfile:
             A Flutter binary has no readable manifest, and the object pool is where the strings a reviewer would look for, such as endpoints, actually live.
         """
         tools = AgentTools(flutter_tree, profile=FLUTTER)
-        assert "api.example.com" in tools.manifest_summary()
+        assert '"https://api.example.com/secret"' in tools.manifest_summary()
         assert tools.profile.summary_label == "Dart object pool (pp.txt)"
 
     def test_resource_files_lists_pp_txt(self, flutter_tree):

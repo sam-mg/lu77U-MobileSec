@@ -16,6 +16,7 @@ Security considerations:
 """
 
 import asyncio
+import contextlib
 import json
 import os
 import re
@@ -371,7 +372,7 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
         Subscribes to the scan's event stream for the life of the connection.
 
     Implementation notes:
-        Streaming rather than polling, because a scan emits progress continuously and polling at a useful rate would be both wasteful and laggy. The polling status endpoint remains for clients that cannot hold a socket open. The subscription is released when the connection closes, so a disconnected client does not leave a queue accumulating events for the rest of the scan.
+        Streaming rather than polling, because a scan emits progress continuously and polling at a useful rate would be both wasteful and laggy. The polling status endpoint remains for clients that cannot hold a socket open. The subscription is released when the connection closes, so a disconnected client does not leave a queue accumulating events for the rest of the scan. On cancellation the socket is closed with any error suppressed, because the peer may already have closed it and closing an already-closed socket is not an error worth reporting.
     """
     jobs = websocket.app.state.jobs
     await websocket.accept()
@@ -386,10 +387,8 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
     except WebSocketDisconnect:
         pass
     except asyncio.CancelledError:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close()
-        except Exception:
-            pass
     except Exception:
         pass
     finally:

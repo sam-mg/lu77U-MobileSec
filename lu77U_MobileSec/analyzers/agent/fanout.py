@@ -18,9 +18,9 @@ Thread-safety:
     Workers run concurrently against a shared provider, which bounds its own concurrency internally. Per-region state is per worker; the shared result and coverage structures are written under the provider's own coordination and collected after the workers finish.
 """
 
+import contextlib
 import contextvars
 import threading
-import time
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from .budget import Deadline
@@ -331,12 +331,12 @@ def run_surface_agents(
         Makes many provider requests across several threads, and records per-region checkpoints.
 
     Implementation notes:
-        A shared deadline bounds the whole phase, and it is registered as a throttle observer on the provider, so time the workers spend blocked on rate limiting is credited back rather than counted against the analysis. Without that, a throttling provider would silently reduce coverage rather than just taking longer. Regions with resumable checkpoint state are skipped or resumed rather than repeated, which is what makes an interrupted scan cheap to continue. Empty subgraphs are dropped before workers are started, so no agent is launched with nothing to examine. Coverage is recorded whether or not every region finished, because the report needs to state what was examined regardless of how the phase ended.
+        A shared deadline bounds the whole phase, and it is registered as a throttle observer on the provider, so time the workers spend blocked on rate limiting is credited back rather than counted against the analysis. Without that, a throttling provider would silently reduce coverage rather than just taking longer. Regions with resumable checkpoint state are skipped or resumed rather than repeated, which is what makes an interrupted scan cheap to continue. The opening progress announcement is best-effort and any failure delivering it, ScanCancelled included, is suppressed, because each worker polls is_cancelled before starting its region and that is where a stop request takes effect. Empty subgraphs are dropped before workers are started, so no agent is launched with nothing to examine. Coverage is recorded whether or not every region finished, because the report needs to state what was examined regardless of how the phase ended.
     """
     from .agent_loop import run_agent_analysis
 
     is_cancelled = is_cancelled or (lambda: False)
-    progress = progress or (lambda *a, **kw: None)
+    progress = progress or (lambda *unused_a, **unused_kw: None)
 
     budget = user_settings.get_agent_budget()
     max_steps = budget.get("max_steps_per_region") or None
@@ -397,13 +397,11 @@ def run_surface_agents(
     verbose_print(
         f"AI phase budget: up to {total} x {max_steps or 'unlimited'} model calls"
         + (f", capped at {minutes} min" if minutes else ", no time cap"), verbose)
-    try:
+    with contextlib.suppress(Exception):
         progress("agentic", PROGRESS_START,
                  f"Examining {plural(total, 'code region')} - up to "
                  f"{total * max_steps if max_steps else 'unlimited'} model calls"
                  + (f", {minutes} min cap" if minutes else ""))
-    except Exception:
-        pass
 
     tokens_before = getattr(provider, "usage", {}).get("completion_tokens", 0)
 
@@ -424,8 +422,11 @@ def run_surface_agents(
         Side effects:
             Makes provider requests, writes a region checkpoint, and records the result.
 
+        Raises:
+            BaseException: A KeyboardInterrupt, SystemExit or other non-Exception raised by the region, after it has been recorded on the region's result.
+
         Implementation notes:
-            Failures are captured into the region's result rather than propagated, so one region failing costs its findings rather than the whole phase -- and the coverage record shows which region it was. The thread is named after the region, which is how the provider attributes transcripts and cost per region.
+            Failures are captured into the region's result rather than propagated, so one region failing costs its findings rather than the whole phase -- and the coverage record shows which region it was. Only ordinary exceptions are absorbed that way; a BaseException such as KeyboardInterrupt or SystemExit is recorded and then re-raised, because it is a request to stop the process rather than a region failure and must not be downgraded to an error line. ScanCancelled is an ordinary exception and is recorded like any other failure, then re-raised by the caller after the join. The completion progress update in the finally block is best-effort and suppresses every Exception, ScanCancelled included, because cancellation reaches the caller through result.error and is_cancelled rather than through this callback. The thread is named after the region, which is how the provider attributes transcripts and cost per region.
         """
         result = results[index]
         result.nodes = len(subgraph.nodes)
@@ -468,20 +469,19 @@ def run_surface_agents(
             result.findings = findings or []
             result.completed_ok = bool(ok)
             result.transcript = transcript or ""
+        except Exception as exc:
+            result.error = exc
         except BaseException as exc:
             result.error = exc
+            raise
         finally:
             with lock:
                 done[0] += 1
                 pct = PROGRESS_START + int(
                     (PROGRESS_END - PROGRESS_START) * done[0] / max(total, 1))
-                try:
+                with contextlib.suppress(Exception):
                     progress("agentic", pct,
                              f"Region {done[0]}/{total} complete - {surface.key}")
-                except ScanCancelled:
-                    pass
-                except Exception:
-                    pass
 
     threads = []
     for index, (surface, subgraph) in enumerate(assignments):

@@ -53,15 +53,15 @@ async def _lifespan(app: FastAPI):
         Registers a log sink, starts a background task, may open a browser, and on shutdown cancels running scans.
 
     Implementation notes:
-        The browser is opened on a short delay rather than immediately, so the server is accepting connections by the time the page loads and the user does not meet a connection error. Shutdown cancels the background task and waits for it, then cancels active scans and unregisters the log sink. Leaving the sink registered would keep a reference to a dead application and route later log lines into it.
+        Startup reconciliation of scans interrupted by a previous shutdown is attempted but never fatal: a failure is logged and the server still starts, because a dashboard that refuses to come up is worse than one showing a stale scan as running. The browser is opened on a short delay rather than immediately, so the server is accepting connections by the time the page loads and the user does not meet a connection error. Shutdown cancels the background task and waits for it through asyncio.gather, then cancels active scans and unregisters the log sink. Leaving the sink registered would keep a reference to a dead application and route later log lines into it.
     """
     app.state.jobs.bind_loop(asyncio.get_running_loop())
 
     try:
         app.state.jobs.reconcile_orphans()
         app.state.jobs.auto_resume_interrupted()
-    except Exception:
-        pass
+    except Exception as exc:
+        verbose_mod.verbose_print(f"Startup reconciliation of interrupted scans failed: {exc}", app.state.jobs.verbose)
 
     async def _quota_resume_loop():
         """
@@ -72,16 +72,12 @@ async def _lifespan(app: FastAPI):
             Wakes on an interval and asks the job manager to resume eligible scans.
 
         Implementation notes:
-            A quota pause is expected to clear on its own when the provider's window rolls over, so a scan that hit one is paused rather than failed and this loop restarts it. Without that, a long scan would be lost to a limit that resolved itself minutes later. Cancellation is re-raised so shutdown can stop the task; every other exception is swallowed, because a failure in one resume attempt must not end the loop and leave every later pause stranded.
+            A quota pause is expected to clear on its own when the provider's window rolls over, so a scan that hit one is paused rather than failed and this loop restarts it. Without that, a long scan would be lost to a limit that resolved itself minutes later. Every Exception is suppressed, because a failure in one resume attempt must not end the loop and leave every later pause stranded. Cancellation still stops the task at shutdown: asyncio.CancelledError derives from BaseException, not Exception, so it passes straight through the suppress.
         """
         while True:
-            try:
+            with contextlib.suppress(Exception):
                 await asyncio.sleep(_QUOTA_RESUME_CHECK_INTERVAL_S)
                 app.state.jobs.resume_expired_quota_pauses()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                pass
 
     quota_resume_task = asyncio.create_task(_quota_resume_loop())
 
@@ -119,7 +115,7 @@ async def _lifespan(app: FastAPI):
 
     quota_resume_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
-        await quota_resume_task
+        await asyncio.gather(quota_resume_task)
     app.state.jobs.cancel_all_active()
     sink = getattr(app.state, "_log_sink", None)
     if sink is not None:

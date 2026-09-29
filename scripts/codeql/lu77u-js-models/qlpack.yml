@@ -1,0 +1,6 @@
+library: false
+name: lu77u/js-models
+version: 0.0.1
+dependencies:
+  codeql/javascript-all: 2.10.2
+extractor: javascript

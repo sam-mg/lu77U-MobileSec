@@ -18,7 +18,9 @@ Security considerations:
     This module downloads an executable from the internet and runs it as root on a device. The archive's published checksum is fetched and verified before extraction; a mismatch discards the download. The checksum comes from the same origin as the binary, so this defends against corruption and tampering in transit rather than against a compromised release. Running frida-server as root gives complete control of the device, and the app under test is untrusted. This belongs only on a device dedicated to analysis.
 """
 
+import contextlib
 import hashlib
+import hmac
 import lzma
 import json
 import re
@@ -52,15 +54,13 @@ def _pinned_frida_version() -> str:
         The installed bindings' version, or a known-good fallback.
 
     Implementation notes:
-        Read from the installed frida package so client and server always match. The version is pattern-checked before use, because it becomes part of a download URL and a filename. The fallback is a specific known-good release rather than the latest, so an environment without the bindings still gets a server that works with the tools.
+        Read from the installed frida package so client and server always match. The version is pattern-checked before use, because it becomes part of a download URL and a filename. The fallback is a specific known-good release rather than the latest, so an environment without the bindings still gets a server that works with the tools. Only ImportError and OSError are suppressed: those are how a missing package or a native library that fails to load surface, and the version is coerced to str so the pattern check itself cannot raise.
     """
-    try:
+    with contextlib.suppress(ImportError, OSError):
         import frida
-        version = getattr(frida, "__version__", "") or ""
+        version = str(getattr(frida, "__version__", "") or "")
         if _VERSION_RE.match(version):
             return version
-    except Exception:
-        pass
     return "16.7.19"
 
 
@@ -231,7 +231,7 @@ class FridaManager:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 expected_hash = resp.read().decode().split()[0].lower()
             actual_hash = hashlib.sha256(archive_path.read_bytes()).hexdigest()
-            if actual_hash != expected_hash:
+            if not hmac.compare_digest(actual_hash, expected_hash):
                 verbose_print(
                     f"SHA256 mismatch for Frida archive: expected {expected_hash}, got {actual_hash}",
                     self.verbose)
@@ -469,7 +469,7 @@ class FridaManager:
             Creates a port forward, attaches to or spawns the app, injects and runs the script, then detaches and cleans up.
 
         Implementation notes:
-            Attaching is tried first and spawning is the fallback, so an already-running app is instrumented in place and one that is not is started. A spawned process is resumed explicitly, since Frida spawns suspended. Messages are collected through a callback rather than returned by the script, which is how Frida's script channel works; errors are captured through the same channel and labelled. The run duration is clamped at both ends, so a caller cannot ask for an instant run that captures nothing or an unbounded one that hangs the pipeline. Output is truncated, because a hooking script on a busy app can emit a great deal. Cleanup -- detach, remote device removal, forward removal -- runs in a finally block with each step individually guarded, so a failure during teardown cannot mask the script's result.
+            Attaching is tried first and spawning is the fallback, so an already-running app is instrumented in place and one that is not is started. A spawned process is resumed explicitly, since Frida spawns suspended. Messages are collected through a callback rather than returned by the script, which is how Frida's script channel works; errors are captured through the same channel and labelled. The run duration is clamped at both ends, so a caller cannot ask for an instant run that captures nothing or an unbounded one that hangs the pipeline. Output is truncated, because a hooking script on a busy app can emit a great deal. Teardown -- script unload, then detach, remote device removal and forward removal in a finally block -- has each step individually guarded with contextlib.suppress, so a failure during teardown cannot mask the script's result.
 
         Security considerations:
             This injects code into a running untrusted app on a rooted device. The script source comes from this tool, not from the app, but the output it returns is attacker-influenced and must be treated as untrusted text.
@@ -495,14 +495,14 @@ class FridaManager:
 
         messages = []
 
-        def _on_message(message, _data):
+        def _on_message(message, data_unused):
             """
             Purpose:
                 Collect messages the injected script sends back.
 
             Parameters:
                 message: The Frida message object.
-                _data: Binary payload, unused.
+                data_unused: Binary payload, unused.
 
             Side effects:
                 Appends to the enclosing message list.
@@ -536,29 +536,21 @@ class FridaManager:
             script.on("message", _on_message)
             script.load()
             time.sleep(max(1, min(int(timeout), 60)))
-            try:
+            with contextlib.suppress(Exception):
                 script.unload()
-            except Exception:
-                pass
             output = "\n".join(messages).strip() or "(script ran; no send() output emitted)"
             return True, output[:8000]
         except Exception as exc:
             return False, f"Frida script failed: {exc}"
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 if session is not None:
                     session.detach()
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 frida.get_device_manager().remove_remote_device(address)
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 adb_manager.run_adb(["forward", "--remove", f"tcp:{local_port}"],
                                     device=device, timeout=10)
-            except Exception:
-                pass
 
     def setup_and_verify(self, adb_manager, device: str,
                          has_root: bool) -> Tuple[bool, str]:

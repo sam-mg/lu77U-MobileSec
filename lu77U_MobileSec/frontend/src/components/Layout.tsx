@@ -21,14 +21,13 @@ export default function Layout() {
     api.version().then((v) => setVersion(v.version)).catch(() => {});
   }, []);
 
-  // A summoned layer must not trap the user: close it on navigation, on
-  // Escape, and lock the page behind it while it is open.
+  // A summoned layer must not trap the user: close it on navigation, on Escape, and lock the page behind it while it is open.
   useEffect(() => {
     setNavOpen(false);
   }, [pathname]);
 
   useEffect(() => {
-    if (!navOpen) return;
+    if (!navOpen) return () => {};
     const restore = document.activeElement as HTMLElement | null;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -45,23 +44,9 @@ export default function Layout() {
   }, [navOpen]);
 
   return (
-    // No `h-full`: with it (and index.css's `html,body,#root{height:100%}`)
-    // this container resolved to exactly 100vh, so the sticky aside/header
-    // below had zero scroll travel inside it and just scrolled away with the
-    // page. `min-h-screen` alone lets it grow with content instead.
+    // No `h-full`: with it (and index.css's `html,body,#root{height:100%}`) this container resolved to exactly 100vh, so the sticky aside/header below had zero scroll travel inside it and just scrolled away with the page. `min-h-screen` alone lets it grow with content instead.
     <div className="min-h-screen bg-ink-950">
-      {/* Sidebar - fixed, not sticky: pulled out of flow entirely so it never
-          moves, matching the mobile drawer's own `fixed` positioning below.
-          `backdrop-blur` because page content now scrolls BENEATH this
-          translucent (`bg-ink-900/60`) panel, same treatment the header
-          already uses for the same reason. `top-[var(--app-banner-h,0px)]`
-          instead of the `0` half of `inset-y-0`: `fixed` is anchored to the
-          true viewport regardless of this element's position in the
-          document flow, so anything rendered above the app in normal flow
-          (the demo build's banner) would otherwise sit BEHIND this panel's
-          left 16rem rather than push it down. The variable defaults to
-          `0px` and is only ever set by the demo build, so the real app's
-          layout is unaffected. */}
+      {/* Sidebar - fixed, not sticky: pulled out of flow entirely so it never moves, matching the mobile drawer's own `fixed` positioning below. `backdrop-blur` because page content now scrolls BENEATH this translucent (`bg-ink-900/60`) panel, same treatment the header already uses for the same reason. `top-[var(--app-banner-h,0px)]` instead of the `0` half of `inset-y-0`: `fixed` is anchored to the true viewport regardless of this element's position in the document flow, so anything rendered above the app in normal flow (the demo build's banner) would otherwise sit BEHIND this panel's left 16rem rather than push it down. The variable defaults to `0px` and is only ever set by the demo build, so the real app's layout is unaffected. */}
       <aside className="fixed left-0 top-[var(--app-banner-h,0px)] bottom-0 z-30 hidden w-64 flex-col overflow-y-auto border-r border-ink-800 bg-ink-900/60 p-4 pl-[max(1rem,env(safe-area-inset-left))] backdrop-blur md:flex">
         <SidebarBody status={status} version={version} />
       </aside>
@@ -98,8 +83,7 @@ export default function Layout() {
         </aside>
       </div>
 
-      {/* Main - `md:pl-64` clears the fixed aside on desktop; `main`'s own
-          `mx-auto max-w-7xl` centres inside whatever space is left. */}
+      {/* Main - `md:pl-64` clears the fixed aside on desktop; `main`'s own `mx-auto max-w-7xl` centres inside whatever space is left. */}
       <div className="flex min-h-screen min-w-0 flex-col md:pl-64">
         <header className="sticky top-[var(--app-banner-h,0px)] z-10 flex h-16 items-center justify-between gap-3 border-b border-ink-800 bg-ink-950/80 px-5 pl-[max(1.25rem,env(safe-area-inset-left))] backdrop-blur md:px-8">
           <div className="flex min-w-0 items-center gap-1.5 md:hidden">
@@ -168,8 +152,7 @@ function SidebarBody({ status, version, onNavigate }: { status: AnalysisStatus |
         >
           <Github className="h-3.5 w-3.5 shrink-0" /> GitHub
         </a>
-        {/* slate-600 is ~2.2:1 at 11px - fails outright. slate-500 (~3.7:1)
-            still isn't enough below 18pt, so this is the floor: slate-400. */}
+        {/* slate-600 is ~2.2:1 at 11px - fails outright. slate-500 (~3.7:1) still isn't enough below 18pt, so this is the floor: slate-400. */}
         <div className="px-2 text-[11px] text-slate-400">v{version || __APP_VERSION__}</div>
       </div>
     </>

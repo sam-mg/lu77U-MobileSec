@@ -9,7 +9,7 @@ Responsibilities:
     Scan the APK's classes, classify roles from the manifest, record sinks and strings, resolve call edges, tie classes back to decompiled files, and prune what is not worth examining.
 
 Dependencies:
-    androguard's analysis object, the ownership classifier, the pattern tables, the call graph.
+    androguard's analysis object, the ownership classifier, the pattern tables, the vendor and sink tables in graph_tables, the call graph.
 
 Implementation notes:
     Without a graph the agent can only read files in some order and hope. With one it can start at the app's entry points, follow calls, and know which classes touch a sink before opening them -- which is the difference between examining an app and sampling it. Nodes are built from the bytecode rather than from the decompiled source, because the bytecode is complete and reliable while decompilation partly fails on most real apps. Source paths are then attached where they resolve, so the agent can read what the graph points at. Only the app's own classes are included. The platform and bundled libraries would dominate the graph, and neither is code the app owner can change.
@@ -18,11 +18,13 @@ Security considerations:
     Everything here is derived from an untrusted APK. The graph decides what the agent examines, so a class wrongly pruned is never analysed at all -- which is why pruning is restricted to nodes with no role, no edges and no signals.
 """
 
+import contextlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from .graph_tables import SINK_FAMILIES as _SINK_FAMILIES, VENDOR_PREFIXES as _VENDOR_PREFIXES
 from .patterns import (MAX_STRINGS_PER_NODE as _MAX_STRINGS_PER_NODE, SECRET_RE as _SECRET_RE)
 from ...utils.verbose import plural, verbose_print
 
@@ -32,46 +34,6 @@ _FRAMEWORK_PREFIXES = (
     "Lorg/xmlpull/", "Lorg/apache/", "Lorg/json/", "Lorg/w3c/", "Lorg/xml/",
     "Lorg/hamcrest/", "Ljunit/", "Lorg/junit/",
 )
-
-_VENDOR_PREFIXES = (
-    "Lokhttp3/", "Lokio/", "Lretrofit2/", "Lcom/squareup/", "Lcom/google/gson/",
-    "Lorg/chromium/", "Lcom/fasterxml/",
-    "Lio/reactivex/", "Lrx/", "Lcom/jakewharton/",
-    "Lcom/appsflyer/", "Lcom/adjust/", "Lcom/mixpanel/", "Lcom/amplitude/",
-    "Lcom/segment/", "Lcom/clevertap/", "Lcom/braze/", "Lcom/appboy/",
-    "Lcom/onesignal/", "Lio/branch/", "Lcom/moengage/", "Lcom/netcore/",
-    "Lio/sentry/", "Lcom/bugsnag/", "Lcom/crashlytics/", "Lcom/newrelic/",
-    "Lcom/instabug/", "Lcom/datadog/",
-    "Lcom/facebook/", "Ltwitter4j/", "Lcom/paypal/", "Lcom/stripe/",
-    "Lcom/razorpay/", "Lcom/phonepe/", "Lorg/npci/",
-    "Lco/hyperverge/", "Lcom/onfido/", "Lcom/jumio/", "Lcom/regula/",
-    "Lcom/bumptech/", "Lcom/airbnb/", "Lcom/github/", "Lde/hdodenhof/",
-    "Lcom/theartofdev/", "Lcom/scottyab/", "Lcom/journeyapps/",
-    "Lorg/greenrobot/", "Lbutterknife/", "Ldagger/", "Ljavax/inject/",
-    "Lcom/mikepenz/", "Lcom/nostra13/", "Lcom/tencent/", "Lcom/alibaba/",
-    "Lcom/huawei/", "Lcom/xiaomi/", "Lcom/miui/",
-    "Lcom/facebook/stetho/", "Lcom/facebook/flipper/", "Lleakcanary/",
-    "Lcom/squareup/leakcanary/",
-)
-
-_SINK_FAMILIES: Dict[str, Tuple[str, ...]] = {
-    "sql": ("->execSQL", "->rawQuery", "SQLiteDatabase;->query", "->compileStatement"),
-    "prefs": ("SharedPreferences", "getDefaultSharedPreferences"),
-    "logging": ("Landroid/util/Log;",),
-    "crypto": ("Ljavax/crypto/Cipher;", "MessageDigest;", "SecretKeySpec",
-               "IvParameterSpec", "Ljava/security/"),
-    "webview": ("->loadUrl", "->loadData", "addJavascriptInterface",
-                "setJavaScriptEnabled", "->evaluateJavascript", "setAllowFileAccess"),
-    "runtime": ("Ljava/lang/Runtime;->exec", "ProcessBuilder"),
-    "storage": ("getExternalStorage", "->openFileOutput", "MODE_WORLD",
-                "getExternalFilesDir", "Landroid/os/Environment;"),
-    "uri": ("->getLastPathSegment", "->getQueryParameter"),
-    "native": ("Ljava/lang/System;->loadLibrary", "Ljava/lang/System;->load"),
-    "ipc": ("->getStringExtra", "->getData", "->getSerializableExtra",
-            "->getParcelableExtra"),
-    "display": ("Landroid/widget/TextView;->setText",),
-}
-
 
 _JS_BRIDGE_ANNOTATIONS = ("@android.webkit.JavascriptInterface", "@JavascriptInterface")
 _JS_BRIDGE_METHOD_RE = re.compile(
@@ -685,14 +647,13 @@ def vendor_sdk_for_path(rel_path: str) -> Optional[str]:
     return None
 
 
-def _is_app_class(desc: str, package: str) -> bool:
+def _is_app_class(desc: str) -> bool:
     """
     Purpose:
         Whether a class belongs to the application.
 
     Parameters:
         desc: The descriptor.
-        package: The app's package.
 
     Returns:
         True for application code.
@@ -760,7 +721,7 @@ def build_code_graph(apk_path: str, jadx_output_dir=None,
         Parses the APK unless one was preloaded, and reads the decompiled tree.
 
     Implementation notes:
-        The preloaded analysis is what lets the caller start APK parsing in the background while decompilation runs, since the two are independent and doing them in sequence adds minutes to every scan of a large app. Ownership classification runs first, since everything after it operates on the app's own classes only. Manifest roles are applied before scanning, so a class known to be exported is flagged even if its code touches nothing recognisable -- an entry point matters regardless of what it contains. Source paths are resolved against the decompiled tree rather than assumed from the package, because the decompiler renames colliding and invalid class names. Pruning happens last and is deliberately conservative: only nodes with no edges, no role, no signals and no intent actions are dropped, and files named by the leads are protected outright.
+        The preloaded analysis is what lets the caller start APK parsing in the background while decompilation runs, since the two are independent and doing them in sequence adds minutes to every scan of a large app. Ownership classification runs first, since everything after it operates on the app's own classes only. Manifest roles are applied before scanning, so a class known to be exported is flagged even if its code touches nothing recognisable -- an entry point matters regardless of what it contains. Source paths are resolved against the decompiled tree rather than assumed from the package, because the decompiler renames colliding and invalid class names. Pruning happens last and is deliberately conservative: only nodes with no edges, no role, no signals and no intent actions are dropped, and files named by the leads are protected outright. A manifest component list that cannot be read is logged and skipped, since the component names only sharpen ownership seeding and the graph is still useful without them. The synthetic-class check tolerates only AttributeError, because androguard hands back an ExternalClass with no access flags for a class it cannot see the definition of, and such a class is kept rather than dropped; any other failure there propagates to the outer handler instead of silently changing which classes are analysed.
     """
     try:
         if preloaded is not None:
@@ -782,8 +743,8 @@ def build_code_graph(apk_path: str, jadx_output_dir=None,
         for getter in ("get_activities", "get_services", "get_receivers", "get_providers"):
             try:
                 components.extend(getattr(a, getter)() or [])
-            except Exception:
-                pass
+            except Exception as exc:
+                verbose_print(f"Manifest {getter} could not be read: {exc}", verbose)
         verdict = classify_packages(dx, package, manifest_components=components,
                                     verbose=verbose)
         owner = verdict["owner"]
@@ -800,12 +761,10 @@ def build_code_graph(apk_path: str, jadx_output_dir=None,
             desc = c.name
             if not is_app_descriptor(desc, owner):
                 continue
-            try:
+            with contextlib.suppress(AttributeError):
                 if c.get_vm_class().get_access_flags() & _ACC_SYNTHETIC:
                     synthetic_skipped += 1
                     continue
-            except Exception:
-                pass
             app_descriptors.append(desc)
             short = _descriptor_to_short(desc)
             base = short.split("$", 1)[0]
@@ -827,7 +786,7 @@ def build_code_graph(apk_path: str, jadx_output_dir=None,
             if c.extends and (is_outer or not node.extends):
                 node.extends = _descriptor_to_short(str(c.extends))
 
-            _scan_class(c, node, package, native_by_class,
+            _scan_class(c, node, native_by_class,
                         node_key=key, raw_calls=raw_calls.setdefault(key, set()),
                         vendor_hops=vendor_hops)
 
@@ -1114,7 +1073,7 @@ def _manifest_roles(a) -> Tuple[Dict[str, str], Dict[str, List[str]]]:
                 actions[name] = [x for x in acts if x and x != "MAIN"]
     return roles, actions
 
-def _scan_class(c, node: CodeNode, package: str, native_by_class: Dict[str, bool],
+def _scan_class(c, node: CodeNode, native_by_class: Dict[str, bool],
                 node_key: str = "", raw_calls: Optional[set] = None,
                 vendor_hops: Optional[Dict[str, set]] = None) -> None:
     """
@@ -1124,7 +1083,6 @@ def _scan_class(c, node: CodeNode, package: str, native_by_class: Dict[str, bool
     Parameters:
         c: The class analysis.
         node: The node to populate.
-        package: The app's package.
         native_by_class: Which classes load native libraries.
         node_key: This node's key, used when recording its outgoing edges.
         raw_calls: Collects the call targets found, resolved into edges later.
@@ -1138,7 +1096,6 @@ def _scan_class(c, node: CodeNode, package: str, native_by_class: Dict[str, bool
     """
     if raw_calls is None:
         raw_calls = set()
-    app_prefix = "L" + package.replace(".", "/") + "/" if package else None
     for m in c.get_methods():
         mname = m.name
         if mname not in ("<init>", "<clinit>") and mname not in node.methods:

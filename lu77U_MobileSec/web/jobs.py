@@ -19,6 +19,7 @@ Thread-safety:
 """
 
 import asyncio
+import contextlib
 import os
 import threading
 import time
@@ -258,7 +259,7 @@ class JobManager:
             Appends to the backlog and enqueues to each subscriber.
 
         Implementation notes:
-            A bounded backlog is kept per scan so a client connecting mid-scan receives recent history rather than starting blank. The bound matters: a verbose scan emits thousands of lines, and an unbounded backlog would hold them all in memory for the life of the process. Subscribers are snapshotted under the lock and delivered to outside it, so a slow or stuck consumer cannot block the worker thread that produced the event. Delivery uses a thread-safe handoff into the loop, because this is called from worker threads. Failures are swallowed per subscriber, so a disconnected client cannot break delivery to the others.
+            A bounded backlog is kept per scan so a client connecting mid-scan receives recent history rather than starting blank. The bound matters: a verbose scan emits thousands of lines, and an unbounded backlog would hold them all in memory for the life of the process. Subscribers are snapshotted under the lock and delivered to outside it, so a slow or stuck consumer cannot block the worker thread that produced the event. Delivery uses a thread-safe handoff into the loop, because this is called from worker threads. Failures are suppressed per subscriber, so a disconnected client cannot break delivery to the others. They are deliberately not logged: this runs on the log-sink path (verbose_print, the application sink, emit_log), so logging here would recurse back into the same delivery.
         """
         if not scan_id:
             return None
@@ -271,10 +272,8 @@ class JobManager:
             subs = list(self._subscribers.get(scan_id, ()))
         if self._loop is not None:
             for queue in subs:
-                try:
+                with contextlib.suppress(Exception):
                     self._loop.call_soon_threadsafe(queue.put_nowait, event)
-                except Exception:
-                    pass
         return event
 
     def emit_log(self, scan_id: Optional[str], message: str) -> None:

@@ -20,9 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ..agent.code_graph import CodeGraph, CodeNode
-from ..agent.patterns import (MAX_STRINGS_PER_NODE as _MAX_STRINGS_PER_NODE,
-                              SECRET_RE as _SECRET_RE,
-                              STRING_LITERAL_RE as _STRING_LITERAL_RE)
+from ..agent.patterns import (SECRET_RE as _SECRET_RE, STRING_LITERAL_RE as _STRING_LITERAL_RE)
 from ...utils.verbose import plural, verbose_print
 
 _SINK_FAMILIES: Dict[str, tuple] = {

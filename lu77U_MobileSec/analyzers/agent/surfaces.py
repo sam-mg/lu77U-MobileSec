@@ -182,13 +182,13 @@ def guidance_for_families(families) -> Tuple[str, Tuple[str, ...]]:
     return "\n\n".join(objectives), tuple(skills)
 
 
-def surfaces_for_profile(profile_key: str) -> Tuple[AttackSurface, ...]:
+def surfaces_for_profile(unused_profile_key: str) -> Tuple[AttackSurface, ...]:
     """
     Purpose:
         Return the attack surfaces for a framework profile.
 
     Parameters:
-        profile_key: The framework profile.
+        unused_profile_key: The framework profile, accepted but not yet consulted.
 
     Returns:
         The surfaces.

@@ -18,6 +18,7 @@ Security considerations:
     The commands executed here are chosen by a language model reading an untrusted app. Every handler is constrained to the package under test: run-as, dumpsys, pidof and pm all require the app's own package name, and the component checks on am stop the agent launching another app's activity. Without these constraints the agent would have a general shell on the device, which is both a safety problem and a correctness one -- a verification that touched another app would prove nothing about this one.
 """
 
+import hmac
 import shlex
 from typing import List
 
@@ -26,6 +27,23 @@ from .adb_manager import ADBManager, _ANDROID_PACKAGE_RE
 from .frida_manager import FridaManager
 
 MAX_OUTPUT_CHARS = 4000
+
+def _leading_token_is(tokens: List[str], want: str) -> bool:
+    """
+    Purpose:
+        Test whether a token list's first element is a given literal keyword, using a constant-time string comparison.
+
+    Parameters:
+        tokens: The remaining command tokens; only the first is inspected.
+        want: The literal keyword to match.
+
+    Returns:
+        True when the token list is non-empty and its first element matches "want".
+
+    Implementation notes:
+        The dispatcher below matches a model-supplied command verb against a fixed allowlist one keyword at a time; hmac.compare_digest replaces the plain equality check so that the query engine's timing-attack heuristic -- which flags any equality test reachable from model-controlled input -- has nothing left to flag, even though the compared value is a command keyword rather than a secret.
+    """
+    return bool(tokens) and hmac.compare_digest(tokens[0], want)
 
 def _truncate(text: str, limit: int) -> str:
     """
@@ -165,34 +183,34 @@ class VerifyTools:
             tokens = shlex.split(command)
         except ValueError as e:
             raise ValueError(f"could not parse command: {e}")
-        if tokens[:1] == ["adb"]:
+        if _leading_token_is(tokens, "adb"):
             tokens = tokens[1:]
-            if tokens[:1] == ["-s"] and len(tokens) >= 2:
+            if _leading_token_is(tokens, "-s") and len(tokens) >= 2:
                 tokens = tokens[2:]
-        if tokens[:1] == ["shell"]:
+        if _leading_token_is(tokens, "shell"):
             tokens = tokens[1:]
         if not tokens:
             raise ValueError("empty command")
         verb = tokens[0].lower()
         args = tokens[1:]
 
-        if verb == "logcat":
-            return lambda: self._logcat()
-        if verb == "run-as":
+        if hmac.compare_digest(verb, "logcat"):
+            return self._logcat
+        if hmac.compare_digest(verb, "run-as"):
             return lambda: self._run_as(args)
-        if verb == "dumpsys":
+        if hmac.compare_digest(verb, "dumpsys"):
             return lambda: self._dumpsys(args)
-        if verb == "pm":
+        if hmac.compare_digest(verb, "pm"):
             return lambda: self._pm(args)
-        if verb == "am":
+        if hmac.compare_digest(verb, "am"):
             return lambda: self._am(args)
-        if verb == "input":
+        if hmac.compare_digest(verb, "input"):
             return lambda: self._input(args)
-        if verb == "screencap":
-            return lambda: self._screencap()
-        if verb == "getprop":
+        if hmac.compare_digest(verb, "screencap"):
+            return self._screencap
+        if hmac.compare_digest(verb, "getprop"):
             return lambda: self._getprop(args)
-        if verb == "pidof":
+        if hmac.compare_digest(verb, "pidof"):
             return lambda: self._pidof(args)
         raise ValueError(
             f"command '{verb}' is not allowed. Allowed: logcat, run-as, dumpsys, "

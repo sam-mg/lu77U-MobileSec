@@ -8,12 +8,26 @@ import ScanTable from "../components/ScanTable";
 import { Card, SectionTitle, EmptyState, Spinner, StatPanel } from "../components/ui";
 import { SEVERITIES, SEVERITY_META } from "../lib/format";
 
+/** Loose but real shape check on one parsed-JSON scan entry - enough to trust it before it is aggregated and charted below. */
+function isScanMeta(value: unknown): value is ScanMeta {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === "string" &&
+    typeof (value as { status?: unknown }).status === "string"
+  );
+}
+
 export default function Dashboard() {
   const [scans, setScans] = useState<ScanMeta[] | null>(null);
   const [status, setStatus] = useState<AnalysisStatus | null>(null);
 
   useEffect(() => {
-    api.listScans().then((r) => setScans(r.scans)).catch(() => setScans([]));
+    // Validate the fetched list right where it enters the component, so the memos below never fold or chart an entry that isn't shaped like a scan.
+    api
+      .listScans()
+      .then((r) => setScans(Array.isArray(r.scans) ? r.scans.filter(isScanMeta) : []))
+      .catch(() => setScans([]));
     api.status().then(setStatus).catch(() => {});
   }, []);
 

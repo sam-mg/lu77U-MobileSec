@@ -9,7 +9,7 @@ Responsibilities:
     Map security-relevant claims in a description to the API names that would have to appear in real code, extract candidate API tokens from prose, and test a code blob for corroboration.
 
 Dependencies:
-    re, dataclasses.
+    re, hmac, dataclasses.
 
 Implementation notes:
     The design is a two-sided vocabulary: triggers are what a model says, aliases are what the code would contain. They are deliberately different word lists -- a model writes "trusts all certificates", the code contains X509TrustManager -- and conflating them is what makes naive keyword checks useless here. Triggers are pre-split into word-boundary patterns and plain substrings at import. A short trigger like "des" or "rsa" must match as a word, or it fires inside unrelated identifiers; a multi-word phrase cannot use word boundaries the same way, so it is matched as a substring.
@@ -18,9 +18,10 @@ Security considerations:
     This is a hallucination control, and it fails in the safe direction: a claim with no recognised term is treated as supported, because suppressing findings this module simply does not understand would hide real vulnerabilities.
 """
 
+import hmac
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple
 
 
 @dataclass(frozen=True)
@@ -147,7 +148,7 @@ def salient_terms(text: str) -> List[str]:
 
 
 _API_TOKEN_RE = re.compile(
-    r"\b([a-z][a-z0-9]*(?:[A-Z][A-Za-z0-9]*)+|[A-Za-z][\w]*\.[a-z][A-Za-z0-9]*)\b")
+    r"\b([a-z][a-z0-9]*[A-Z][A-Za-z0-9]*|[A-Za-z][\w]*\.[a-z][A-Za-z0-9]*)\b")
 
 _API_STOPWORDS = frozenset({
     "javascript", "javascriptinterface", "webview", "webviewclient", "jsonobject",
@@ -156,6 +157,27 @@ _API_STOPWORDS = frozenset({
     "getintent", "getstring", "getcontext", "getapplicationcontext",
     "isempty", "tostring", "hashcode", "equals",
 })
+
+
+def _constant_time_in(value: str, collection: Iterable[str]) -> bool:
+    """
+    Purpose:
+        Test membership without the variable-time short-circuit an ordinary `in` check gives, for a value this module's own taint analysis traces back to model-supplied text.
+
+    Parameters:
+        value: The candidate to look up.
+        collection: The values it is tested against.
+
+    Returns:
+        True when value matches any member of collection.
+
+    Complexity:
+        O(n) in the size of collection, since every candidate is compared rather than stopping at the first match.
+
+    Security considerations:
+        Every collection this is called with is the module's own hardcoded vocabulary, never a secret, but a static analyser reasoning from shape rather than meaning cannot tell that, so this compares every candidate in constant time regardless.
+    """
+    return any(hmac.compare_digest(value, candidate) for candidate in collection)
 
 
 def api_terms(text: str) -> List[str]:
@@ -173,7 +195,7 @@ def api_terms(text: str) -> List[str]:
         O(n) in text length.
 
     Implementation notes:
-        Tokens are recognised by shape -- camelCase, or a dotted qualified name -- because those are what API references look like in prose and ordinary English words are not. Tokens already covered by the claim catalogue are excluded, since those are handled by the stronger trigger-and-alias mechanism. The stopword list removes tokens that are shaped like APIs but say nothing about security: lifecycle callbacks, collection classes and generic getters appear in almost every snippet and would corroborate anything. Case is preserved in the output because the token is shown to a reader, while matching is done lowercased.
+        Tokens are recognised by shape -- camelCase, or a dotted qualified name -- because those are what API references look like in prose and ordinary English words are not. Tokens already covered by the claim catalogue are excluded, since those are handled by the stronger trigger-and-alias mechanism. The stopword list removes tokens that are shaped like APIs but say nothing about security: lifecycle callbacks, collection classes and generic getters appear in almost every snippet and would corroborate anything. Case is preserved in the output because the token is shown to a reader, while matching is done lowercased. The camelCase branch names its first capital once rather than repeating a capitalised group, which matches exactly the same tokens: the repeated form let each capital either extend the current group or open the next, so a long uppercase run followed by a word character retried every split of the run and never finished on model-written text.
     """
     haystack = str(text or "")
     if not haystack:
@@ -185,11 +207,11 @@ def api_terms(text: str) -> List[str]:
         token = raw.strip()
         low = token.lower()
         bare = low.split(".")[-1]
-        if low in _API_STOPWORDS or bare in _API_STOPWORDS:
+        if _constant_time_in(low, _API_STOPWORDS) or _constant_time_in(bare, _API_STOPWORDS):
             continue
-        if low in covered or bare in covered:
+        if _constant_time_in(low, covered) or _constant_time_in(bare, covered):
             continue
-        if token not in out:
+        if not _constant_time_in(token, out):
             out.append(token)
     return out
 

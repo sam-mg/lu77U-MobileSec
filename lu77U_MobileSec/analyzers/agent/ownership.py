@@ -9,7 +9,7 @@ Responsibilities:
     Derive the prefixes for each category, seed a classification from them, and propagate it across the package hierarchy.
 
 Dependencies:
-    androguard's analysis object, the vendor prefix tables.
+    androguard's analysis object, the vendor prefix table in graph_tables, the SDK inventory's signatures.
 
 Implementation notes:
     This is the single most consequential piece of filtering in the tool. A decompiled app is overwhelmingly library code, and an analysis that cannot tell it apart from the application's own spends its budget on code the app owner did not write and cannot change. Classification is seeded from known prefixes and then propagated, rather than decided per class by prefix alone, because an app's own code is not always under its package name -- and a library's is not always under a recognised one.
@@ -19,6 +19,7 @@ Security considerations:
 """
 
 import collections
+import contextlib
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -115,21 +116,17 @@ def _vendor_prefixes() -> Tuple[str, ...]:
         The vendor prefixes, deduplicated and sorted.
 
     Implementation notes:
-        Combined from the graph's own table and the SDK inventory's signatures, so a library the inventory knows how to recognise is also treated as vendor code by ownership -- keeping the two consistent. Both imports are guarded, so a missing table narrows the vendor set rather than failing classification.
+        Combined from the graph's vendor table in graph_tables and the SDK inventory's signatures, so a library the inventory knows how to recognise is also treated as vendor code by ownership -- keeping the two consistent. The table is read from graph_tables rather than code_graph because code_graph imports this module, and importing it back formed a cycle. Both imports are guarded against ImportError only, so a missing table narrows the vendor set rather than failing classification, while a malformed table raises instead of silently shrinking the vendor set and pulling SDK code into the analysis.
     """
     out: List[str] = []
-    try:
-        from .code_graph import _VENDOR_PREFIXES
-        out.extend(_VENDOR_PREFIXES)
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(ImportError):
+        from .graph_tables import VENDOR_PREFIXES
+        out.extend(VENDOR_PREFIXES)
+    with contextlib.suppress(ImportError):
         from ..sast.extractors.sdk_inventory import SDK_SIGNATURES
         for entry in SDK_SIGNATURES.values():
             for pkg in entry[1]:
                 out.append("L" + pkg.strip("/") + "/")
-    except Exception:
-        pass
     return tuple(sorted(set(out)))
 
 
@@ -218,7 +215,7 @@ def classify_packages(dx, package: str,
         Iterates the classes several times, then propagates over packages until it settles.
 
     Implementation notes:
-        External classes are skipped, since they are references rather than code in this APK. A package containing any class that seeds as application code is application code, even if most of its classes seed as nothing. That bias is deliberate: an obfuscated app has few recognisable classes, and requiring a majority would classify most of the application as unknown. A package seeding purely as framework is framework; vendor wins over an otherwise-unclassified package. The order of these tests is what encodes the bias toward keeping application code in scope.
+        External classes are skipped, since they are references rather than code in this APK. A class object without is_external is treated as internal, which is the safe direction because keeping it can only add code to the analysis; any other failure of that check propagates rather than being guessed at. A package containing any class that seeds as application code is application code, even if most of its classes seed as nothing. That bias is deliberate: an obfuscated app has few recognisable classes, and requiring a majority would classify most of the application as unknown. A package seeding purely as framework is framework; vendor wins over an otherwise-unclassified package. The order of these tests is what encodes the bias toward keeping application code in scope.
 
     Security considerations:
         Everything the agent examines is chosen from this classification, so a package wrongly excluded here is never analysed at all.
@@ -230,11 +227,9 @@ def classify_packages(dx, package: str,
 
     internal: Dict[str, Any] = {}
     for c in dx.get_classes():
-        try:
+        with contextlib.suppress(AttributeError):
             if c.is_external():
                 continue
-        except Exception:
-            pass
         internal[c.name] = c
 
     members: Dict[str, List[str]] = collections.defaultdict(list)

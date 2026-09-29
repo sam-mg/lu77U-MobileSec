@@ -342,8 +342,8 @@ def convert_html_to_pdf(html_content: str, filepath: str, apply_default_css: boo
         html_doc.write_pdf(filepath, stylesheets=stylesheets)
 
         return True
-    except Exception as e:
-        verbose_print(f"Error during PDF conversion: {str(e)}", verbose)
+    except Exception as exc:
+        verbose_print(f"Error during PDF conversion: {str(exc)}", verbose)
         if verbose:
             import traceback
             verbose_print("PDF conversion traceback:", verbose)

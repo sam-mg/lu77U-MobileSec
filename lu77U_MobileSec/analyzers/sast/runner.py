@@ -23,6 +23,7 @@ from .extractors.manifest import analyze_manifest
 from .extractors.network import analyze_network_config, analyze_tls_bypass
 from .extractors.sdk_inventory import analyze_sdks
 from .extractors.secrets import analyze_secrets
+from .extractors.signature_derived_key import analyze_signature_derived_key
 from .extractors.webview import analyze_webviews
 from .findings import SastFinding, to_scan_findings
 from .semgrep_runner import run_semgrep
@@ -37,12 +38,13 @@ _SCANNERS: Dict[str, Callable[..., List[SastFinding]]] = {
     "injection": analyze_injection,
     "secrets": analyze_secrets,
     "sdk-inventory": analyze_sdks,
+    "signature-derived-key": analyze_signature_derived_key,
     "semgrep": run_semgrep,
 }
 
 _BY_PROFILE: Dict[str, tuple] = {
     "java_kotlin": ("manifest", "webview", "network-config", "tls", "injection",
-                    "secrets", "sdk-inventory", "semgrep"),
+                    "secrets", "sdk-inventory", "signature-derived-key", "semgrep"),
     "flutter": ("manifest", "secrets"),
     "react_native": ("manifest", "secrets"),
     "cordova": ("manifest", "secrets"),

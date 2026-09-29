@@ -70,14 +70,14 @@ class FakeADBManager:
         """
         FakeADBManager.construct_count += 1
 
-    def install_apk(self, device, apk_path):
+    def install_apk(self, unused_device, unused_apk_path):
         """
         Purpose:
             Report the configured install outcome without touching a device.
 
         Parameters:
-            device: The device serial, unused here.
-            apk_path: The application file, unused here.
+            unused_device: The device serial, unused here.
+            unused_apk_path: The application file, unused here.
 
         Returns:
             The configured success flag and message.
@@ -134,7 +134,7 @@ class FakeDynamicAnalyzer:
             adb: The device bridge, unused here.
             frida: The instrumentation manager, unused here.
         """
-        self.progress = progress or (lambda **kw: None)
+        self.progress = progress or (lambda **unused_kwargs: None)
 
     def run(self, device, package, ui_steps=20, skip_app_info=False, frida_env=None):
         """
@@ -399,7 +399,7 @@ class TestDeviceSession:
         """
         calls = []
         monkeypatch.setattr(FakeADBManager, "install_apk",
-                            lambda self, d, p: (calls.append(p), (True, "Success"))[1])
+                            lambda self, _, p: (calls.append(p), (True, "Success"))[1])
         run_phase(service, [{"title": "x"}], monkeypatch)
         assert calls == []
 
@@ -663,28 +663,28 @@ class TestRunNamed:
         """
         seen_names = []
 
-        def fake_validate(findings, **kwargs):
+        def fake_validate(unused_findings, **unused_kwargs):
             """
             Purpose:
                 Record the name of the thread validation ran on.
 
             Parameters:
-                findings: The findings, unused here.
-                kwargs: Everything else, unused here.
+                unused_findings: The findings, unused here.
+                unused_kwargs: Everything else, unused here.
 
             Side effects:
                 Records the thread name.
             """
             seen_names.append(threading.current_thread().name)
 
-        def fake_build_chains(findings, **kwargs):
+        def fake_build_chains(unused_findings, **unused_kwargs):
             """
             Purpose:
                 Record the name of the thread chain building ran on.
 
             Parameters:
-                findings: The findings, unused here.
-                kwargs: Everything else, unused here.
+                unused_findings: The findings, unused here.
+                unused_kwargs: Everything else, unused here.
 
             Returns:
                 An empty chain list.
@@ -700,7 +700,7 @@ class TestRunNamed:
         monkeypatch.setattr(
             "lu77U_MobileSec.validation.build_chains", fake_build_chains)
         monkeypatch.setattr(
-            "lu77U_MobileSec.validation.annotate_related_findings", lambda f: 0)
+            "lu77U_MobileSec.validation.annotate_related_findings", lambda _: 0)
         monkeypatch.setattr(
             "lu77U_MobileSec.validation.sort_findings", lambda f: f)
 
@@ -740,15 +740,15 @@ class TestRunNamed:
                 """
                 self.usage = {"completion_tokens": 0}
 
-        def fake_validate(findings, provider=None, **kwargs):
+        def fake_validate(unused_findings, provider=None, **unused_kwargs):
             """
             Purpose:
                 Charge a fixed number of generated tokens to the provider.
 
             Parameters:
-                findings: The findings, unused here.
+                unused_findings: The findings, unused here.
                 provider: The provider whose counter is charged, or None for no provider.
-                kwargs: Everything else, unused here.
+                unused_kwargs: Everything else, unused here.
 
             Side effects:
                 Increases the provider's generated token count.
@@ -756,15 +756,15 @@ class TestRunNamed:
             if provider is not None:
                 provider.usage["completion_tokens"] += 30
 
-        def fake_build_chains(findings, provider=None, **kwargs):
+        def fake_build_chains(unused_findings, provider=None, **unused_kwargs):
             """
             Purpose:
                 Charge a fixed number of generated tokens to the provider.
 
             Parameters:
-                findings: The findings, unused here.
+                unused_findings: The findings, unused here.
                 provider: The provider whose counter is charged, or None for no provider.
-                kwargs: Everything else, unused here.
+                unused_kwargs: Everything else, unused here.
 
             Returns:
                 An empty chain list.
@@ -781,12 +781,12 @@ class TestRunNamed:
         monkeypatch.setattr(
             "lu77U_MobileSec.validation.build_chains", fake_build_chains)
         monkeypatch.setattr(
-            "lu77U_MobileSec.validation.annotate_related_findings", lambda f: 0)
+            "lu77U_MobileSec.validation.annotate_related_findings", lambda _: 0)
         monkeypatch.setattr(
             "lu77U_MobileSec.validation.sort_findings", lambda f: f)
         monkeypatch.setattr(
             "lu77U_MobileSec.web.services.analysis_service.user_settings.get_provider_config",
-            lambda name: {"model": "x", "cheap_model": ""})
+            lambda _: {"model": "x", "cheap_model": ""})
 
         verbose_service = type(service)(verbose=True, progress=service._progress)
         verbose_service._grade_findings([{"title": "x"}], ai_provider=FakeProvider())

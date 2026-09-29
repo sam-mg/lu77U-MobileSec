@@ -249,7 +249,7 @@ class OllamaProvider(BaseAIProvider):
             Up to the configured maximum attempts, with backoff between them.
 
         Implementation notes:
-            Thinking is always requested, and the reasoning trace is accumulated separately from the response content. Mixing the two would corrupt the JSON the schema constrains, and disabling thinking to avoid that would degrade analysis quality -- the trace is where the model does the reasoning that makes a finding correct. Both stay on. A done_reason of "length" means the model hit the output cap mid-JSON. That is retried like a failure, because a truncated response is unparseable, and it is recorded under its own counter so a systematically low cap is visible rather than appearing as generic flakiness. Usage for a truncated attempt is recorded as not-ok while still counting the tokens, which were spent regardless. Backoff grows by half each time and is capped, so a run of transient failures does not stretch into minutes of sleeping. Throttling is handled differently from other transient failures: the provider's own Retry-After is honoured when present, otherwise a longer fixed delay applies, and the throttle is reported to the base class so it can narrow concurrency for the rest of the scan. Fatal failures attempt key rotation first and only trip the circuit when no key remains.
+            Thinking is always requested, and the reasoning trace is accumulated separately from the response content. Mixing the two would corrupt the JSON the schema constrains, and disabling thinking to avoid that would degrade analysis quality -- the trace is where the model does the reasoning that makes a finding correct. Both stay on. A done_reason of "length" means the model hit the output cap mid-JSON. That is retried like a failure, because a truncated response is unparseable, and it is recorded under its own counter so a systematically low cap is visible rather than appearing as generic flakiness. Usage for a truncated attempt is recorded as not-ok while still counting the tokens, which were spent regardless. Backoff grows by half each time and is capped, so a run of transient failures does not stretch into minutes of sleeping. Throttling is handled differently from other transient failures: the provider's own Retry-After is honoured when present, otherwise a longer fixed delay applies, and the throttle is reported to the base class so it can narrow concurrency for the rest of the scan. Fatal failures attempt key rotation first and only trip the circuit when no key remains. The loop can end without returning only when OLLAMA_MAX_RETRIES is zero or negative, so that case gets an explicit error dict after the loop; falling off the end would return None, which analyze reads as a key rotation and would re-enter forever.
 
         Security considerations:
             Error text is traced through the verbose module, which redacts credential-shaped content before it reaches the terminal or the dashboard.
@@ -369,6 +369,7 @@ class OllamaProvider(BaseAIProvider):
                 else:
                     self.record_usage(ok=False)
                     return {"error": f"Ollama failed after {OLLAMA_MAX_RETRIES} attempts: {error_msg}"}
+        return {"error": f"Ollama made no attempt (OLLAMA_MAX_RETRIES={OLLAMA_MAX_RETRIES})"}
 
     def list_models(self) -> List[str]:
         """

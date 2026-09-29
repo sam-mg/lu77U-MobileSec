@@ -19,7 +19,7 @@ Security considerations:
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from xml.etree import ElementTree
 
 from ..findings import SastFinding
@@ -139,14 +139,13 @@ def _manifest_root_from_apk(apk_path, verbose: bool = False):
         return None
 
 
-def _determine_exported(el, tag: str, target_sdk: Optional[int]) -> Tuple[bool, bool, str]:
+def _determine_exported(el, target_sdk: Optional[int]) -> Tuple[bool, bool, str]:
     """
     Purpose:
         Decide whether a component is actually reachable by other apps.
 
     Parameters:
         el: The component element.
-        tag: The component kind.
         target_sdk: The app's declared target SDK.
 
     Returns:
@@ -217,7 +216,7 @@ def analyze_manifest(source_root, apk_path=None, verbose: bool = False) -> List[
 
     app = root.find("application")
     if app is not None:
-        out += _application_flags(app, rel, target_sdk)
+        out += _application_flags(app, rel)
     out += _sdk_findings(target_sdk, min_sdk, rel)
     out += _permission_findings(root, rel)
     if app is not None:
@@ -228,7 +227,7 @@ def analyze_manifest(source_root, apk_path=None, verbose: bool = False) -> List[
     return out
 
 
-def _application_flags(app, rel: str, target_sdk: Optional[int]) -> List[SastFinding]:
+def _application_flags(app, rel: str) -> List[SastFinding]:
     """
     Purpose:
         Emit findings for the application-level security flags.
@@ -236,7 +235,6 @@ def _application_flags(app, rel: str, target_sdk: Optional[int]) -> List[SastFin
     Parameters:
         app: The application element.
         rel: The manifest's path, for the finding location.
-        target_sdk: The declared target SDK.
 
     Returns:
         The findings.
@@ -477,7 +475,7 @@ def _component_findings(app, rel: str, target_sdk: Optional[int]) -> List[SastFi
         for el in app.iter(tag):
             name = _attr(el, "name") or "(unnamed)"
             short = name.rsplit(".", 1)[-1]
-            exported, explicit, reason = _determine_exported(el, tag, target_sdk)
+            exported, explicit, reason = _determine_exported(el, target_sdk)
             if not exported:
                 continue
 
