@@ -78,23 +78,35 @@ JAVA_KOTLIN = SourceProfile(
 
 FLUTTER = SourceProfile(
     key="flutter",
-    source_exts=(".asm", ".s", ".S", ".dis", ".dart"),
-    resource_exts=(".txt",),
-    noise_fragments=("/dart/", "/flutter/", "/package:flutter/", "/sdk/"),
-    resource_globs=("pp.txt", "objs.txt"),
-    summary_candidates=("pp.txt",),
-    summary_label="Dart object pool (pp.txt)",
-    summary_missing="(pp.txt not found - Blutter may not have produced an object-pool dump)",
+    source_exts=(".asm", ".s", ".S", ".dis", ".dart", ".java", ".kt"),
+    resource_exts=(".txt", ".xml"),
+    noise_fragments=(
+        "/dart/", "/flutter/", "/package:flutter/", "/sdk/",
+        "/androidx/", "/android/", "/kotlin/", "/kotlinx/", "/com/google/",
+        "/org/jetbrains/", "/org/intellij/",
+    ),
+    resource_globs=("flutter_scan_overview.txt", "pp.txt", "objs.txt",
+                    "snapshot_strings/libapp_key_strings.txt", "snapshot_strings/libapp_strings.txt",
+                    "platform/resources/AndroidManifest.xml"),
+    summary_candidates=("flutter_scan_overview.txt", "pp.txt"),
+    summary_label="Flutter scan overview (falls back to the object pool, pp.txt)",
+    summary_missing="(Flutter overview and pp.txt not found - recovery may have failed)",
 )
 
 REACT_NATIVE = SourceProfile(
     key="react_native",
-    source_exts=(".js", ".jsx", ".ts", ".tsx"),
-    noise_fragments=("/node_modules/react-native/", "/node_modules/", "metro-", "regenerator"),
-    resource_globs=("package-metadata.json",),
-    summary_candidates=("package-metadata.json",),
-    summary_label="Bundle metadata",
-    summary_missing="(no bundle metadata found)",
+    source_exts=(".js", ".jsx", ".ts", ".tsx", ".java", ".kt"),
+    resource_exts=(".txt", ".xml", ".json"),
+    noise_fragments=(
+        "/node_modules/react-native/", "/node_modules/", "metro-", "regenerator",
+        "/framework_modules/", "/com/facebook/", "/androidx/", "/android/", "/kotlin/",
+        "/kotlinx/", "/com/google/", "/org/jetbrains/",
+    ),
+    resource_globs=("rn_scan_overview.txt", "package-metadata.json", "modules.txt", "secrets.txt",
+                    "platform/resources/AndroidManifest.xml"),
+    summary_candidates=("rn_scan_overview.txt", "package-metadata.json"),
+    summary_label="React Native scan overview (falls back to the bundle metadata)",
+    summary_missing="(React Native overview and bundle metadata not found - recovery may have failed)",
 )
 
 CORDOVA = SourceProfile(

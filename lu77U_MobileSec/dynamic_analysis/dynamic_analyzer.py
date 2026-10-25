@@ -171,7 +171,7 @@ class DynamicAnalyzer:
             Installs an interception CA, starts a root instrumentation server, reconfigures the device proxy, and drives the app.
 
         Implementation notes:
-            Stages run in dependency order: device and root first, because root determines what is possible; then instrumentation, interception and the visual check; then interaction, which is what actually exercises the app. A Frida result from the verification phase is reused when it succeeded, since redeploying the server would cost a minute and change nothing. A failed automation connection skips the interaction loop rather than failing the session -- the app still launched, and the environment checks still have value. The Frida server is stopped in a finally block, so a cancelled or failed session does not leave a root process running on the device.
+            Stages run in dependency order: device and root first, because root determines what is possible; then instrumentation, interception and the visual check; then interaction, which is what actually exercises the app. A Frida result from the verification phase is reused when it succeeded, since redeploying the server would cost a minute and change nothing. A failed automation connection skips the interaction loop rather than failing the session -- the app still launched, and the environment checks still have value. The Frida server is stopped in a finally block, so a cancelled or failed session does not leave a root process running on the device. Successful HTTPS interception is reported as an environment check, not as a finding about the app: the check proves the proxy and CA work by opening a probe URL in the device's browser, and the proxy is stopped before the app is exercised, so nothing it captured came from the app. It used to be turned into "Interceptable HTTPS Traffic (No Certificate Pinning)" on every app it ran against, including Ghera apps that make no network connection at all; runtime_findings stays in the result, empty, for the analysis service that merges it.
 
         Security considerations:
             This is the method that leaves a device modified. The instrumentation server is always stopped here; the interception CA and the proxy setting are torn down by the proxy manager, and a session killed outside this method can leave both in place.
@@ -223,16 +223,18 @@ class DynamicAnalyzer:
             actions: List[Dict[str, Any]] = []
             ui = UIAutomator(self.adb, device_id, verbose=self.verbose)
             if ui.connect():
-                actions = ui.run_analysis_loop(
-                    app_package, pause_for_login=self.pause_for_login,
-                    is_cancelled=self.is_cancelled, max_iterations=ui_steps)
+                try:
+                    actions = ui.run_analysis_loop(
+                        app_package, pause_for_login=self.pause_for_login,
+                        is_cancelled=self.is_cancelled, max_iterations=ui_steps)
+                finally:
+                    ui.close()
             else:
                 verbose_print(
                     "uiautomator2 connect failed - skipping UI interaction loop",
                     self.verbose)
 
             self.progress("runtime_analysis", 85, "Collecting runtime findings")
-            runtime_findings = self._derive_findings(env_checks)
 
             return {
                 "device": device_info,
@@ -240,7 +242,7 @@ class DynamicAnalyzer:
                 "detection_result": detection_result,
                 "env_checks": env_checks,
                 "actions": actions,
-                "runtime_findings": runtime_findings,
+                "runtime_findings": [],
                 "network_captures": [],
                 "frida_traces": [],
             }
@@ -302,37 +304,3 @@ class DynamicAnalyzer:
                 return dev
         return {"serial": device_id, "model": device_id,
                 "android_version": "?", "is_emulator": False}
-
-    def _derive_findings(self, env_checks: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Purpose:
-            Turn environment check outcomes into findings, where what the check proved is itself a vulnerability.
-
-        Parameters:
-            env_checks: Outcomes of the environment checks.
-
-        Returns:
-            Runtime findings.
-
-        Implementation notes:
-            Successful HTTPS interception is a finding rather than a success: it demonstrates that the app accepted a certificate from a CA added to the device, which means it does not pin for the endpoints that were exercised. That is a genuine runtime demonstration rather than a static observation, and it is scoped carefully in its wording -- it claims only the endpoints actually exercised, since an app can pin some connections and not others. The severity is moderate rather than high because interception required installing a system CA, which is not something an attacker achieves against an ordinary device.
-
-        Security considerations:
-            This finding depends on the CA having been installed by this tool. Reported without that context it would overstate the exposure, which is why the description states the mechanism explicitly.
-        """
-        findings: List[Dict[str, Any]] = []
-        if env_checks.get("https_intercept", {}).get("ok"):
-            findings.append({
-                "vulnerability_type": "Interceptable HTTPS Traffic (No Certificate Pinning)",
-                "severity": "Medium",
-                "file": "runtime://network",
-                "description": (
-                    "HTTPS traffic was successfully decrypted and intercepted through "
-                    "a man-in-the-middle proxy trusted only via a manually installed "
-                    "system CA certificate, indicating the app does not enforce "
-                    "certificate pinning for the exercised endpoints."),
-                "recommendation": (
-                    "Implement certificate pinning and reject user-added/non-default "
-                    "CAs for sensitive endpoints."),
-            })
-        return findings

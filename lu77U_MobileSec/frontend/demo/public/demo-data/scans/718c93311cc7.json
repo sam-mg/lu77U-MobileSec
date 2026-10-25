@@ -1,0 +1,1133 @@
+{
+  "meta": {
+    "id": "718c93311cc7",
+    "kind": "static",
+    "filename": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Storage/InternalToExternalStorage-InformationLeak-Lean/secure.apk",
+    "status": "completed",
+    "created_at": "2026-10-23T08:45:33.144325+00:00",
+    "started_at": "2026-10-23T08:45:33.147630+00:00",
+    "finished_at": "2026-10-23T08:50:24.626393+00:00",
+    "duration": 291.48,
+    "progress": 100,
+    "phase": "done",
+    "error": null,
+    "pause_reason": null,
+    "resume_attempts": 0,
+    "summary": {
+      "primary_framework": "Java",
+      "total_vulnerabilities": 9,
+      "critical": 0,
+      "high": 0,
+      "medium": 2,
+      "low": 1,
+      "security_score": 81.2,
+      "package_name": "edu.ksu.cs.benign",
+      "app_name": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Storage/InternalToExternalStorage-InformationLeak-Lean/secure.apk",
+      "analysis_supported": true
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "boot_id": "28bfcc14bd3747a8b903d85680ec7f36",
+    "owner_pid": 15131
+  },
+  "result": {
+    "metadata": {
+      "tool": "lu77U-MobileSec",
+      "version": "0.1.5",
+      "timestamp": "2026-10-23T14:20:24.616595",
+      "target": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Storage/InternalToExternalStorage-InformationLeak-Lean/secure.apk",
+      "analysis_date": "2026-10-23 14:20:24"
+    },
+    "framework_detection": {
+      "detected": true,
+      "primary_framework": "Java",
+      "confidence": 0.8,
+      "confidence_level": "High",
+      "frameworks": [
+        {
+          "name": "Java",
+          "confidence": 0.8,
+          "confidence_level": "High",
+          "indicators_found": [
+            "DEX files: 1 found"
+          ]
+        }
+      ]
+    },
+    "application_info": {
+      "package_name": "edu.ksu.cs.benign",
+      "app_name": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Storage/InternalToExternalStorage-InformationLeak-Lean/secure.apk",
+      "version_name": "1.0",
+      "version_code": "1",
+      "min_sdk": "22",
+      "target_sdk": "27",
+      "file_size": 969526,
+      "file_size_mb": 0.92,
+      "permissions": [
+        "edu.ksu.cs.SecurePermission"
+      ],
+      "activities": [
+        "edu.ksu.cs.benign.MainActivity"
+      ],
+      "services": [
+        "edu.ksu.cs.benign.DownloadService"
+      ],
+      "receivers": [],
+      "providers": []
+    },
+    "vulnerability_analysis": {
+      "analyzed": true,
+      "total_vulnerabilities": 9,
+      "by_severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 2,
+        "low": 1,
+        "info": 6
+      },
+      "vulnerabilities": {
+        "critical": [],
+        "high": [],
+        "medium": [
+          {
+            "title": "Sensitive file content logged to Logcat in DownloadService",
+            "severity": "Medium",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+            "cvss_score": 6.2,
+            "description": "The app logs the full content of a sensitive file retrieved from internal storage to Logcat. This data can be intercepted by any entity with access to the device logs via ADB.",
+            "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+            "location": "sources/edu/ksu/cs/benign/DownloadService.java:46",
+            "line": 46,
+            "line_start": 46,
+            "line_end": 46,
+            "impact": "",
+            "code_snippet": "                            android.util.Log.d(TAG, sb.toString());",
+            "code_context": {
+              "start_line": 42,
+              "end_line": 50,
+              "highlight_start": 46,
+              "highlight_end": 46,
+              "lines": [
+                "                                } else {",
+                "                                    sb.append(line);",
+                "                                }",
+                "                            }",
+                "                            android.util.Log.d(TAG, sb.toString());",
+                "                            file2 = new java.io.File(getExternalFilesDir(null), FILENAME);",
+                "                            java.io.OutputStream os = new java.io.FileOutputStream(file2);",
+                "                            os.write(sb.toString().getBytes());",
+                "                            if (bufferedReader != null) {"
+              ],
+              "lines_html": [
+                "                                <span class=\"tok-op\">}</span> <span class=\"tok-kw\">else</span> <span class=\"tok-op\">{</span>",
+                "                                    sb<span class=\"tok-op\">.</span><span class=\"tok-fn\">append</span><span class=\"tok-op\">(</span>line<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                                <span class=\"tok-op\">}</span>",
+                "                            <span class=\"tok-op\">}</span>",
+                "                            android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Log</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">d</span><span class=\"tok-op\">(</span>TAG<span class=\"tok-op\">,</span> sb<span class=\"tok-op\">.</span><span class=\"tok-fn\">toString</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            file2 <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">File</span><span class=\"tok-op\">(</span>getExternalFilesDir<span class=\"tok-op\">(</span><span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span><span class=\"tok-op\">,</span> FILENAME<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">OutputStream</span> os <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">FileOutputStream</span><span class=\"tok-op\">(</span>file2<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            os<span class=\"tok-op\">.</span><span class=\"tok-fn\">write</span><span class=\"tok-op\">(</span>sb<span class=\"tok-op\">.</span><span class=\"tok-fn\">toString</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getBytes</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>bufferedReader <span class=\"tok-op\">!</span><span class=\"tok-op\">=</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>"
+              ],
+              "hop_terms": [
+                "log.d",
+                "android.util.log",
+                "printstacktrace"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-532",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-02",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [
+                "Reading Logcat requires ADB or root access, which does not represent a remote or app-to-app attack vector. Kept at Medium: the CVSS vector, scored for an attacker with local access and high privileges, still gives Medium."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Sensitive file written to external storage in DownloadService",
+                  "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+                  "line": 47
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Arbitrary broadcast via Intent extras in DownloadService",
+                  "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+                  "line": 65
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Sensitive file written to external storage in DownloadService",
+            "severity": "Medium",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+            "cvss_score": 6.2,
+            "description": "The app reads a sensitive file from internal storage and writes it to external storage via getExternalFilesDir(). Because the app targets SDK 27, files in this directory are world-readable by any other app on the device with the READ_EXTERNAL_STORAGE permission.",
+            "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+            "location": "sources/edu/ksu/cs/benign/DownloadService.java:47",
+            "line": 47,
+            "line_start": 47,
+            "line_end": 47,
+            "impact": "",
+            "code_snippet": "                            file2 = new java.io.File(getExternalFilesDir(null), FILENAME);",
+            "code_context": {
+              "start_line": 43,
+              "end_line": 51,
+              "highlight_start": 47,
+              "highlight_end": 47,
+              "lines": [
+                "                                    sb.append(line);",
+                "                                }",
+                "                            }",
+                "                            android.util.Log.d(TAG, sb.toString());",
+                "                            file2 = new java.io.File(getExternalFilesDir(null), FILENAME);",
+                "                            java.io.OutputStream os = new java.io.FileOutputStream(file2);",
+                "                            os.write(sb.toString().getBytes());",
+                "                            if (bufferedReader != null) {",
+                "                                bufferedReader.close();"
+              ],
+              "lines_html": [
+                "                                    sb<span class=\"tok-op\">.</span><span class=\"tok-fn\">append</span><span class=\"tok-op\">(</span>line<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                                <span class=\"tok-op\">}</span>",
+                "                            <span class=\"tok-op\">}</span>",
+                "                            android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Log</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">d</span><span class=\"tok-op\">(</span>TAG<span class=\"tok-op\">,</span> sb<span class=\"tok-op\">.</span><span class=\"tok-fn\">toString</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            file2 <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">File</span><span class=\"tok-op\">(</span>getExternalFilesDir<span class=\"tok-op\">(</span><span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span><span class=\"tok-op\">,</span> FILENAME<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">OutputStream</span> os <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">FileOutputStream</span><span class=\"tok-op\">(</span>file2<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            os<span class=\"tok-op\">.</span><span class=\"tok-fn\">write</span><span class=\"tok-op\">(</span>sb<span class=\"tok-op\">.</span><span class=\"tok-fn\">toString</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getBytes</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>bufferedReader <span class=\"tok-op\">!</span><span class=\"tok-op\">=</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "                                bufferedReader<span class=\"tok-op\">.</span><span class=\"tok-fn\">close</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>"
+              ],
+              "hop_terms": [
+                "log.d",
+                "android.util.log",
+                "printstacktrace"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-922",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "STORAGE-02",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Sensitive file content logged to Logcat in DownloadService",
+                  "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+                  "line": 46
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Arbitrary broadcast via Intent extras in DownloadService",
+                  "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+                  "line": 65
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          }
+        ],
+        "low": [
+          {
+            "title": "Arbitrary broadcast via Intent extras in DownloadService",
+            "severity": "Low",
+            "cvss_vector": "AV:L/AC:L/PR:L/UI:N/S:U/C:N/I:L/A:N",
+            "cvss_score": 3.3,
+            "description": "The DownloadService takes 'confirmationPackage' and 'confirmationReceiver' as Intent extras and uses them to construct and send a broadcast. This allows a caller (restricted by signature permission) to make the app send an arbitrary broadcast to any target package and action.",
+            "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+            "location": "sources/edu/ksu/cs/benign/DownloadService.java:65",
+            "line": 65,
+            "line_start": 65,
+            "line_end": 65,
+            "impact": "An attacker with the required signature permission can force the app to send arbitrary broadcasts to any other application on the device, potentially triggering privileged actions in those apps that trust this application's identity.",
+            "code_snippet": "                            sendBroadcast(i);",
+            "code_context": {
+              "start_line": 61,
+              "end_line": 69,
+              "highlight_start": 65,
+              "highlight_end": 65,
+              "lines": [
+                "                            java.lang.String getAction = intent.getStringExtra(\"confirmationReceiver\");",
+                "                            android.content.Intent i = new android.content.Intent();",
+                "                            i.setPackage(getPackage);",
+                "                            i.setAction(getAction);",
+                "                            sendBroadcast(i);",
+                "                        } catch (java.lang.Throwable th4) {",
+                "                            th = th4;",
+                "                            file = file2;",
+                "                            th2 = null;"
+              ],
+              "lines_html": [
+                "                            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> getAction <span class=\"tok-op\">=</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getStringExtra</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">confirmationReceiver</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            android<span class=\"tok-op\">.</span><span class=\"tok-fn\">content</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Intent</span> i <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">content</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Intent</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            i<span class=\"tok-op\">.</span><span class=\"tok-fn\">setPackage</span><span class=\"tok-op\">(</span>getPackage<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            i<span class=\"tok-op\">.</span><span class=\"tok-fn\">setAction</span><span class=\"tok-op\">(</span>getAction<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                            sendBroadcast<span class=\"tok-op\">(</span>i<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                        <span class=\"tok-op\">}</span> <span class=\"tok-kw\">catch</span> <span class=\"tok-op\">(</span>java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Throwable</span> th4<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "                            th <span class=\"tok-op\">=</span> th4<span class=\"tok-op\">;</span>",
+                "                            file <span class=\"tok-op\">=</span> file2<span class=\"tok-op\">;</span>",
+                "                            th2 <span class=\"tok-op\">=</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">;</span>"
+              ],
+              "hop_terms": [
+                "log.d",
+                "android.util.log",
+                "printstacktrace",
+                "confirmationPackage",
+                "confirmationReceiver"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Do not allow the destination package or action of a broadcast to be controlled by external input. Use a hardcoded allowlist of actions and packages.",
+            "cwe": "CWE-926",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-03",
+            "gate_result": {
+              "verdict": "DOWNGRADE",
+              "reasons": [
+                "The signature permission ensures only apps signed with the same developer key can reach this component."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Low",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Intent redirection via broadcast",
+                  "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+                  "line": "60-65"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Sensitive file content logged to Logcat in DownloadService",
+                  "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+                  "line": 46
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Sensitive file written to external storage in DownloadService",
+                  "file": "sources/edu/ksu/cs/benign/DownloadService.java",
+                  "line": 47
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          }
+        ],
+        "info": [
+          {
+            "title": "Application is debuggable in this build",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "cvss_score": 9.8,
+            "description": "android:debuggable=\"true\" lets any user with adb attach a debugger to the process, read and modify memory, and inspect application data. The application is marked as debuggable in the manifest.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 18,
+            "line_start": 18,
+            "line_end": 18,
+            "impact": "An attacker with local access can use ADB to attach a debugger, inspect memory, and access private app data.",
+            "code_snippet": "        android:debuggable=\"true\"",
+            "code_context": {
+              "start_line": 14,
+              "end_line": 22,
+              "highlight_start": 18,
+              "highlight_end": 18,
+              "lines": [
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:debuggable=\"true\"",
+                "        android:allowBackup=\"false\"",
+                "        android:supportsRtl=\"true\">",
+                "        <activity android:name=\"edu.ksu.cs.benign.MainActivity\">",
+                "            <intent-filter>"
+              ],
+              "lines_html": [
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:debuggable=</span><span class=\"tok-str\">&quot;true&quot;</span>",
+                "        <span class=\"tok-fn\">android:allowBackup=</span><span class=\"tok-str\">&quot;false&quot;</span>",
+                "        <span class=\"tok-fn\">android:supportsRtl=</span><span class=\"tok-str\">&quot;true&quot;</span>&gt;",
+                "        &lt;activity <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.MainActivity&quot;</span>&gt;",
+                "            &lt;intent-filter&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Remove android:debuggable or set it to \"false\" for release builds.",
+            "cwe": "CWE-489",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Debuggable release build. A debuggable build is a release-pipeline defect rather than an exploitable flaw - attaching a debugger already requires ADB access to the device. Worth fixing, not worth a severity."
+              ],
+              "warnings": [],
+              "original_severity": "Critical",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-03",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at High",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Application is debuggable in release build",
+                  "file": "AndroidManifest.xml",
+                  "line": "18"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "No network security config declared",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "The app declares neither android:networkSecurityConfig nor usesCleartextTraffic, so it relies on platform defaults and pins no domain. With targetSdkVersion 27 those defaults still permit cleartext HTTP (see the cleartext finding).",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 14,
+            "line_start": 14,
+            "line_end": 14,
+            "impact": "Without pinning, anyone who gets a CA trusted on the device can read and alter the app's TLS traffic.",
+            "code_snippet": "    <application",
+            "code_context": {
+              "start_line": 10,
+              "end_line": 18,
+              "highlight_start": 14,
+              "highlight_end": 14,
+              "lines": [
+                "        android:label=\"SecurePermission\"",
+                "        android:name=\"edu.ksu.cs.SecurePermission\"",
+                "        android:protectionLevel=\"signature\"/>",
+                "    <uses-permission android:name=\"edu.ksu.cs.SecurePermission\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:debuggable=\"true\""
+              ],
+              "lines_html": [
+                "        android:label=&quot;SecurePermission&quot;",
+                "        android:name=&quot;edu.ksu.cs.SecurePermission&quot;",
+                "        android:protectionLevel=&quot;signature&quot;/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.SecurePermission&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:debuggable=</span><span class=\"tok-str\">&quot;true&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Declare a network security config that disables cleartext and pins the domains that carry sensitive traffic.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-03",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "No certificate pinning. Pinning defends against an attacker who already controls a trusted CA or the device's trust store. Without one of those, TLS is still doing its job. It becomes a finding when paired with what the unpinned channel actually carries.",
+                "Absence of pinning is a hardening note that only provides gain if the attacker already controls a trusted CA."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-01",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "18"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Sensitive screen not protected from capture",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 3.3,
+            "description": "MainActivity handles sensitive user information but does not set FLAG_SECURE.",
+            "file": "sources/edu/ksu/cs/benign/MainActivity.java",
+            "location": "sources/edu/ksu/cs/benign/MainActivity.java:8",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "Sensitive data entered by the user can be captured via screenshots, screen recordings, or the app switcher thumbnail.",
+            "code_snippet": "    protected void onCreate(android.os.Bundle savedInstanceState) {",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 12,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "public class MainActivity extends android.support.v7.app.AppCompatActivity {",
+                "    private static java.lang.String TAG = \"Secure\";",
+                "",
+                "    @Override // android.support.v7.app.AppCompatActivity, android.support.v4.app.FragmentActivity, android.support.v4.app.SupportActivity, android.app.Activity",
+                "    protected void onCreate(android.os.Bundle savedInstanceState) {",
+                "        super.onCreate(savedInstanceState);",
+                "        setContentView(edu.ksu.cs.benign.R.layout.activity_main);",
+                "    }",
+                ""
+              ],
+              "lines_html": [
+                "<span class=\"tok-kw\">public</span> <span class=\"tok-kw\">class</span> <span class=\"tok-fn\">MainActivity</span> <span class=\"tok-kw\">extends</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">support</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">v7</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">app</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">AppCompatActivity</span> <span class=\"tok-op\">{</span>",
+                "    <span class=\"tok-kw\">private</span> <span class=\"tok-kw\">static</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> TAG <span class=\"tok-op\">=</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Secure</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">;</span>",
+                "",
+                "    <span class=\"tok-fn\">@Override</span> <span class=\"tok-cm\">// android.support.v7.app.AppCompatActivity, android.support.v4.app.FragmentActivity, android.support.v4.app.SupportActivity, android.app.Activity</span>",
+                "    <span class=\"tok-kw\">protected</span> <span class=\"tok-kw\">void</span> <span class=\"tok-fn\">onCreate</span><span class=\"tok-op\">(</span>android<span class=\"tok-op\">.</span><span class=\"tok-fn\">os</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Bundle</span> savedInstanceState<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "        <span class=\"tok-kw\">super</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">onCreate</span><span class=\"tok-op\">(</span>savedInstanceState<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        setContentView<span class=\"tok-op\">(</span>edu<span class=\"tok-op\">.</span><span class=\"tok-fn\">ksu</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">cs</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">benign</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">R</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">layout</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">activity_main</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "    <span class=\"tok-op\">}</span>",
+                ""
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Add getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE) in onCreate().",
+            "cwe": "CWE-200",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-12",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Screen contents not protected from capture. Without FLAG_SECURE, what a screen shows can end up in screenshots, screen recordings and the task-switcher preview. That matters on screens showing credentials, card numbers or balances; on its own it is a hardening note."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-14",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "agent",
+            "surface": "region-1-DownloadService"
+          },
+          {
+            "title": "targetSdkVersion 27 allows implicit component export",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "On targetSdk 27, any component with an intent-filter is exported unless it says otherwise.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "",
+            "code_snippet": "        android:targetSdkVersion=\"27\"/>",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 12,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <permission",
+                "        android:label=\"SecurePermission\"",
+                "        android:name=\"edu.ksu.cs.SecurePermission\"",
+                "        android:protectionLevel=\"signature\"/>"
+              ],
+              "lines_html": [
+                "    android:versionName=&quot;1.0&quot;",
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;permission",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;SecurePermission&quot;</span>",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.SecurePermission&quot;</span>",
+                "        <span class=\"tok-fn\">android:protectionLevel=</span><span class=\"tok-str\">&quot;signature&quot;</span>/&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise targetSdkVersion to 31+ and declare android:exported explicitly on every filtered component.",
+            "cwe": "CWE-926",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-02",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Legacy platform behaviour from SDK levels. An SDK level is a statement about which platform defaults apply, not a defect. It is context for the findings that depend on those defaults - pair it with one of them.",
+                "This is a platform default for SDK 27; a specific exported component must be identified to demonstrate impact."
+              ],
+              "warnings": [
+                "Implicit export only applies below targetSdk 31; confirm the app's targetSdkVersion before treating this as exploitable."
+              ],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-11",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "18"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "targetSdkVersion 27 permits cleartext traffic by default",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+            "cvss_score": 8.2,
+            "description": "targetSdk 27 predates API 28, where cleartext HTTP became opt-in.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "",
+            "code_snippet": "        android:targetSdkVersion=\"27\"/>",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 12,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <permission",
+                "        android:label=\"SecurePermission\"",
+                "        android:name=\"edu.ksu.cs.SecurePermission\"",
+                "        android:protectionLevel=\"signature\"/>"
+              ],
+              "lines_html": [
+                "    android:versionName=&quot;1.0&quot;",
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;permission",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;SecurePermission&quot;</span>",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.SecurePermission&quot;</span>",
+                "        <span class=\"tok-fn\">android:protectionLevel=</span><span class=\"tok-str\">&quot;signature&quot;</span>/&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise targetSdkVersion to 28 or above.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-02",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Cleartext permitted by configuration. The flag permits HTTP; it does not show that anything is sent over it. Name a request that actually goes out in cleartext, and what it carries, and this is a genuine finding.",
+                "This is a platform default for SDK 27; a specific request sent over HTTP is needed to demonstrate impact."
+              ],
+              "warnings": [
+                "Cleartext is blocked by default from targetSdk 28; confirm the declared target and any network security config."
+              ],
+              "original_severity": "High",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-05",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "18"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "minSdkVersion 22 lets the app run on Android versions before 11, and its task affinity is its package name \"edu.ksu.cs.benign\". There, another app can declare the same affinity, with allowTaskReparenting, and have its own activity shown in this app's task.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 5,
+            "line_start": 5,
+            "line_end": 5,
+            "impact": "On a device running Android 10 or lower, a malicious app can put a look-alike screen on top of this app's task, phishing credentials or keeping the real app from being shown.",
+            "code_snippet": "    package=\"edu.ksu.cs.benign\">",
+            "code_context": {
+              "start_line": 1,
+              "end_line": 9,
+              "highlight_start": 5,
+              "highlight_end": 5,
+              "lines": [
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+                "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"",
+                "    android:versionCode=\"1\"",
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <permission"
+              ],
+              "lines_html": [
+                "<span class=\"tok-cm\">&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;</span>",
+                "&lt;manifest <span class=\"tok-fn\">xmlns:android=</span><span class=\"tok-str\">&quot;http://schemas.android.com/apk/res/android&quot;</span>",
+                "    <span class=\"tok-fn\">android:versionCode=</span><span class=\"tok-str\">&quot;1&quot;</span>",
+                "    <span class=\"tok-fn\">android:versionName=</span><span class=\"tok-str\">&quot;1.0&quot;</span>",
+                "    <span class=\"tok-fn\">package=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign&quot;</span>&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;permission"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise minSdkVersion to 30, where Android fixed this. Until then, android:taskAffinity=\"\" on the <application> mitigates the original attack, though not its runtime variant on unpatched Android 9 and lower.",
+            "cwe": "CWE-1021",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-09",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "18"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ]
+      },
+      "refuted": [],
+      "refuted_count": 0
+    },
+    "analyzer_details": {
+      "framework": "Java/Kotlin",
+      "analysis_time": 222.26511406898499,
+      "files_analyzed": 281,
+      "decompilation_status": "Successful",
+      "error": null,
+      "agent_coverage": {
+        "regions": [
+          {
+            "key": "region-1-DownloadService",
+            "nodes": 2,
+            "steps": 6,
+            "files_read": 2,
+            "stop_reason": "reported",
+            "findings": 5
+          }
+        ],
+        "complete": true,
+        "regions_incomplete": 0,
+        "regions_total": 1,
+        "degraded_reason": null,
+        "leads": {
+          "total": 6,
+          "routed": 6,
+          "unowned": 6,
+          "per_region": {
+            "region-1-DownloadService": 6
+          }
+        },
+        "scope": {
+          "packages": 27,
+          "rounds": 1,
+          "seeded_app_packages": 1,
+          "seeded_vendor_packages": 0,
+          "app_classes": 4,
+          "vendor_classes": 0,
+          "framework_classes": 618,
+          "undecided_classes": 0,
+          "undecided_packages": [],
+          "app_packages": [
+            "edu/ksu/cs/benign"
+          ],
+          "synthetic_classes_skipped": 0,
+          "source_checked": 2,
+          "source_missing": 0,
+          "source_repaired": 0
+        },
+        "file_review": {
+          "files": 2,
+          "parts": 1,
+          "parts_skipped": 0,
+          "parts_failed": 0,
+          "findings": 4
+        }
+      },
+      "limitation": "",
+      "llm_usage": {
+        "provider": "ollama",
+        "calls": 10,
+        "failed": 0,
+        "wall_clock_s": 285.0,
+        "prompt_tokens": 180124,
+        "completion_tokens": 23759,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0,
+        "throttled_attempts": 0,
+        "transient_attempts": 0,
+        "failed_attempt_seconds": 0.0,
+        "retried_calls": 0,
+        "truncation_retries": 0,
+        "transient_retries": 0,
+        "throttle_retries": 0,
+        "slow_calls": 0,
+        "unparseable_responses": 0,
+        "blocked_seconds": 0.0,
+        "mode": "cloud",
+        "model": "gemma4:31b",
+        "unavailable": null,
+        "unreachable": null,
+        "keys_total": 10,
+        "keys_used": 8
+      }
+    },
+    "summary": {
+      "framework_detected": true,
+      "vulnerability_scan_complete": true,
+      "total_vulnerabilities": 9,
+      "critical_count": 0,
+      "high_count": 0,
+      "medium_count": 2,
+      "low_count": 1,
+      "refuted_count": 0,
+      "security_score": 81.2,
+      "weighted_finding_count": 12,
+      "security_grade": "B"
+    },
+    "analysis": {
+      "supported": true,
+      "success": true,
+      "files_analyzed": 281,
+      "analysis_time": 222.26511406898499,
+      "framework": "Java/Kotlin",
+      "decompilation_status": "Successful",
+      "unsupported_framework": false,
+      "error": null,
+      "limitation": ""
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "dynamic_session": {
+      "attempted": false,
+      "reason": "Dynamic verification is disabled in Settings."
+    }
+  }
+}

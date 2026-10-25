@@ -12,7 +12,7 @@ Dependencies:
     None.
 
 Implementation notes:
-    Kept as data with no logic so the settings UI can render the provider chooser without importing any provider module, and therefore without importing any provider SDK. PROVIDER_VENDORS exists because one vendor can be reached two ways -- an API key or a subscription CLI -- and the UI groups them under the vendor while the rest of the tool keeps them as distinct providers. Model lists are curated rather than fetched. A live list needs a credential and a network round trip before the user has configured anything, so these give the settings page something useful to show immediately. They go stale, which is why a user can always type a model name that is not listed.
+    Kept as data with no logic so the settings UI can render the provider chooser without importing any provider module, and therefore without importing any provider SDK. PROVIDER_VENDORS exists because one vendor can be reached two ways -- an API key or a subscription CLI -- and the UI groups them under the vendor while the rest of the tool keeps them as distinct providers. Model lists are curated rather than fetched. A live list needs a credential and a network round trip before the user has configured anything, so these give the settings page something useful to show immediately. They go stale, which is why a user can always type a model name that is not listed. Ollama's cloud is the exception: its catalogue is public, so it is fetched live (see ai.ollama_models) and nothing is curated for it. Its default still has to be named here, because the catalogue does not say which models a plan includes and a free plan is refused most of them; it is a model the free plan serves, after the previous default was retired upstream and every fresh install's first scan failed with HTTP 410.
 
 Security considerations:
     CUSTOM_PRESETS ship third-party base URLs. Selecting one sends decompiled application source to that operator, so the presets are conveniences the user opts into, never defaults.
@@ -61,18 +61,8 @@ CURATED_MODELS = {
     ],
 }
 
-OLLAMA_CLOUD_FALLBACK_MODELS = [
-    "deepseek-v3.1:671b-cloud",
-    "gpt-oss:20b-cloud",
-    "gpt-oss:120b-cloud",
-    "kimi-k2:1t-cloud",
-    "qwen3-coder:480b-cloud",
-    "glm-4.6:cloud",
-    "minimax-m2:cloud",
-]
-
 DEFAULT_MODELS = {
-    "ollama": "glm-4.6:cloud",
+    "ollama": "gpt-oss:120b",
     "claude": "claude-opus-4-8",
     "openai": "gpt-4o",
     "gemini": "gemini-2.5-flash",

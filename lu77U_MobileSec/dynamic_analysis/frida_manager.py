@@ -24,19 +24,19 @@ import hmac
 import lzma
 import json
 import re
-import shutil
 import subprocess
 import time
 import urllib.request
 import zlib
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 import platformdirs
 
 from .._metadata import NAME as APP_NAME
+from ..utils.system import find_tool
 from ..utils.verbose import verbose_print
 
 FRIDA_GITHUB_API = "https://api.github.com/repos/frida/frida/releases/latest"
@@ -125,13 +125,13 @@ class FridaManager:
             Check whether the frida-tools command-line utilities are available.
 
         Returns:
-            True when frida-ps is on PATH.
+            True when frida-ps is on PATH or beside the running interpreter.
 
         Implementation notes:
             Probed by looking for frida-ps specifically, since that is the tool used to verify the server is reachable. The Python bindings and the command-line tools are separate packages and either can be missing.
         """
-        found = shutil.which("frida-ps") is not None
-        verbose_print(f"frida-ps on PATH: {found}", self.verbose)
+        found = find_tool("frida-ps") is not None
+        verbose_print(f"frida-ps found: {found}", self.verbose)
         return found
 
     def get_latest_frida_version(self) -> Optional[str]:
@@ -429,7 +429,7 @@ class FridaManager:
             return False, f"adb forward failed: {exc}"
 
         try:
-            cmd = ["frida-ps", "-H", f"127.0.0.1:{local_port}", "-a"]
+            cmd = [find_tool("frida-ps") or "frida-ps", "-H", f"127.0.0.1:{local_port}", "-a"]
             verbose_print(f"frida-ps: {' '.join(cmd)}", self.verbose)
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
@@ -450,7 +450,8 @@ class FridaManager:
                 pass
 
     def run_script(self, adb_manager, device: str, package: str,
-                   script_source: str, timeout: int = 20) -> Tuple[bool, str]:
+                   script_source: str, timeout: int = 20,
+                   after_load: Optional[Callable[[], str]] = None) -> Tuple[bool, str]:
         """
         Purpose:
             Run an instrumentation script inside the app under test and collect what it sends back.
@@ -461,6 +462,7 @@ class FridaManager:
             package: Package to instrument.
             script_source: The script to inject.
             timeout: Seconds to let the script run.
+            after_load: Called once the script is loaded, to make the app run the code the hooks watch; what it returns is reported ahead of the script's output.
 
         Returns:
             A success flag and the collected output or the failure reason.
@@ -469,7 +471,7 @@ class FridaManager:
             Creates a port forward, attaches to or spawns the app, injects and runs the script, then detaches and cleans up.
 
         Implementation notes:
-            Attaching is tried first and spawning is the fallback, so an already-running app is instrumented in place and one that is not is started. A spawned process is resumed explicitly, since Frida spawns suspended. Messages are collected through a callback rather than returned by the script, which is how Frida's script channel works; errors are captured through the same channel and labelled. The run duration is clamped at both ends, so a caller cannot ask for an instant run that captures nothing or an unbounded one that hangs the pipeline. Output is truncated, because a hooking script on a busy app can emit a great deal. Teardown -- script unload, then detach, remote device removal and forward removal in a finally block -- has each step individually guarded with contextlib.suppress, so a failure during teardown cannot mask the script's result.
+            Attaching is tried first and spawning is the fallback, so an already-running app is instrumented in place and one that is not is started. A spawned process is resumed explicitly, since Frida spawns suspended. Messages are collected through a callback rather than returned by the script, which is how Frida's script channel works; errors are captured through the same channel and labelled. The run duration is clamped at both ends, so a caller cannot ask for an instant run that captures nothing or an unbounded one that hangs the pipeline. Output is truncated, because a hooking script on a busy app can emit a great deal. A hook sees only the calls made while its script is loaded, so the code path it watches has to run inside the window: after_load runs there, and its output is reported first. Without it the caller's only way to make the app act was a separate step after the script had already been unloaded, and a Ghera scan spent its whole device budget on hooks that never fired. Teardown -- script unload, then detach, remote device removal and forward removal in a finally block -- has each step individually guarded with contextlib.suppress, so a failure during teardown cannot mask the script's result.
 
         Security considerations:
             This injects code into a running untrusted app on a rooted device. The script source comes from this tool, not from the app, but the output it returns is attacker-influenced and must be treated as untrusted text.
@@ -535,10 +537,17 @@ class FridaManager:
             script = session.create_script(script_source)
             script.on("message", _on_message)
             script.load()
+            triggered = after_load() if after_load is not None else None
             time.sleep(max(1, min(int(timeout), 60)))
             with contextlib.suppress(Exception):
                 script.unload()
-            output = "\n".join(messages).strip() or "(script ran; no send() output emitted)"
+            output = "\n".join(messages).strip() or (
+                "(script ran; no send() output emitted - the hooked code did not run while the script "
+                "was loaded)" if triggered is not None else
+                "(script ran; no send() output emitted - nothing called the hooked code while the "
+                "script was loaded; put the command that runs it in \"trigger\")")
+            if triggered is not None:
+                output = f"trigger ->\n{triggered.strip()}\n\nscript output:\n{output}"
             return True, output[:8000]
         except Exception as exc:
             return False, f"Frida script failed: {exc}"
@@ -579,7 +588,7 @@ class FridaManager:
         if not has_root:
             return False, "Root access is required for Frida."
         if not self.is_frida_tools_installed():
-            return False, "frida-tools not available on PATH."
+            return False, "frida-tools not found: frida-ps is neither on PATH nor beside the running Python."
 
         abi = adb_manager.get_architecture(device)
         if not abi:

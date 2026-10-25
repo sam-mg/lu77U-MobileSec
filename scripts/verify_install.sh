@@ -6,6 +6,8 @@
 
 # This is the slowest of the push gates by far: a fresh install of this package's dependency list (WeasyPrint, Frida, Semgrep, androguard, uiautomator2, mitmproxy and the rest) from a cold venv takes real minutes, every single run, because the whole point is that nothing is reused.
 
+# The dashboard is started with HOME pointed at a throwaway directory inside the work dir. Both the settings location (platformdirs) and the default output folder (~/Documents) derive from HOME, and a server started against the real ones reconciles the real scan folder at startup: it once failed two queued scans that the user's own dashboard was about to run.
+
 # Exit 0: the version matches and the server started without error.
 # Exit 1: any step failed.
 
@@ -81,7 +83,9 @@ echo "verify_install: -v ok ($version_output)"
 echo "verify_install: running lu77U-MobileSec -V (starts the dashboard; checked for a clean startup, then stopped)..."
 port="$("$VENV_PY" -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
 verbose_log="$WORK_DIR/verbose.log"
-"$VENV_BIN" -V --no-browser --port "$port" > "$verbose_log" 2>&1 &
+ISOLATED_HOME="$WORK_DIR/home"
+mkdir -p "$ISOLATED_HOME"
+HOME="$ISOLATED_HOME" "$VENV_BIN" -V --no-browser --port "$port" > "$verbose_log" 2>&1 &
 SERVER_PID=$!
 
 started=0

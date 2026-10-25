@@ -76,11 +76,23 @@ _TAINT_RULES: Tuple[Tuple[str, str, str, str], ...] = (
      "WebView loads a URL derived from the launching Intent"),
 )
 
+_TYPED_URL_RE = re.compile(
+    r"load(?:Url|DataWithBaseURL)\s*\(\s*[\w.]*getText\s*\(\s*\)\s*\.\s*toString\s*\(\s*\)")
+_SCHEME_CHECK_RE = re.compile(r"startsWith\s*\(\s*\"https?://|getScheme\s*\(|URLUtil\.is(?:Https|Network)Url")
+
 _JS_INTERFACE_CALL_RE = re.compile(r"addJavascriptInterface\s*\(\s*([^,]+),\s*[\"']([^\"']+)[\"']")
 _JS_INTERFACE_ANNOTATION_RE = re.compile(
     r"@(?:android\.webkit\.)?JavascriptInterface\b[^{;]*?\b([A-Za-z_$][\w$]*)\s*\(", re.DOTALL)
 _SSL_ERROR_RE = re.compile(
     r"onReceivedSslError\s*\([^)]*\)\s*\{[^}]*?\.proceed\s*\(\s*\)", re.DOTALL)
+
+
+_COOKIES_OFF_RE = re.compile(r"setAcceptCookie\s*\(\s*false\s*\)|setAcceptThirdPartyCookies\s*\([^)]*,\s*false\s*\)")
+_HTTP_AUTH_RE = re.compile(r"void\s+onReceivedHttpAuthRequest\s*\(([^)]*)\)[^{;]*\{")
+_PROCEED_WITH_CREDENTIALS_RE = re.compile(r"\.\s*proceed\s*\(\s*[^)\s]")
+_HOOK_RE = re.compile(r"\b(?:boolean\s+(shouldOverrideUrlLoading)|WebResourceResponse\s+(shouldInterceptRequest))\s*\([^)]*\)[^{;]*\{")
+_NOOP_STATEMENT_RE = re.compile(
+    r"^(?:(?:android\.util\.)?Log\.\w+\([^;]*\);|return\s+(?:false|null|super\.\w+\([^;]*\));|)$")
 
 
 def _is_noise(rel: str) -> bool:
@@ -156,7 +168,7 @@ def analyze_webviews(source_root, verbose: bool = False) -> List[SastFinding]:
         Reads source files.
 
     Implementation notes:
-        The four rule groups run over each candidate file, and each is separately budgeted so one noisy group cannot crowd out the others.
+        The seven rule groups run over each candidate file, and each is separately budgeted so one noisy group cannot crowd out the others.
     """
     root = Path(source_root)
     if not root.is_dir():
@@ -189,7 +201,10 @@ def analyze_webviews(source_root, verbose: bool = False) -> List[SastFinding]:
         out += _settings_findings(text, rel, counts)
         out += _bridge_findings(text, rel, counts)
         out += _taint_findings(text, rel, counts)
+        out += _typed_url_findings(text, rel, counts)
         out += _ssl_findings(text, rel, counts)
+        out += _http_auth_findings(text, rel, counts)
+        out += _noop_hook_findings(text, rel, counts)
 
     verbose_print(f"SAST webview: {plural(len(out), 'finding')} across {plural(scanned, 'file')}", verbose)
     return out
@@ -231,7 +246,7 @@ def _settings_findings(text: str, rel: str, counts) -> List[SastFinding]:
         The findings.
 
     Implementation notes:
-        Covers JavaScript being enabled, file access from web content, and universal access from file URLs. The last is the most serious: it lets a local page read any file the app can, which turns a downloaded HTML file into a data exfiltration primitive. None of these is exploitable on its own, which is why they carry moderate severities and matter mainly as chain components.
+        Covers JavaScript being enabled, file access from web content, and universal access from file URLs. The last is the most serious: it lets a local page read any file the app can, which turns a downloaded HTML file into a data exfiltration primitive. None of these is exploitable on its own, which is why they carry moderate severities and matter mainly as chain components. File and content access are filed under PLATFORM-05 (file access from web content); JavaScript being enabled is a misconfiguration, PLATFORM-06, the class wording inference gives the same title. Filing it under PLATFORM-05 kept it apart from an agent's PLATFORM-06 copy of the same line, so a Ghera scan listed both. Each setting carries its rule as fact_key, so deduplication never folds one setting into another a few lines away.
     """
     out = []
     for rule_id, pattern, severity, title, description in _SETTINGS_RULES:
@@ -239,9 +254,10 @@ def _settings_findings(text: str, rel: str, counts) -> List[SastFinding]:
             if not _budget(counts, rule_id):
                 break
             out.append(SastFinding(
-                title=title, severity=severity, vuln_class="PLATFORM-05",
+                title=title, severity=severity,
+                vuln_class="PLATFORM-06" if rule_id == "javascript_enabled" else "PLATFORM-05",
                 file=rel, line=_line_of(text, match.start()),
-                detector="webview", confidence="MEDIUM",
+                detector="webview", confidence="MEDIUM", extra={"fact_key": f"webview-setting:{rule_id}"},
                 description=description,
                 evidence=_snippet(text, match.start()),
                 recommendation="Disable this setting unless the WebView only ever loads "
@@ -323,7 +339,7 @@ def _taint_findings(text: str, rel: str, counts) -> List[SastFinding]:
         The findings.
 
     Implementation notes:
-        This is the link that turns WebView settings from configuration into exposure: it establishes that the WebView can be made to load something the attacker chose, which is what every other WebView finding depends on. Matched by proximity between a taint source and a load call rather than by real dataflow, so it can miss a path through a helper method and can over-report one where the value is validated in between.
+        This is the link that turns WebView settings from configuration into exposure: it establishes that the WebView can be made to load something the attacker chose, which is what every other WebView finding depends on. Matched by proximity between a taint source and a load call rather than by real dataflow, so it can miss a path through a helper method and can over-report one where the value is validated in between. A file that loads such a URL and never turns cookies off also gets a Low note that the page shares the app's cookie store: Ghera's cookie-overwrite benchmark is exactly this, and its fix is setAcceptCookie(false).
     """
     out = []
     claimed: set = set()
@@ -348,6 +364,59 @@ def _taint_findings(text: str, rel: str, counts) -> List[SastFinding]:
                                "loading. Reject javascript:, file: and data: schemes.",
                 evidence=_snippet(text, match.start()),
                 cwe="CWE-939", owasp_mobile="M4: Insufficient Input/Output Validation"))
+    if claimed and not _COOKIES_OFF_RE.search(text) and _budget(counts, "external_url_cookies"):
+        line = min(claimed)
+        out.append(SastFinding(
+            title="WebView loading outside URLs shares the app's cookies",
+            severity="Low", vuln_class="PLATFORM-06",
+            file=rel, line=line, detector="webview", confidence="LOW",
+            extra={"fact_key": "webview:external-url-cookies"},
+            description="This WebView loads a URL another app chooses and keeps the app's cookie store, so the page "
+                        "it opens can set cookies the app's own pages then send - overwriting a session cookie with "
+                        "the attacker's, for one.",
+            impact="A page an attacker gets loaded plants cookies for the app's web content (cookie tossing or "
+                   "session fixation) or reads the ones its domain can see.",
+            recommendation="Disable cookies for a WebView that loads outside URLs (CookieManager.setAcceptCookie(false)), "
+                           "or keep the app's own web content in a separate WebView and restrict this one to "
+                           "allowlisted hosts.",
+            evidence="\n".join(text.splitlines()[max(0, line - 2):line + 1]),
+            cwe="CWE-565", owasp_mobile="M4: Insufficient Input/Output Validation"))
+    return out
+
+
+def _typed_url_findings(text: str, rel: str, counts) -> List[SastFinding]:
+    """
+    Purpose:
+        Emit a finding where a WebView loads whatever URL is typed into a text field.
+
+    Parameters:
+        text: The file's source.
+        rel: The file's path.
+        counts: Running rule counts.
+
+    Returns:
+        The findings.
+
+    Implementation notes:
+        The person typing is the one holding the device, so this is not the Intent-driven taint above and is graded lower. It still matters because a WebView with file access opens file:// URLs - the app's private databases and preferences, which that person cannot otherwise read on an unrooted device - and runs javascript: URLs. A scheme check anywhere in the file (startsWith http(s), getScheme, URLUtil) is taken as validation and silences it.
+    """
+    out = []
+    if _SCHEME_CHECK_RE.search(text):
+        return out
+    for match in _TYPED_URL_RE.finditer(text):
+        if not _budget(counts, "loadurl_typed"):
+            break
+        out.append(SastFinding(
+            title="WebView loads a URL typed into the app, with no scheme check",
+            severity="Medium", vuln_class="PLATFORM-06", file=rel, line=_line_of(text, match.start()),
+            detector="webview", confidence="MEDIUM",
+            description=("A WebView loads the text of an input field as a URL without checking its scheme, so "
+                         "file:// and javascript: URLs are loaded as readily as web pages."),
+            impact=("Someone holding the device opens the app's private files (databases, shared preferences) "
+                    "through file:// URLs, and any javascript: URL runs in the WebView."),
+            recommendation="Accept only https:// URLs on an allowlist of hosts, and disable file access on the WebView.",
+            evidence=_snippet(text, match.start()),
+            cwe="CWE-20", owasp_mobile="M4: Insufficient Input/Output Validation"))
     return out
 
 
@@ -375,7 +444,7 @@ def _ssl_findings(text: str, rel: str, counts) -> List[SastFinding]:
             title="WebView ignores TLS certificate errors",
             severity="High", vuln_class="NETWORK-01",
             file=rel, line=_line_of(text, match.start()),
-            detector="webview", confidence="MEDIUM",
+            detector="webview", confidence="MEDIUM", extra={"fact_key": "tls:ssl-error-proceed"},
             description="onReceivedSslError() calls handler.proceed(), which accepts invalid or "
                         "untrusted certificates instead of failing the load.",
             impact="Any attacker on the network path can present their own certificate and read "
@@ -384,4 +453,99 @@ def _ssl_findings(text: str, rel: str, counts) -> List[SastFinding]:
                            "error in a production build.",
             evidence=_snippet(text, match.start()),
             cwe="CWE-295", owasp_mobile="M5: Insecure Communication"))
+    return out
+
+
+def _http_auth_findings(text: str, rel: str, counts) -> List[SastFinding]:
+    """
+    Purpose:
+        Emit findings where a WebView answers an HTTP authentication challenge with credentials without checking which host asked.
+
+    Parameters:
+        text: The file's source.
+        rel: The file's path.
+        counts: Running rule counts.
+
+    Returns:
+        The findings.
+
+    Implementation notes:
+        onReceivedHttpAuthRequest() is called for whatever host the WebView is on, so calling handler.proceed(username, password) there with no test of the host argument hands the credentials to any page that answers 401 - a link, a redirect or a page an attacker controls. The host counts as tested when it is compared (equals, contains, endsWith, startsWith, matches, ==, switch). Ghera plants this; the scans reported the same app's SSL-error proceed() instead.
+    """
+    out = []
+    for match in _HTTP_AUTH_RE.finditer(text):
+        params = [p.strip().split()[-1] for p in match.group(1).split(",") if p.strip()]
+        if len(params) < 3 or not _budget(counts, "http_auth_proceed"):
+            continue
+        host = re.escape(params[2])
+        depth, end = 1, match.end()
+        while end < len(text) and depth:
+            depth += {"{": 1, "}": -1}.get(text[end], 0)
+            end += 1
+        body = text[match.end():end]
+        if not _PROCEED_WITH_CREDENTIALS_RE.search(body):
+            continue
+        checked = re.search(
+            rf"\b{host}\s*\.\s*(?:equals\w*|contains|endsWith|startsWith|matches)\s*\(|"
+            rf"\.equals\w*\s*\(\s*{host}\b|\b{host}\s*[=!]=|switch\s*\(\s*{host}\b", body)
+        if checked:
+            continue
+        out.append(SastFinding(
+            title="WebView sends HTTP auth credentials to any host",
+            severity="Medium", vuln_class="PLATFORM-06",
+            file=rel, line=_line_of(text, match.start()),
+            detector="webview", confidence="MEDIUM", extra={"fact_key": "webview:http-auth-proceed"},
+            description="onReceivedHttpAuthRequest() calls handler.proceed() with credentials and never "
+                        "checks the host argument, so any site the WebView reaches can ask for them.",
+            impact="A page an attacker can get loaded answers 401 and receives the stored username and password.",
+            recommendation="Proceed only for the host the credentials belong to, compared exactly, and "
+                           "cancel the request for any other host.",
+            evidence=_snippet(text, match.start()),
+            cwe="CWE-522", owasp_mobile="M3: Insecure Authentication/Authorization"))
+    return out
+
+
+def _noop_hook_findings(text: str, rel: str, counts) -> List[SastFinding]:
+    """
+    Purpose:
+        Note a WebViewClient that overrides a navigation or request hook only to let everything through.
+
+    Parameters:
+        text: The file's source.
+        rel: The file's path.
+        counts: Running rule counts.
+
+    Returns:
+        Informational findings, one per hook.
+
+    Implementation notes:
+        shouldOverrideUrlLoading() and shouldInterceptRequest() are where Android's WebView guidance has an app restrict what its WebView navigates to and loads. A body of nothing but logging and "return false" or "return null" is the hook in place with the check left out, so the WebView follows any link and loads any resource, whatever page put them there. Not overriding behaves the same and is not reported, since nothing there says a check was meant. Two Ghera benchmarks plant the empty hooks; their fixed apps check the URL.
+    """
+    out = []
+    for match in _HOOK_RE.finditer(text):
+        name = match.group(1) or match.group(2)
+        depth, end = 1, match.end()
+        while end < len(text) and depth:
+            depth += {"{": 1, "}": -1}.get(text[end], 0)
+            end += 1
+        body = text[match.end():end - 1]
+        statements = [line.strip() for line in body.splitlines() if line.strip() and not line.strip().startswith("//")]
+        if not statements or not all(_NOOP_STATEMENT_RE.match(st) for st in statements):
+            continue
+        if not _budget(counts, "noop_hook"):
+            break
+        loads = "follows every link" if name == "shouldOverrideUrlLoading" else "loads every resource request"
+        out.append(SastFinding(
+            title=f"WebViewClient.{name}() checks nothing",
+            severity="Informational", vuln_class="PLATFORM-06",
+            file=rel, line=_line_of(text, match.start()),
+            detector="webview", confidence="LOW", extra={"fact_key": f"webview:noop-{name}"},
+            description=f"{name}() is overridden but only lets the request through, so the WebView {loads} "
+                        "whatever page asked for it.",
+            impact="A page reached by a link or a redirect is loaded, or a resource fetched in the clear is used, "
+                   "with nothing restricting it to the app's own hosts.",
+            recommendation="Allow only the app's own hosts over HTTPS in the hook and refuse or open everything else "
+                           "outside the WebView.",
+            evidence=_snippet(text, match.start()),
+            cwe="CWE-939", owasp_mobile="M4: Insufficient Input/Output Validation"))
     return out

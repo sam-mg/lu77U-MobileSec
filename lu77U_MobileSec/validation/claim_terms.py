@@ -12,7 +12,7 @@ Dependencies:
     re, hmac, dataclasses.
 
 Implementation notes:
-    The design is a two-sided vocabulary: triggers are what a model says, aliases are what the code would contain. They are deliberately different word lists -- a model writes "trusts all certificates", the code contains X509TrustManager -- and conflating them is what makes naive keyword checks useless here. Triggers are pre-split into word-boundary patterns and plain substrings at import. A short trigger like "des" or "rsa" must match as a word, or it fires inside unrelated identifiers; a multi-word phrase cannot use word boundaries the same way, so it is matched as a substring.
+    The design is a two-sided vocabulary: triggers are what a model says, aliases are what the code would contain. They are deliberately different word lists -- a model writes "trusts all certificates", the code contains X509TrustManager -- and conflating them is what makes naive keyword checks useless here. A concept implemented differently per framework lists every framework's API: a JavaScript bridge is addJavascriptInterface in Java, a WebView onMessage/postMessage handler or a native module's @ReactMethod (reached through NativeModules) in React Native, and a JavascriptChannel or JavaScript handler in Flutter; React Native findings citing a WebView onMessage handler and a @ReactMethod were both refuted while the table knew only the Java form. Certificate validation is the same: Dart's HttpClient has no TrustManager, it has badCertificateCallback and SecurityContext, and in a release build the callback compiles to a closure stored into an _HttpClient, so a Flutter finding about it was refuted while only the Java API counted; and a Kotlin hostname verifier is a lambda compiled to a static method taking (String, SSLSession), which carries neither the class name nor verify(. Logging is the same: JavaScript's console.log and Dart's print reach logcat in a release build, and a React Native finding about console.log was refuted while only android.util.Log counted. Triggers are pre-split into word-boundary patterns and plain substrings at import. A short trigger like "des" or "rsa" must match as a word, or it fires inside unrelated identifiers; a multi-word phrase cannot use word boundaries the same way, so it is matched as a substring.
 
 Security considerations:
     This is a hallucination control, and it fails in the safe direction: a claim with no recognised term is treated as supported, because suppressing findings this module simply does not understand would hide real vulnerabilities.
@@ -66,7 +66,10 @@ CLAIM_TERMS: Tuple[ClaimTerm, ...] = (
     ClaimTerm("jsbridge",
               ("addjavascriptinterface", "javascriptinterface", "js bridge",
                "javascript bridge"),
-              ("addjavascriptinterface", "@javascriptinterface")),
+              ("addjavascriptinterface", "@javascriptinterface", "webkit.javascriptinterface", "onmessage",
+               "postmessage", "javascriptchannel", "addjavascripthandler",
+               "reactmethod", "reactcontextbasejavamodule", "nativemodules",
+               "turbomoduleregistry")),
     ClaimTerm("jsenabled", ("setjavascriptenabled", "javascript enabled"),
               ("setjavascriptenabled",)),
     ClaimTerm("fileaccess",
@@ -78,10 +81,10 @@ CLAIM_TERMS: Tuple[ClaimTerm, ...] = (
               ("trustmanager", "trusts all", "trust all certificates",
                "certificate validation"),
               ("x509trustmanager", "trustmanager", "checkservertrusted",
-               "sslcontext")),
+               "sslcontext", "badcertificatecallback", "securitycontext", "_httpclient")),
     ClaimTerm("hostnameverifier",
               ("hostnameverifier", "hostname verification"),
-              ("hostnameverifier", "verify(", "allow_all_hostname")),
+              ("hostnameverifier", "verify(", "allow_all_hostname", "sslsession")),
     ClaimTerm("sslerror", ("onreceivedsslerror",),
               ("onreceivedsslerror", "sslerrorhandler", ".proceed(")),
     ClaimTerm("exec", ("runtime.exec", "runtime.getruntime", "command execution"),
@@ -98,7 +101,8 @@ CLAIM_TERMS: Tuple[ClaimTerm, ...] = (
     ClaimTerm("webviewload", ("loadurl",), ("loadurl", "loaddata")),
     ClaimTerm("logging", ("log.d", "log.v", "logcat", "logged to logcat"),
               ("log.d", "log.v", "log.i", "log.e", "log.w", "android.util.log",
-               "printstacktrace")),
+               "printstacktrace", "console.log", "console.warn", "console.error",
+               "console.info", "print(", "debugprint(")),
 )
 
 BY_ID: Dict[str, ClaimTerm] = {t.id: t for t in CLAIM_TERMS}
@@ -268,3 +272,60 @@ def evidence_supports(term_ids: Sequence[str], blob: str) -> bool:
     if not haystack:
         return False
     return any(alias in haystack for alias in aliases_for(term_ids))
+
+
+def names_present(text: str, names: Iterable[str]) -> List[str]:
+    """
+    Purpose:
+        List which of the given names occur anywhere in a text, case-insensitively.
+
+    Parameters:
+        text: The text to search, typically a whole recovered module.
+        names: The candidate names, typically API names taken from a finding's title.
+
+    Returns:
+        The names found, in the order given.
+
+    Complexity:
+        O(n * m) per name for text length n and name length m, since every window is compared.
+
+    Security considerations:
+        The names come from model-written titles, so the search compares every window in constant time rather than with a short-circuiting substring test, matching how the gates treat model-derived text.
+    """
+    haystack = str(text or "").lower().encode()
+    found: List[str] = []
+    for name in names:
+        needle = str(name).lower().encode()
+        width = len(needle)
+        if width and any(hmac.compare_digest(haystack[i:i + width], needle)
+                         for i in range(len(haystack) - width + 1)):
+            found.append(name)
+    return found
+
+
+def aliases_present(text: str) -> List[str]:
+    """
+    Purpose:
+        List every code-side alias in the claim table that occurs anywhere in a text.
+
+    Parameters:
+        text: The text to search, typically a whole recovered module.
+
+    Returns:
+        The aliases found, in table order, without duplicates.
+
+    Complexity:
+        O(n * a) for text length n and alias count a.
+
+    Implementation notes:
+        Used to record what a recovered cross-platform module contains as a whole, so the claim gates can look past the few lines around a citation when the cited file is one module. The result is a short list of vocabulary, never the code itself, so it costs little to carry on a finding.
+    """
+    haystack = str(text or "").lower()
+    found: List[str] = []
+    if not haystack:
+        return found
+    for term in CLAIM_TERMS:
+        for alias in term.aliases:
+            if alias in haystack and alias not in found:
+                found.append(alias)
+    return found

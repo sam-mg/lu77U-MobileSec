@@ -6,13 +6,13 @@ Purpose:
     Store and retrieve AI provider API keys, preferring the operating system keychain and falling back to an encrypted file where no keychain exists.
 
 Responsibilities:
-    Detect keychain availability, read and write keys through it, maintain the encrypted fallback store, support multiple keys per provider, and mask keys for display.
+    Detect keychain availability, read and write keys through it, maintain the encrypted fallback store, support multiple keys per provider each with an optional label, and mask keys for display.
 
 Dependencies:
     keyring for the OS keychain, cryptography (Fernet) for the fallback, .paths for the config directory, ..ui.colors for the warning.
 
 Implementation notes:
-    Multiple keys per provider are supported so that a user can rotate across keys when one hits a rate limit. The storage format is a JSON list under a single keychain entry; a plain string is still accepted on read, so entries written by earlier versions keep working.
+    Multiple keys per provider are supported so that a user can rotate across keys when one hits a rate limit. The storage format is a JSON list under a single keychain entry; a plain string is still accepted on read, so entries written by earlier versions keep working. A key with a label is stored as {"key": ..., "label": ...} in that list and a key without one as the bare string, so a pool nobody has labelled is stored exactly as before and an older version of the tool still reads it.
 
 Security considerations:
     The OS keychain is the intended store. The Fernet fallback exists for headless Linux and containers where no keychain daemon is running, and it is genuinely weaker: the encryption key sits in the same directory as the ciphertext, so anyone who can read one can read the other. It protects against casual disclosure -- a backup, a shared screen, a misdirected file copy -- not against a local attacker. The user is warned once, explicitly, when this path is taken. Key files are chmodded to owner-only. Keys are never logged, and mask_key exists so that no display path has a reason to print one in full.
@@ -23,8 +23,9 @@ import functools
 import json
 import os
 import stat
+import unicodedata
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 
 import keyring
 from keyring.errors import KeyringError, PasswordDeleteError
@@ -33,6 +34,8 @@ from .paths import APP_NAME, get_config_dir
 from ..ui.colors import Colors
 
 SERVICE_NAME = APP_NAME
+
+LABEL_MAX_CHARS = 80
 
 _USE_FALLBACK: Optional[bool] = None
 
@@ -304,6 +307,84 @@ def _get_raw(provider: str) -> Optional[str]:
     return _fallback_get(provider)
 
 
+def clean_label(label: Optional[str]) -> str:
+    """
+    Purpose:
+        Normalise a key's label and reject one that cannot be shown safely on one line.
+
+    Parameters:
+        label: The label as the user typed it. None and blank mean no label.
+
+    Returns:
+        The label with its whitespace collapsed to single spaces; empty when there is none.
+
+    Raises:
+        ValueError: When it runs past LABEL_MAX_CHARS or carries a control or invisible formatting character.
+
+    Security considerations:
+        A label is free text a user types, such as the account the key belongs to, and it is shown beside the masked key. Invisible formatting characters, bidirectional overrides among them, are refused because they can make a label read as something other than what it holds.
+    """
+    text = " ".join((label or "").split())
+    if any(unicodedata.category(ch) in ("Cc", "Cf") for ch in text):
+        raise ValueError("A key label cannot contain control or invisible formatting characters.")
+    if len(text) > LABEL_MAX_CHARS:
+        raise ValueError(f"A key label is at most {LABEL_MAX_CHARS} characters.")
+    return text
+
+
+def _parse_entries(raw: Optional[str]) -> List[Dict[str, str]]:
+    """
+    Purpose:
+        Read a stored value into its keys and their labels.
+
+    Parameters:
+        raw: The stored value, or None.
+
+    Returns:
+        One {"key", "label"} entry per key, in rotation order, with blank keys left out.
+
+    Implementation notes:
+        A JSON list whose items are strings or {"key", "label"} objects is the current format. Any other value is treated as one literal key, which covers entries written before multi-key support and also a key that itself happens to be valid JSON.
+    """
+    if raw is None or not str(raw).strip():
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError):
+        return [{"key": raw, "label": ""}]
+    if not isinstance(parsed, list):
+        return [{"key": raw, "label": ""}]
+    entries: List[Dict[str, str]] = []
+    for item in parsed:
+        if isinstance(item, str):
+            key, label = item, ""
+        elif isinstance(item, dict) and isinstance(item.get("key"), str):
+            key = item["key"]
+            label = item["label"] if isinstance(item.get("label"), str) else ""
+        else:
+            return [{"key": raw, "label": ""}]
+        if key and key.strip():
+            entries.append({"key": key, "label": label})
+    return entries
+
+
+def get_api_key_entries(provider: str) -> List[Dict[str, str]]:
+    """
+    Purpose:
+        Return every stored key for a provider with its label, in rotation order.
+
+    Parameters:
+        provider: Provider identifier.
+
+    Returns:
+        A list of {"key", "label"} entries; the label is empty for a key without one. Never None.
+
+    Security considerations:
+        Returns live credentials. Only the settings surface reads labels, and it masks the keys; scan output never carries a label, since a label is often an email address and a scan's folder can end up shared.
+    """
+    return _parse_entries(_get_raw(provider))
+
+
 def get_api_keys(provider: str) -> List[str]:
     """
     Purpose:
@@ -316,33 +397,27 @@ def get_api_keys(provider: str) -> List[str]:
         A list of keys, empty when none are stored. Never None.
 
     Implementation notes:
-        Handles both storage formats. A JSON list is the current format; any value that is not a JSON list of strings is treated as one literal key, which covers entries written before multi-key support and also the case where a key itself happens to be valid JSON. Empty and whitespace-only entries are filtered out so that a stray blank cannot become a key the provider then tries to authenticate with.
+        Labels are dropped here, so providers, which only need the keys, are unaffected by them. Empty and whitespace-only entries are filtered out so that a stray blank cannot become a key the provider then tries to authenticate with.
 
     Security considerations:
         Returns live credentials. The result must not be logged; use mask_key for anything user-visible.
     """
-    raw = _get_raw(provider)
-    if raw is None or not str(raw).strip():
-        return []
-    try:
-        parsed = json.loads(raw)
-    except (ValueError, TypeError):
-        return [raw]
-    if isinstance(parsed, list) and all(isinstance(k, str) for k in parsed):
-        return [k for k in parsed if k and k.strip()]
-    return [raw]
+    return [entry["key"] for entry in get_api_key_entries(provider)]
 
-def set_api_keys(provider: str, keys: List[str]) -> None:
+def set_api_keys(provider: str, keys: List[Union[str, Dict[str, str]]]) -> None:
     """
     Purpose:
         Replace the stored key list for a provider.
 
     Parameters:
         provider: Provider identifier.
-        keys: Keys to store. None and empty are accepted.
+        keys: Keys to store, each a bare key or a {"key", "label"} entry. None and empty are accepted.
+
+    Raises:
+        ValueError: When a label is rejected by clean_label.
 
     Postconditions:
-        Keys are stripped, blanks removed and duplicates dropped while preserving order. An empty result deletes the entry entirely rather than storing an empty list, so "no keys" has one representation.
+        Keys are stripped, blanks removed and duplicates dropped while preserving order; the first occurrence of a key keeps its label. An empty result deletes the entry entirely rather than storing an empty list, so "no keys" has one representation.
 
     Side effects:
         Writes to the keychain or the fallback store.
@@ -350,35 +425,83 @@ def set_api_keys(provider: str, keys: List[str]) -> None:
     Security considerations:
         Deduplication compares full key values in memory only; nothing is logged.
     """
-    cleaned: List[str] = []
-    for key in keys or []:
-        key = (key or "").strip()
-        if key and key not in cleaned:
-            cleaned.append(key)
+    cleaned: List[Dict[str, str]] = []
+    seen = set()
+    for item in keys or []:
+        if isinstance(item, dict):
+            key, label = item.get("key") or "", item.get("label") or ""
+        else:
+            key, label = item or "", ""
+        key = key.strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        cleaned.append({"key": key, "label": clean_label(label)})
     if not cleaned:
         delete_api_key(provider)
         return
-    _set_raw(provider, json.dumps(cleaned))
+    _set_raw(provider, json.dumps([entry if entry["label"] else entry["key"] for entry in cleaned]))
 
-def add_api_key(provider: str, value: str) -> None:
+def add_api_key(provider: str, value: str, label: str = "") -> None:
     """
     Purpose:
-        Append one key to a provider's rotation list.
+        Append one key to a provider's rotation list, optionally with a label.
 
     Parameters:
         provider: Provider identifier.
         value: Key to add. Blank values are ignored.
+        label: What the key is for, such as the account it belongs to. Empty for none.
+
+    Raises:
+        ValueError: When the label is rejected by clean_label.
 
     Side effects:
         Rewrites the provider entry.
 
     Postconditions:
-        A key already present is not duplicated, by virtue of the deduplication in set_api_keys.
+        A key already present is not duplicated. Adding it again with a label gives the stored key that label, so a key can be labelled by pasting it a second time.
     """
     value = (value or "").strip()
     if not value:
         return
-    set_api_keys(provider, get_api_keys(provider) + [value])
+    label = clean_label(label)
+    entries = get_api_key_entries(provider)
+    positions = {entry["key"].strip(): i for i, entry in enumerate(entries)}
+    if value in positions:
+        if label:
+            entries[positions[value]]["label"] = label
+        set_api_keys(provider, entries)
+        return
+    set_api_keys(provider, entries + [{"key": value, "label": label}])
+
+def set_api_key_label(provider: str, index: int, label: str) -> bool:
+    """
+    Purpose:
+        Give one stored key a label, change it, or clear it, by position.
+
+    Parameters:
+        provider: Provider identifier.
+        index: Zero-based position, as displayed in the settings UI.
+        label: The new label; empty clears it.
+
+    Returns:
+        True when the key existed and was relabelled, False for an out-of-range position.
+
+    Raises:
+        ValueError: When the label is rejected by clean_label.
+
+    Side effects:
+        Rewrites the provider entry when the position is valid.
+
+    Security considerations:
+        Addressed by position, like removal, so the settings page never has to send a key back to label it.
+    """
+    entries = get_api_key_entries(provider)
+    if not 0 <= index < len(entries):
+        return False
+    entries[index]["label"] = clean_label(label)
+    set_api_keys(provider, entries)
+    return True
 
 def remove_api_key(provider: str, index: int) -> None:
     """
@@ -390,7 +513,7 @@ def remove_api_key(provider: str, index: int) -> None:
         index: Zero-based position, as displayed in the settings UI.
 
     Side effects:
-        Rewrites the provider entry when the index is valid.
+        Rewrites the provider entry when the index is valid; every other key keeps its label.
 
     Implementation notes:
         An out-of-range index is ignored rather than raising. The index comes from a UI list that may be stale if another window changed the keys, and silently ignoring a stale index is better than an error dialog -- though it does mean the caller cannot tell a removal from a no-op.
@@ -398,10 +521,10 @@ def remove_api_key(provider: str, index: int) -> None:
     Security considerations:
         Removal is by position rather than by value, so the UI never has to send a full key back to be deleted.
     """
-    keys = get_api_keys(provider)
-    if 0 <= index < len(keys):
-        del keys[index]
-        set_api_keys(provider, keys)
+    entries = get_api_key_entries(provider)
+    if 0 <= index < len(entries):
+        del entries[index]
+        set_api_keys(provider, entries)
 
 def set_api_key(provider: str, value: str) -> None:
     """

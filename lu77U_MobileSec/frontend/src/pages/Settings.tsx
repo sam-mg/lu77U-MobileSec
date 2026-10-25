@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Check, Copy, Gauge, KeyRound, Loader2, Plug, RefreshCw, Save, Wrench, FileText, X, Eye, EyeOff,
-  Terminal,
+  Terminal, Tag,
 } from "lucide-react";
 import {
   api, type Settings as SettingsT, type StoredApiKey, type CliStatus, type ProviderVendor,
@@ -348,6 +348,7 @@ function FrameworkToolsCard({ settings, onChange }: { settings: SettingsT; onCha
   const [blutter, setBlutter] = useState(settings.blutter_path);
   const [hermes, setHermes] = useState(settings.hermes_decomp_path);
   const [rnDecompiler, setRnDecompiler] = useState(settings.rn_decompiler_path);
+  const [ghidra, setGhidra] = useState(settings.ghidra_path);
   const [saving, setSaving] = useState<string | null>(null);
 
   async function save(key: string, payload: Record<string, unknown>) {
@@ -362,11 +363,12 @@ function FrameworkToolsCard({ settings, onChange }: { settings: SettingsT; onCha
 
   return (
     <Card>
-      <SectionTitle>Framework decompilers</SectionTitle>
+      <SectionTitle>Optional decompilers</SectionTitle>
       <p className="mb-4 text-xs text-slate-500">
         Optional. Unlike JADX, none of these block scanning - a Flutter or React
         Native app scanned without its tool configured still gets a detection-only
-        report instead of failing.
+        report instead of failing, and native libraries without Ghidra are still
+        summarised from their symbols and strings.
       </p>
       <div className="space-y-5">
         <PathField
@@ -398,6 +400,16 @@ function FrameworkToolsCard({ settings, onChange }: { settings: SettingsT; onCha
           configured={settings.status.rn_decompiler_configured}
           saving={saving === "rn"}
           onSave={() => save("rn", { rn_decompiler_path: rnDecompiler })}
+        />
+        <PathField
+          label="Ghidra path"
+          hint="For native .so libraries in any app - lets the AI read their decompiled C. ghidraRun, the install folder, or support/analyzeHeadless."
+          placeholder="/opt/homebrew/bin/ghidraRun"
+          value={ghidra}
+          onChangeValue={setGhidra}
+          configured={settings.status.ghidra_configured}
+          saving={saving === "ghidra"}
+          onSave={() => save("ghidra", { ghidra_path: ghidra })}
         />
       </div>
     </Card>
@@ -432,6 +444,9 @@ function PathField({
   );
 }
 
+/** The longest label the server accepts - mirrors LABEL_MAX_CHARS in config/credentials.py. */
+const KEY_LABEL_MAX = 80;
+
 function StoredKeyRow({
   provider, keyInfo, isActive, onChange,
 }: { provider: string; keyInfo: StoredApiKey; isActive: boolean; onChange: () => Promise<void> }) {
@@ -439,6 +454,10 @@ function StoredKeyRow({
   const [revealing, setRevealing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [savingLabel, setSavingLabel] = useState(false);
+  const [labelError, setLabelError] = useState<string | null>(null);
 
   async function toggleReveal() {
     if (revealed) {
@@ -471,43 +490,113 @@ function StoredKeyRow({
     }
   }
 
+  function startEditing() {
+    setDraft(keyInfo.label);
+    setLabelError(null);
+    setEditing(true);
+  }
+
+  async function saveLabel() {
+    setSavingLabel(true);
+    setLabelError(null);
+    try {
+      await api.setCredentialLabel(provider, keyInfo.index, draft.trim());
+      setEditing(false);
+      await onChange();
+    } catch (e) {
+      setLabelError(e instanceof Error ? e.message : "Could not save the label");
+    } finally {
+      setSavingLabel(false);
+    }
+  }
+
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-ink-900/50 px-2.5 py-1.5">
-      <span className={`truncate font-mono text-xs ${isActive ? "text-emerald-300" : "text-slate-300"}`}>
-        {revealed ?? keyInfo.masked}
-      </span>
-      {isActive && (
-        <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] text-emerald-300">
-          active
-        </span>
-      )}
-      <div className="ml-auto flex shrink-0 items-center gap-1">
-        <button
-          className="text-slate-500 hover:text-slate-300 disabled:opacity-50"
-          disabled={revealing}
-          onClick={toggleReveal}
-          title={revealed ? "Hide" : "Reveal"}
-        >
-          {revealing ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : revealed ? (
-            <EyeOff className="h-3.5 w-3.5" />
+    <div className="rounded-lg bg-ink-900/50 px-2.5 py-1.5">
+      <div className="flex items-center gap-2">
+        {editing ? (
+          <input
+            className="input h-7 min-w-0 flex-1 px-2 py-0 text-xs"
+            value={draft}
+            maxLength={KEY_LABEL_MAX}
+            autoFocus
+            placeholder="Label, e.g. abc@gmail.com"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveLabel();
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+        ) : (
+          <div className="flex min-w-0 items-center gap-2">
+            {keyInfo.label && (
+              <span className="truncate text-xs text-slate-200" title={keyInfo.label}>
+                {keyInfo.label}
+              </span>
+            )}
+            <span className={`truncate font-mono text-xs ${isActive ? "text-emerald-300" : "text-slate-400"}`}>
+              {revealed ?? keyInfo.masked}
+            </span>
+          </div>
+        )}
+        {isActive && !editing && (
+          <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] text-emerald-300">
+            active
+          </span>
+        )}
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          {editing ? (
+            <>
+              <button
+                className="text-slate-500 hover:text-emerald-400 disabled:opacity-50"
+                disabled={savingLabel}
+                onClick={saveLabel}
+                title="Save label"
+              >
+                {savingLabel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              </button>
+              <button className="text-slate-500 hover:text-slate-300" onClick={() => setEditing(false)} title="Cancel">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
           ) : (
-            <Eye className="h-3.5 w-3.5" />
+            <>
+              <button
+                className="text-slate-500 hover:text-slate-300"
+                onClick={startEditing}
+                title={keyInfo.label ? "Edit label" : "Add a label"}
+              >
+                <Tag className="h-3.5 w-3.5" />
+              </button>
+              <button
+                className="text-slate-500 hover:text-slate-300 disabled:opacity-50"
+                disabled={revealing}
+                onClick={toggleReveal}
+                title={revealed ? "Hide" : "Reveal"}
+              >
+                {revealing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : revealed ? (
+                  <EyeOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <button className="text-slate-500 hover:text-slate-300" onClick={copy} title="Copy">
+                {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                className="text-slate-500 hover:text-rose-400 disabled:opacity-50"
+                disabled={removing}
+                onClick={remove}
+                title="Remove this key"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
           )}
-        </button>
-        <button className="text-slate-500 hover:text-slate-300" onClick={copy} title="Copy">
-          {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-        </button>
-        <button
-          className="text-slate-500 hover:text-rose-400 disabled:opacity-50"
-          disabled={removing}
-          onClick={remove}
-          title="Remove this key"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        </div>
       </div>
+      {labelError && <p className="mt-1 text-[11px] text-rose-400">{labelError}</p>}
     </div>
   );
 }
@@ -522,6 +611,8 @@ function ProviderEditor({ settings, name, onChange }: { settings: SettingsT; nam
   const [models, setModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [apiKey, setApiKey] = useState("");
+  const [keyLabel, setKeyLabel] = useState("");
+  const [keyError, setKeyError] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [savingCfg, setSavingCfg] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
@@ -584,10 +675,14 @@ function ProviderEditor({ settings, name, onChange }: { settings: SettingsT; nam
 
   async function saveKey(clear = false) {
     setSavingKey(true);
+    setKeyError(null);
     try {
-      await api.setCredential(name, clear ? null : apiKey);
+      await api.setCredential(name, clear ? null : apiKey, clear ? undefined : keyLabel.trim());
       setApiKey("");
+      setKeyLabel("");
       await onChange();
+    } catch (e) {
+      setKeyError(e instanceof Error ? e.message : "Could not save the key");
     } finally {
       setSavingKey(false);
     }
@@ -728,7 +823,7 @@ function ProviderEditor({ settings, name, onChange }: { settings: SettingsT; nam
             <div className="mb-2 space-y-1.5">
               {p.api_keys.map((k) => (
                 <StoredKeyRow
-                  key={k.index}
+                  key={`${k.index}:${k.masked}`}
                   provider={name}
                   keyInfo={k}
                   isActive={k.index === 0}
@@ -738,8 +833,8 @@ function ProviderEditor({ settings, name, onChange }: { settings: SettingsT; nam
             </div>
           )}
 
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-[12rem] flex-1">
               <input
                 className="input pr-9"
                 type={showKey ? "text" : "password"}
@@ -751,6 +846,14 @@ function ProviderEditor({ settings, name, onChange }: { settings: SettingsT; nam
                 {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            <input
+              className="input min-w-[10rem] flex-1 sm:max-w-[14rem]"
+              value={keyLabel}
+              maxLength={KEY_LABEL_MAX}
+              onChange={(e) => setKeyLabel(e.target.value)}
+              placeholder="Label (optional)"
+              title="What this key is for, e.g. the account it belongs to - shown only here"
+            />
             <button className="btn-primary shrink-0" disabled={savingKey || !apiKey} onClick={() => saveKey(false)}>
               {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
               {p.api_key_count > 0 ? "Add another" : "Save"}
@@ -761,10 +864,11 @@ function ProviderEditor({ settings, name, onChange }: { settings: SettingsT; nam
               </button>
             )}
           </div>
+          {keyError && <p className="mt-1 text-[11px] text-rose-400">{keyError}</p>}
           <p className="mt-1 text-[11px] text-slate-500">
             {p.api_key_count > 1
-              ? "Tried in the order listed above - a scan rolls to the next key when one runs out of quota."
-              : "Stored in your OS keychain - never written to disk in plaintext."}
+              ? "Tried in the order listed above - a scan rolls to the next key when one runs out of quota. A label, such as the account a key belongs to, helps tell them apart."
+              : "Stored in your OS keychain - never written to disk in plaintext. A label is optional, e.g. the account the key belongs to."}
           </p>
         </div>
       )}

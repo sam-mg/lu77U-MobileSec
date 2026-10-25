@@ -75,7 +75,8 @@ export default function ScanDetail() {
           <Link to="/scans" className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300">
             <ArrowLeft className="h-3.5 w-3.5" /> Scans
           </Link>
-          <h1 className="truncate text-2xl font-bold text-white">{title}</h1>
+          {/* Wraps rather than truncates: a name long enough to overflow is usually a path whose distinguishing part is at the end, and this heading is the only place the page shows it. */}
+          <h1 className="break-words text-2xl font-bold text-white">{title}</h1>
           <p className="mt-1 break-all font-mono text-xs text-slate-500">{app?.package_name || sum.package_name || meta.filename}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -154,6 +155,8 @@ function FailedView({ id, meta, stream }: { id: string; meta: ScanMeta; stream: 
 function PausedView({ id, meta, stream }: { id: string; meta: ScanMeta; stream: Stream }) {
   const interrupted = meta.pause_reason === "interrupted";
   const quotaExhausted = meta.pause_reason === "provider_quota";
+  const unreachable = meta.pause_reason === "provider_unreachable";
+  const outage = quotaExhausted || unreachable;
   const gaveUp = interrupted && (meta.resume_attempts ?? 0) >= 2;
   const pct = stream.progress.percent || meta.progress || 0;
   const resumeAt = meta.resume_after ? new Date(meta.resume_after) : null;
@@ -167,23 +170,30 @@ function PausedView({ id, meta, stream }: { id: string; meta: ScanMeta; stream: 
           <PauseCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-amber-200">
-              {interrupted ? "Scan interrupted" : quotaExhausted ? "Paused - AI provider quota exhausted" : "Scan paused"}
+              {interrupted ? "Scan interrupted"
+                : quotaExhausted ? "Paused - AI provider quota exhausted"
+                : unreachable ? "Paused - AI provider unreachable"
+                : "Scan paused"}
             </h2>
             <p className="mt-1 text-sm text-amber-300/80">
               {interrupted
                 ? "The server stopped while this scan was running. Its progress was checkpointed - press Resume to continue from where it left off."
                 : quotaExhausted
                   ? "The AI provider's subscription usage limit was reached mid-scan. Everything found so far is kept, and the exact spot it stopped at will pick back up - nothing is re-analyzed from the start."
-                  : "Paused at a checkpoint. Press Resume to continue; the AI work already done is kept."}
+                  : unreachable
+                    ? "The AI provider could not be reached - no network connection, or its host is down. The work done so far is checkpointed and the scan picks back up once the provider answers again."
+                    : "Paused at a checkpoint. Press Resume to continue; the AI work already done is kept."}
               {" "}Stopped at about {Math.round(pct)}%
               {meta.phase ? ` (${meta.phase.replace(/_/g, " ")})` : ""}.
               {gaveUp && " Auto-resume stopped retrying after two attempts - resume it by hand when ready."}
             </p>
-            {quotaExhausted && (
+            {outage && (
               <p className="mt-2 text-xs text-amber-400/70">
                 {resumeAtText
                   ? `Retries automatically after about ${resumeAtText}, or press Resume any time before then.`
-                  : "Retries automatically once the usage window is expected to have reset, or press Resume any time."}
+                  : unreachable
+                    ? "Retries automatically in a few minutes, or press Resume any time."
+                    : "Retries automatically once the usage window is expected to have reset, or press Resume any time."}
                 {(meta.quota_resume_attempts ?? 0) > 0 && ` (auto-retried ${meta.quota_resume_attempts}x so far)`}
               </p>
             )}
@@ -264,7 +274,7 @@ function CompletedView({ id, meta, result, stream }: {
               ))}
             </div>
           )}
-          {analysis && !analysis.supported && (
+          {analysis && !analysis.supported && !analysis.error && (
             <p className="mt-3 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300 ring-1 ring-inset ring-amber-500/20">
               Deep vulnerability analysis isn’t supported for this framework yet - detection-only report.
             </p>
@@ -280,6 +290,23 @@ function CompletedView({ id, meta, result, stream }: {
           </div>
         </Card>
       </div>
+
+      {analysis && !analysis.success && analysis.error && (
+        <Card className="border-rose-500/30">
+          <SectionTitle>The analysis did not run</SectionTitle>
+          <p className="text-sm text-rose-300/90">{analysis.error}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            No findings are listed because the app’s code was not analysed, not because it is free of issues.
+          </p>
+        </Card>
+      )}
+
+      {analysis?.limitation && (
+        <Card className="border-amber-500/30">
+          <SectionTitle>Reduced coverage</SectionTitle>
+          <p className="text-sm text-amber-300/90">{analysis.limitation}</p>
+        </Card>
+      )}
 
       {/* App info */}
       <Card>

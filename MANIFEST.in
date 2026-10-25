@@ -4,6 +4,7 @@ include LICENSE
 recursive-include lu77U_MobileSec *.py
 recursive-include lu77U_MobileSec/skills *.md
 recursive-include lu77U_MobileSec/rules *.yml *.yaml
+recursive-include lu77U_MobileSec/decompiler/ghidra_scripts *.java
 
 recursive-include lu77U_MobileSec/web/static *
 

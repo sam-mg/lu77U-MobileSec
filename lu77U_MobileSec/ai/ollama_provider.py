@@ -26,8 +26,8 @@ from .base_provider import BaseAIProvider
 from .errors import ErrorClass, classify, is_fatal, retry_after_for
 from .registry import DEFAULT_MODELS
 from ..config.settings import (
-    OLLAMA_KEEP_ALIVE, OLLAMA_MAX_RETRIES, OLLAMA_NUM_PREDICT,
-    OLLAMA_REQUEST_TIMEOUT, OLLAMA_RETRY_DELAY,
+    OLLAMA_KEEP_ALIVE, OLLAMA_MAX_NUM_PREDICT, OLLAMA_MAX_RETRIES, OLLAMA_NUM_PREDICT,
+    OLLAMA_REQUEST_TIMEOUT, OLLAMA_RETRY_DELAY, OLLAMA_THINKING_ALLOWANCE,
 )
 from ..utils.verbose import verbose_print
 
@@ -249,12 +249,13 @@ class OllamaProvider(BaseAIProvider):
             Up to the configured maximum attempts, with backoff between them.
 
         Implementation notes:
-            Thinking is always requested, and the reasoning trace is accumulated separately from the response content. Mixing the two would corrupt the JSON the schema constrains, and disabling thinking to avoid that would degrade analysis quality -- the trace is where the model does the reasoning that makes a finding correct. Both stay on. A done_reason of "length" means the model hit the output cap mid-JSON. That is retried like a failure, because a truncated response is unparseable, and it is recorded under its own counter so a systematically low cap is visible rather than appearing as generic flakiness. Usage for a truncated attempt is recorded as not-ok while still counting the tokens, which were spent regardless. Backoff grows by half each time and is capped, so a run of transient failures does not stretch into minutes of sleeping. Throttling is handled differently from other transient failures: the provider's own Retry-After is honoured when present, otherwise a longer fixed delay applies, and the throttle is reported to the base class so it can narrow concurrency for the rest of the scan. Fatal failures attempt key rotation first and only trip the circuit when no key remains. The loop can end without returning only when OLLAMA_MAX_RETRIES is zero or negative, so that case gets an explicit error dict after the loop; falling off the end would return None, which analyze reads as a key rotation and would re-enter forever.
+            Thinking is always requested, and the reasoning trace is accumulated separately from the response content. Mixing the two would corrupt the JSON the schema constrains, and disabling thinking to avoid that would degrade analysis quality -- the trace is where the model does the reasoning that makes a finding correct. Both stay on. A done_reason of "length" means the model hit the output cap mid-JSON. That is retried like a failure, because a truncated response is unparseable, and it is recorded under its own counter so a systematically low cap is visible rather than appearing as generic flakiness. A caller's max_tokens sizes its answer, so OLLAMA_THINKING_ALLOWANCE is added on top of it for the trace: sized for the answer alone, the review pass's 500-1,000-token batch caps truncated on 301 of 373 calls across a week of scans and ran out of attempts on 77, leaving those batches on mechanical verdicts, and the device triage's 300-token cap failed on every scan, so every finding was taken to the device and the ones that needed it ran out of steps. Each retry doubles the cap up to OLLAMA_MAX_NUM_PREDICT: the thinking trace counts against the cap, and a model that reasoned past it once does the same again at the same cap - a benchmark scan lost a whole agent region to three identical truncations. Each attempt's cap is in the trace and the transcript; the returned error does not repeat the number, so the caller-supplied token budget does not flow into a message callers compare. Usage for a truncated attempt is recorded as not-ok while still counting the tokens, which were spent regardless. Backoff grows by half each time and is capped, so a run of transient failures does not stretch into minutes of sleeping. Throttling is handled differently from other transient failures: the provider's own Retry-After is honoured when present, otherwise a longer fixed delay applies, and the throttle is reported to the base class so it can narrow concurrency for the rest of the scan. Fatal failures attempt key rotation first and only trip the circuit when no key remains. The loop can end without returning only when OLLAMA_MAX_RETRIES is zero or negative, so that case gets an explicit error dict after the loop; falling off the end would return None, which analyze reads as a key rotation and would re-enter forever.
 
         Security considerations:
             Error text is traced through the verbose module, which redacts credential-shaped content before it reaches the terminal or the dashboard.
         """
         retry_delay = OLLAMA_RETRY_DELAY
+        cap = max_tokens + OLLAMA_THINKING_ALLOWANCE if max_tokens else OLLAMA_NUM_PREDICT
 
         for attempt in range(OLLAMA_MAX_RETRIES):
             attempt_started = time.monotonic()
@@ -274,7 +275,7 @@ class OllamaProvider(BaseAIProvider):
                 for part in self.client.chat(
                     self.model, messages=messages, stream=True, format=schema,
                     keep_alive=OLLAMA_KEEP_ALIVE,
-                    options={"num_predict": max_tokens or OLLAMA_NUM_PREDICT},
+                    options={"num_predict": cap},
                     think=True,
                 ):
                     if "message" in part:
@@ -306,23 +307,23 @@ class OllamaProvider(BaseAIProvider):
                 if done_reason == "length":
                     verbose_print(
                         f"Attempt {attempt + 1}: response truncated at the "
-                        f"{OLLAMA_NUM_PREDICT}-token cap (done_reason=length)",
+                        f"{cap}-token cap (done_reason=length)",
                         self.verbose,
                     )
                     self.record_usage(elapsed, metrics, ok=False)
                     self.log_exchange(
                         system_message, prompt, response_content,
                         elapsed=elapsed, metrics=metrics, thinking=thinking_content,
-                        error=f"truncated at the {OLLAMA_NUM_PREDICT}-token cap "
+                        error=f"truncated at the {cap}-token cap "
                              f"(done_reason=length), attempt {attempt + 1}")
                     if attempt < OLLAMA_MAX_RETRIES - 1:
                         self.record_retry("truncation")
+                        cap = min(cap * 2, max(OLLAMA_MAX_NUM_PREDICT, cap))
                         time.sleep(retry_delay)
                         retry_delay = min(retry_delay * 1.5, 10)
                         continue
-                    return {"error": f"Ollama response truncated at the "
-                                     f"{OLLAMA_NUM_PREDICT}-token output cap "
-                                     f"after {OLLAMA_MAX_RETRIES} attempts"}
+                    return {"error": "Ollama response truncated at the output cap after "
+                                     f"{OLLAMA_MAX_RETRIES} attempts, each with a larger cap"}
 
                 self.record_usage(elapsed, metrics, ok=True)
                 self.log_exchange(
@@ -335,6 +336,7 @@ class OllamaProvider(BaseAIProvider):
                 attempt_elapsed = time.monotonic() - attempt_started
                 error_msg = str(e)
                 kind = classify(e)
+                self.note_reachability(e)
                 verbose_print(
                     f"Attempt {attempt + 1} failed ({kind.value}): {error_msg}", self.verbose)
 

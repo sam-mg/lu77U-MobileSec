@@ -68,6 +68,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "hermes_decomp_path": "",
     "rn_decompiler_path": "",
     "xamarin_decompiler_path": "",
+    "ghidra_path": "",
     "output_dir": "",
     "pdf_generation": True,
     "dynamic_verification": True,
@@ -76,6 +77,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "agent_budget": {
         "max_steps_per_region": 40,
         "max_minutes": 45,
+        "max_review_parts": 40,
     },
     "prompt_overrides": {},
 }
@@ -83,6 +85,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
 AGENT_BUDGET_LIMITS = {
     "max_steps_per_region": (0, 500),
     "max_minutes": (0, 480),
+    "max_review_parts": (0, 400),
 }
 
 MAX_CONCURRENT_REQUESTS_RANGE = (1, 20)
@@ -419,6 +422,40 @@ def set_rn_decompiler_path(path: str) -> None:
     """
     data = load()
     data["rn_decompiler_path"] = path
+    save(data)
+
+def get_ghidra_path() -> str:
+    """
+    Purpose:
+        Read the configured path to Ghidra, which decompiles native libraries for the agent.
+
+    Returns:
+        The configured path, or an empty string when the user has not set one, which the tool checkers read as "not configured".
+
+    Side effects:
+        Loads settings on first call.
+
+    Implementation notes:
+        The value may name the install directory, ghidraRun, or analyzeHeadless itself. Turning it into the headless launcher is the checker's job, so this accessor returns it exactly as stored.
+    """
+    return load().get("ghidra_path", "")
+
+def set_ghidra_path(path: str) -> None:
+    """
+    Purpose:
+        Record the path to Ghidra.
+
+    Parameters:
+        path: The install directory, ghidraRun, or analyzeHeadless. Stored as given.
+
+    Side effects:
+        Rewrites the settings file.
+
+    Security considerations:
+        The path is stored without validation and is later used to launch a subprocess. It is operator-supplied through the settings UI, so this is an intended capability rather than an injection route, but a caller must still pass it as an argument vector element and never through a shell.
+    """
+    data = load()
+    data["ghidra_path"] = path
     save(data)
 
 def get_output_dir() -> str:

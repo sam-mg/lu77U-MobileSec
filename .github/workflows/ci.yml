@@ -1,6 +1,6 @@
 name: CI
 
-# Runs the same four gates as the pre-push hook, via the identical scripts. The hook can be bypassed with --no-verify; this cannot, so it is the gate that actually holds.
+# Runs the same five gates as the pre-push hook, via the identical scripts. The hook can be bypassed with --no-verify; this cannot, so it is the gate that actually holds.
 
 on:
   push:
@@ -13,15 +13,37 @@ permissions:
 
 jobs:
   checks:
-    name: comment style + tests + codeql + clean install
+    name: commit messages + comment style + tests + codeql + clean install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
+
+      - name: Commit messages
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            range="$PR_BASE..$PR_HEAD"
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            range="origin/$DEFAULT_BRANCH..$AFTER"
+          elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            range="$BEFORE..$AFTER"
+          else
+            range="$AFTER^!"
+          fi
+          python scripts/check_commit_message.py --range "$range"
 
       - name: Comment style
         run: python scripts/check_comment_style.py

@@ -37,7 +37,7 @@ export default function Dashboard() {
     for (const s of list) {
       if (s.status === "completed") acc.completed += 1;
       const sum = s.summary || {};
-      acc.vulns += sum.total_vulnerabilities || 0;
+      acc.vulns += (sum.critical || 0) + (sum.high || 0) + (sum.medium || 0) + (sum.low || 0);
       acc.critical += sum.critical || 0;
       acc.high += sum.high || 0;
       acc.medium += sum.medium || 0;
@@ -61,7 +61,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Security Overview</h1>
-        <p className="mt-1 text-sm text-slate-400">Scan Android apps for framework fingerprints and source-level vulnerabilities.</p>
+        <p className="mt-1 text-sm text-slate-400">Android app scans: findings graded by severity, exploit chains, and what was verified on a device.</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -97,7 +97,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-xl font-bold tabular-nums text-white">{donutTotal}</span>
-                <span className="text-[10px] uppercase tracking-wider text-slate-500">findings</span>
+                <span className="text-[9px] uppercase tracking-wide text-slate-500">vulnerabilities</span>
               </div>
             </div>
             <div className="grow basis-36 space-y-1.5">
@@ -123,7 +123,7 @@ export default function Dashboard() {
           ) : scans.length === 0 ? (
             <EmptyState icon={<ScanLine className="h-8 w-8" />} title="No scans yet" hint="Upload an APK above to run your first analysis." />
           ) : (
-            <ScanTable scans={scans.slice(0, 5)} />
+            <ScanTable scans={scans.slice(0, 5)} compact />
           )}
         </Card>
       </div>

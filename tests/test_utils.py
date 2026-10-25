@@ -3,22 +3,25 @@
 Module: test_utils
 
 Purpose:
-    Verbose-log redaction, the curation that decides what reaches the scan log, and the string helpers that feed reports.
+    Verbose-log redaction, the curation that decides what reaches the scan log, the string helpers that feed reports, and the lookup that finds the command-line tools installed beside the interpreter.
 
 Responsibilities:
-    Pin that secrets never survive into a log line, that URL extraction and truncation behave, and that the scan log carries the narrative of a run without the engine's internal chatter and without ever swallowing a problem.
+    Pin that secrets never survive into a log line, that URL extraction and truncation behave, that the scan log carries the narrative of a run without the engine's internal chatter and without ever swallowing a problem, and that a tool in the running venv is found with the venv not on PATH.
 
 Dependencies:
-    pytest and the verbose and string helper modules.
+    pytest and the verbose, string and system helper modules.
 
 Security considerations:
     The redaction cases are the control that keeps API keys, bearer tokens and passwords out of the log file and the live log, both of which are written to disk and shown in the browser. A gap here leaks a real credential from the user's own configuration.
 """
 
 import hmac
+import os
+import sys
 
 import pytest
 
+from lu77U_MobileSec.utils import system
 from lu77U_MobileSec.utils.string_utils import extract_urls_from_text, truncate_text
 from lu77U_MobileSec.utils.verbose import redact
 
@@ -372,3 +375,62 @@ class TestScanLogIsCurated:
         finally:
             vmod.unregister_sink(seen.append)
         assert seen and "SECRETVALUE" not in seen[0]
+
+
+class TestFindTool:
+    """
+    Purpose:
+        Pin that a tool installed beside the running interpreter is found when its directory is not on PATH, and that PATH still wins.
+    """
+
+    @staticmethod
+    def _tool(folder, name):
+        """
+        Purpose:
+            Create an executable stand-in for a tool.
+
+        Parameters:
+            folder: Directory to create it in.
+            name: The tool's name.
+
+        Returns:
+            The path of the created file.
+        """
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / (name + (".exe" if os.name == "nt" else ""))
+        path.write_text("")
+        path.chmod(0o755)
+        return path
+
+    def test_a_tool_beside_the_interpreter_is_found_off_path(self, monkeypatch, tmp_path):
+        """
+        Purpose:
+            The venv's bin directory is not on PATH, as when the venv's python is run by its full path.
+
+        Parameters:
+            monkeypatch: pytest fixture.
+            tmp_path: pytest fixture.
+        """
+        venv_bin = tmp_path / "venv" / "bin"
+        self._tool(venv_bin, "python")
+        tool = self._tool(venv_bin, "frida-ps")
+        monkeypatch.setattr(sys, "executable", str(venv_bin / "python"))
+        monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+        assert os.path.samefile(system.find_tool("frida-ps"), tool)
+        assert system.find_tool("mitmdump") is None
+
+    def test_path_is_preferred(self, monkeypatch, tmp_path):
+        """
+        Purpose:
+            A tool the user put on PATH is the one run, even when the venv has its own copy.
+
+        Parameters:
+            monkeypatch: pytest fixture.
+            tmp_path: pytest fixture.
+        """
+        venv_bin = tmp_path / "venv" / "bin"
+        self._tool(venv_bin, "frida-ps")
+        on_path = self._tool(tmp_path / "path", "frida-ps")
+        monkeypatch.setattr(sys, "executable", str(venv_bin / "python"))
+        monkeypatch.setenv("PATH", str(tmp_path / "path"))
+        assert os.path.samefile(system.find_tool("frida-ps"), on_path)

@@ -59,6 +59,15 @@ function Banner() {
       >
         Install lu77U-MobileSec locally to analyze your own app
       </a>
+      <span aria-hidden="true" className="hidden text-amber-500/50 sm:inline">·</span>
+      <a
+        href={`${__APP_HOMEPAGE__}/wiki/Benchmarks`}
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium underline underline-offset-2 hover:text-amber-200"
+      >
+        Ghera benchmark results
+      </a>
     </div>
   );
 }

@@ -319,13 +319,3 @@ LIBGDX_GRADLE_KEYWORDS = [
     "gdxVersion",
     "libgdx"
 ]
-
-VALID_AI_MODELS = [
-    "deepseek-v3.1:671b-cloud",
-    "gpt-oss:20b-cloud",
-    "gpt-oss:120b-cloud",
-    "kimi-k2:1t-cloud",
-    "qwen3-coder:480b-cloud",
-    "glm-4.6:cloud",
-    "minimax-m2:cloud"
-]

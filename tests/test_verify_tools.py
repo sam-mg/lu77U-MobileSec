@@ -6,7 +6,7 @@ Purpose:
     The phase-2 device tool surface: the allowlist that stands between the model and a connected device.
 
 Responsibilities:
-    Pin the package validation done at construction, the commands the allowlist permits and how it rewrites them, every shape it must refuse, and the sandboxing on the remaining tools.
+    Pin the package validation done at construction, the commands the allowlist permits and how it rewrites them, every shape it must refuse, the sandboxing on the remaining tools, and that a hook's trigger runs while the hook is loaded.
 
 Dependencies:
     pytest and the verification tool surface, with fakes standing in for the device bridge and the instrumentation runner.
@@ -15,8 +15,12 @@ Security considerations:
     Every command here originates from the model. The allowlist is what keeps a prompt-driven verification step from reaching another application's data, changing device settings, or running arbitrary shell on the device, so each refusal case is asserted both by the error returned and by nothing reaching the bridge at all.
 """
 
+import sys
+import types
+
 import pytest
 
+from lu77U_MobileSec.dynamic_analysis import frida_manager
 from lu77U_MobileSec.dynamic_analysis.verify_tools import VerifyTools
 
 PACKAGE = "com.example.target"
@@ -83,20 +87,23 @@ class FakeADB:
 class FakeFrida:
     """
     Purpose:
-        An instrumentation runner that reports success without touching a device.
+        An instrumentation runner that reports success without touching a device, running the trigger where the real runner does: after the script loads.
     """
-    def run_script(self, *_):
+    def run_script(self, *_, after_load=None):
         """
         Purpose:
-            Pretend to run an instrumentation script.
+            Pretend to run an instrumentation script, calling the trigger as the real runner does.
 
         Parameters:
             _: The positional arguments the real runner takes (the device bridge, the device serial, the target package and the script text), ignored.
+            after_load: The trigger to run once the script is loaded, or None.
 
         Returns:
-            A success flag and a fixed output string.
+            A success flag and a fixed output string, preceded by the trigger's output when there was one.
         """
-        return True, "script output"
+        if after_load is None:
+            return True, "script output"
+        return True, f"trigger ->\n{after_load()}\n\nscript output:\nscript output"
 
 @pytest.fixture
 def adb():
@@ -322,7 +329,7 @@ class TestRefusedCommands:
             Present so the refusals above are known to be scope checks rather than a blanket ban on the verb.
         """
         tools.adb_command(f"am start -n {PACKAGE}/.MainActivity")
-        assert adb.commands[0].startswith("am start ")
+        assert adb.commands[-1].startswith("am start ")
 
     def test_input_arguments_are_validated(self, tools, adb):
         """
@@ -350,6 +357,181 @@ class TestRefusedCommands:
             The command text comes from a model and is not guaranteed to be well formed, so a parse failure has to arrive as a refusal the agent can read rather than as an exception that ends the verification phase.
         """
         assert tools.adb_command('run-as ' + PACKAGE + ' cat "unterminated').startswith("ERROR")
+
+class ProviderADB(FakeADB):
+    """
+    Purpose:
+        A recording bridge whose `dumpsys package` lists one provider of the app under test and one of another app.
+    """
+    def shell(self, _, command, **__):
+        """
+        Purpose:
+            Record the command, answering a package dump with provider authorities.
+
+        Parameters:
+            _: The device serial, ignored.
+            command: The command as it would be sent to the device.
+            __: Keyword options, ignored.
+
+        Returns:
+            The package dump for a dumpsys command, otherwise a plain success.
+        """
+        self.commands.append(command)
+        if command.startswith("dumpsys package"):
+            return FakeResult(stdout=(
+                "  ContentProvider Authorities:\n"
+                f"    [{PACKAGE}.notes]:\n      Provider{{4f0d6a5 {PACKAGE}/.NotesProvider}}\n"
+                "    [com.other.app.files]:\n      Provider{1a2b3c4 com.other.app/.FileProvider}\n"))
+        return FakeResult()
+
+
+class TestSequencesAndProviders:
+    """
+    Purpose:
+        Chained commands and content provider commands.
+    """
+    def test_a_chain_runs_in_order_and_each_part_is_checked(self, tools, adb):
+        """
+        Purpose:
+            Pin that && runs each command in turn, stripping the bridge prefix from each, and that a refused part stops the chain before it reaches the device.
+
+        Parameters:
+            tools: The tool surface.
+            adb: The recording bridge.
+        """
+        out = tools.adb_command(f"adb shell am start -n {PACKAGE}/.LogActivity && adb shell input text 1234 && input tap 5 9")
+        assert [c.split()[0] for c in adb.commands if c != "id -u"] == ["am", "input", "input"]
+        assert out.count("$ ") == 3
+        adb.commands.clear()
+        out = tools.adb_command(f"am start -n {PACKAGE}/.A && su -c id && input tap 1 2")
+        assert len(adb.commands) == 1 and "ERROR" in out
+
+    @pytest.mark.parametrize("command", ["logcat | grep pw", f"am start -n {PACKAGE}/.A &", "logcat > /sdcard/x"])
+    def test_pipes_and_redirection_are_refused(self, tools, adb, command):
+        """
+        Purpose:
+            Pin that a pipe, a background job or a redirection is refused whole.
+
+        Parameters:
+            tools: The tool surface.
+            adb: The recording bridge.
+            command: The refused command.
+        """
+        assert tools.adb_command(command).startswith("ERROR")
+        assert adb.commands == []
+
+    def test_content_reaches_only_the_apps_own_providers(self, tmp_path):
+        """
+        Purpose:
+            Pin that a content query to the app's provider is sent with its arguments quoted, and one to another app's provider is refused.
+
+        Parameters:
+            tmp_path: The source sandbox root.
+        """
+        bridge = ProviderADB()
+        tools = VerifyTools(bridge, FakeFrida(), "emulator-5554", PACKAGE, tmp_path)
+        tools.adb_command(f'content query --uri content://{PACKAGE}.notes/notes --where "1=1"')
+        assert bridge.commands[-1] == f"content query --uri content://{PACKAGE}.notes/notes --where 1=1"
+        assert tools.adb_command("content query --uri content://com.other.app.files/x").startswith("ERROR")
+        assert tools.adb_command("content query").startswith("ERROR")
+        assert not any(c.startswith("content") and "com.other.app" in c for c in bridge.commands)
+
+
+class RootShellADB(FakeADB):
+    """
+    Purpose:
+        A bridge whose adb shell is root and whose su takes the AOSP form, as on many emulators.
+    """
+    def shell(self, _, command, **__):
+        """
+        Purpose:
+            Record the command, answering the identity probes as a root shell would.
+
+        Parameters:
+            _: The device serial, ignored.
+            command: The command.
+            __: Keyword options, ignored.
+
+        Returns:
+            "0" for `id -u`, a shell identity for `su 2000 id`, otherwise a plain success.
+        """
+        self.commands.append(command)
+        if command == "id -u":
+            return FakeResult(stdout="0")
+        if command == "su 2000 id":
+            return FakeResult(stdout="uid=2000(shell) gid=2000(shell)")
+        return FakeResult()
+
+
+def test_on_a_root_shell_intents_are_sent_as_an_unprivileged_user(tmp_path):
+    """
+    Purpose:
+        Pin that when adb's shell is root, am and content commands run as uid 2000, so the device refuses them what it refuses another app, and that the probe runs once.
+
+    Parameters:
+        tmp_path: The source sandbox root.
+
+    Implementation notes:
+        As root, a Ghera fixed app's receiver was triggered with a protected broadcast no app can send, and a false positive was confirmed.
+    """
+    bridge = RootShellADB()
+    tools = VerifyTools(bridge, FakeFrida(), "emulator-5554", PACKAGE, tmp_path)
+    tools.adb_command(f"am broadcast -n {PACKAGE}/.Receiver")
+    tools.adb_command(f"am start -n {PACKAGE}/.Main")
+    assert bridge.commands == ["id -u", "su 2000 id", f"su 2000 am broadcast -n {PACKAGE}/.Receiver",
+                               f"su 2000 am start -n {PACKAGE}/.Main"]
+
+
+class TestUiDump:
+    """
+    Purpose:
+        Listing the app's on-screen elements so the agent taps what is there.
+    """
+    def test_only_the_apps_own_elements_are_listed_with_tap_points(self, tmp_path):
+        """
+        Purpose:
+            Pin that the dump lists the target app's field and button with the centre to tap, leaves out the system UI, and refuses any other uiautomator subcommand.
+
+        Parameters:
+            tmp_path: The source sandbox root.
+        """
+        class DumpADB(FakeADB):
+            """
+            Purpose:
+                A bridge answering the dump with two app elements and one system element.
+            """
+            def shell(self, _, command, **__):
+                """
+                Purpose:
+                    Record the command and return a UI hierarchy.
+
+                Parameters:
+                    _: The device serial, ignored.
+                    command: The command.
+                    __: Keyword options, ignored.
+
+                Returns:
+                    The hierarchy.
+                """
+                self.commands.append(command)
+                return FakeResult(stdout=(
+                    '<hierarchy><node text="" class="android.widget.FrameLayout" package="com.android.systemui" '
+                    'clickable="true" bounds="[0,0][1080,80]"/>'
+                    f'<node text="" resource-id="{PACKAGE}:id/user" class="android.widget.EditText" package="{PACKAGE}" '
+                    'clickable="true" bounds="[42,300][1038,420]"/>'
+                    f'<node text="SEARCH" resource-id="{PACKAGE}:id/go" class="android.widget.Button" package="{PACKAGE}" '
+                    'clickable="true" bounds="[42,450][1038,570]"/></hierarchy>'))
+
+        bridge = DumpADB()
+        tools = VerifyTools(bridge, FakeFrida(), "emulator-5554", PACKAGE, tmp_path)
+        out = tools.adb_command("uiautomator dump")
+        assert out.splitlines() == ["EditText id=user text='' tap=(540,360) editable clickable",
+                                    "Button id=go text='SEARCH' tap=(540,510) clickable"]
+        assert tools.adb_command("uiautomator runtest x.jar").startswith("ERROR")
+        assert len(bridge.commands) == 1
+        assert bridge.commands[0].startswith("pkill -f 'com.wetest.uia2.Mai[n]'; uiautomator dump ")
+        assert "com.wetest.uia2.Main" not in bridge.commands[0]
+
 
 class TestOtherTools:
     """
@@ -388,3 +570,144 @@ class TestOtherTools:
             tools: The tool surface.
         """
         assert tools.frida_script("send(1)") == "script output"
+
+    def test_a_trigger_runs_while_the_hooks_are_loaded(self, tools, adb):
+        """
+        Purpose:
+            Pin that a trigger reaches the device through the adb allowlist, inside the script's run, and that its output comes back with the script's.
+
+        Parameters:
+            tools: The tool surface.
+            adb: The recording device bridge.
+
+        Implementation notes:
+            A hook sees only the calls made while it is loaded; a Ghera scan ran every hook first and the am start that would have fired it as the next step, and spent its whole budget on hooks that never fired.
+        """
+        out = tools.frida_script("send(1)", trigger=f"am start -n {PACKAGE}/.MainActivity")
+        assert adb.commands and adb.commands[-1].startswith("am start ")
+        assert out.startswith("trigger ->") and out.endswith("script output")
+
+    def test_a_trigger_is_held_to_the_adb_allowlist(self, tools, adb):
+        """
+        Purpose:
+            Pin that a trigger can do nothing an adb action could not.
+
+        Parameters:
+            tools: The tool surface.
+            adb: The recording device bridge.
+
+        Security considerations:
+            The trigger is model-written device input like any adb command; a second path to the device that skipped the allowlist would undo every refusal above.
+        """
+        out = tools.frida_script("send(1)", trigger="am start -n com.other/.Main")
+        assert "ERROR" in out
+        assert adb.commands == []
+
+
+def test_the_runner_fires_the_trigger_between_load_and_unload(monkeypatch):
+    """
+    Purpose:
+        Pin the order the real runner uses: the script is loaded, the trigger runs and the hooks then listen, and only after that is the script unloaded.
+
+    Parameters:
+        monkeypatch: Installs a stand-in frida module and removes the wait.
+    """
+    events = []
+
+    class _Script:
+        """
+        Purpose:
+            A script that records its lifecycle and reports one message once loaded.
+        """
+        def on(self, unused_kind, callback):
+            """
+            Purpose:
+                Keep the message callback.
+
+            Parameters:
+                unused_kind: The event name, unused.
+                callback: The message callback.
+            """
+            self.callback = callback
+
+        def load(self):
+            """
+            Purpose:
+                Record the load.
+            """
+            events.append("load")
+
+        def unload(self):
+            """
+            Purpose:
+                Record the unload.
+            """
+            events.append("unload")
+
+    script = _Script()
+
+    class _Session:
+        """
+        Purpose:
+            A session that hands out the recording script.
+        """
+        def create_script(self, unused_source):
+            """
+            Purpose:
+                Return the recording script.
+
+            Parameters:
+                unused_source: The script source, unused.
+
+            Returns:
+                The script.
+            """
+            return script
+
+        def detach(self):
+            """
+            Purpose:
+                Nothing to release.
+            """
+
+    class _Device:
+        """
+        Purpose:
+            A device whose app is already running.
+        """
+        def attach(self, unused_package):
+            """
+            Purpose:
+                Attach to the running app.
+
+            Parameters:
+                unused_package: The package, unused.
+
+            Returns:
+                A session.
+            """
+            return _Session()
+
+    manager = types.SimpleNamespace(add_remote_device=lambda _: _Device(), remove_remote_device=lambda _: None)
+    monkeypatch.setitem(sys.modules, "frida", types.SimpleNamespace(get_device_manager=lambda: manager))
+    monkeypatch.setattr(frida_manager.time, "sleep", lambda _: events.append("listen"))
+    runner = frida_manager.FridaManager()
+    monkeypatch.setattr(runner, "is_server_running", lambda *_: True)
+    adb = types.SimpleNamespace(run_adb=lambda *_, **__: types.SimpleNamespace(returncode=0, stderr=""))
+
+    def trigger():
+        """
+        Purpose:
+            Stand in for the am start that runs the hooked code, which then reports through the hook.
+
+        Returns:
+            The command's output.
+        """
+        events.append("trigger")
+        script.callback({"type": "send", "payload": "hooked call seen"}, None)
+        return "Starting: Intent { cmp=x/.Main }"
+
+    ok, output = runner.run_script(adb, "emulator-5554", PACKAGE, "send(1)", after_load=trigger)
+    assert ok
+    assert events == ["load", "trigger", "listen", "unload"]
+    assert output == "trigger ->\nStarting: Intent { cmp=x/.Main }\n\nscript output:\nhooked call seen"

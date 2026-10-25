@@ -204,7 +204,23 @@ class TestFlutterProfile:
         """
         tools = AgentTools(flutter_tree, profile=FLUTTER)
         assert '"https://api.example.com/secret"' in tools.manifest_summary()
-        assert tools.profile.summary_label == "Dart object pool (pp.txt)"
+        assert "pp.txt" in tools.profile.summary_label
+
+    def test_overview_takes_precedence_over_the_pool(self, flutter_tree):
+        """
+        Purpose:
+            Pin that the generated Flutter overview, when present, is the opening summary instead of the pool.
+
+        Parameters:
+            flutter_tree: The Flutter decompiled tree.
+
+        Implementation notes:
+            The first page of pp.txt is mostly Flutter engine strings; the overview carries the build mode, the layout and the platform-channel map, which is what the agent needs before its first step.
+        """
+        (flutter_tree / "flutter_scan_overview.txt").write_text("Build: RELEASE (AOT)\n")
+        tools = AgentTools(flutter_tree, profile=FLUTTER)
+        assert "Build: RELEASE (AOT)" in tools.manifest_summary()
+        assert '"https://api.example.com/secret"' not in tools.manifest_summary()
 
     def test_resource_files_lists_pp_txt(self, flutter_tree):
         """
@@ -260,7 +276,19 @@ class TestReactNativeProfile:
         """
         tools = AgentTools(rn_tree, profile=REACT_NATIVE)
         assert "javascript" in tools.manifest_summary()
-        assert tools.profile.summary_label == "Bundle metadata"
+        assert "bundle metadata" in tools.profile.summary_label
+
+    def test_overview_takes_precedence_over_the_metadata(self, rn_tree):
+        """
+        Purpose:
+            Pin that the generated React Native overview, when present, is the opening summary.
+
+        Parameters:
+            rn_tree: The React Native tree.
+        """
+        (rn_tree / "rn_scan_overview.txt").write_text("Build: Hermes bytecode (HBC version 96)\n")
+        tools = AgentTools(rn_tree, profile=REACT_NATIVE)
+        assert "HBC version 96" in tools.manifest_summary()
 
     def test_search_code_respects_extensions(self, rn_tree):
         """

@@ -20,7 +20,6 @@ Security considerations:
 
 import os
 import platform
-import shutil
 import signal
 import socket
 import subprocess
@@ -33,6 +32,7 @@ from typing import Optional, Tuple
 from urllib.parse import urlparse
 
 from .._metadata import NAME as APP_NAME
+from ..utils.system import find_tool
 from ..utils.verbose import verbose_print
 
 MITMPROXY_PORT = 8080
@@ -218,10 +218,10 @@ class MitmproxyManager:
             Check whether mitmdump is available.
 
         Returns:
-            True when mitmdump is on PATH.
+            True when mitmdump is on PATH or beside the running interpreter.
         """
-        found = shutil.which("mitmdump") is not None
-        verbose_print(f"mitmdump on PATH: {found}", self.verbose)
+        found = find_tool("mitmdump") is not None
+        verbose_print(f"mitmdump found: {found}", self.verbose)
         return found
 
     def _kill_stray_mitmdump(self) -> None:
@@ -294,7 +294,7 @@ class MitmproxyManager:
                 os.remove(log_path)
 
             self._proxy_process = subprocess.Popen(
-                ["mitmdump", "-p", str(MITMPROXY_PORT), "-s", script_path, "--quiet"],
+                [find_tool("mitmdump") or "mitmdump", "-p", str(MITMPROXY_PORT), "-s", script_path, "--quiet"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             verbose_print(f"mitmdump PID: {self._proxy_process.pid}", self.verbose)
 

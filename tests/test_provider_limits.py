@@ -20,7 +20,8 @@ import time
 
 from lu77U_MobileSec.ai.base_provider import BaseAIProvider
 from lu77U_MobileSec.ai.errors import retry_after_for
-from lu77U_MobileSec.config.settings import OLLAMA_MAX_RETRIES, OLLAMA_NUM_PREDICT
+from lu77U_MobileSec.config.settings import (
+    OLLAMA_MAX_NUM_PREDICT, OLLAMA_MAX_RETRIES, OLLAMA_NUM_PREDICT, OLLAMA_THINKING_ALLOWANCE)
 
 
 def _ollama_provider(**kw):
@@ -118,6 +119,52 @@ class TestOutputCapIsRequested:
 
         assert seen_kwargs.get("options") == {"num_predict": OLLAMA_NUM_PREDICT}
 
+    def test_a_callers_cap_gets_room_for_the_thinking_trace(self, monkeypatch):
+        """
+        Purpose:
+            Pin that a caller's answer-sized cap is raised by the thinking allowance before it is sent.
+
+        Parameters:
+            monkeypatch: Removes the backoff delay.
+
+        Implementation notes:
+            The device triage asks for 300 tokens; its answer is a short id list but the trace before it ran to a thousand, so it truncated on every scan until the allowance was added.
+        """
+        import lu77U_MobileSec.ai.ollama_provider as op
+
+        monkeypatch.setattr(op.time, "sleep", lambda _: None)
+        caps = []
+
+        class _Client:
+            """
+            Purpose:
+                A client that records the cap it was asked for and answers successfully.
+            """
+            def chat(self, unused_model, **kwargs):
+                """
+                Purpose:
+                    Record the requested cap and yield a complete answer.
+
+                Parameters:
+                    unused_model: The model name, unused here.
+                    kwargs: The call keywords; the cap is read from options.
+
+                Returns:
+                    A single final chunk holding an empty finding list.
+
+                Side effects:
+                    Records the cap.
+                """
+                caps.append(kwargs["options"]["num_predict"])
+                yield _chunk("[]", done=True, done_reason="stop", eval_count=3)
+
+        prov = _ollama_provider(api_keys=["k"])
+        prov._client = _Client()
+        prov.analyze("p", system_message="s", max_tokens=300)
+
+        assert OLLAMA_THINKING_ALLOWANCE >= 1024
+        assert caps == [300 + OLLAMA_THINKING_ALLOWANCE]
+
     def test_thinking_is_explicitly_requested_every_call(self, monkeypatch):
         """
         Purpose:
@@ -176,7 +223,7 @@ class TestTruncationDetection:
             self, monkeypatch):
         """
         Purpose:
-            Pin that a response cut off at the limit is reported as an error naming the cap, is not fatal, and leaves the circuit closed.
+            Pin that a response cut off at the limit is retried with the cap doubled each time up to the ceiling, is then reported as an error, is not fatal, and leaves the circuit closed.
 
         Parameters:
             monkeypatch: Removes the backoff delay.
@@ -188,23 +235,26 @@ class TestTruncationDetection:
 
         monkeypatch.setattr(op.time, "sleep", lambda _: None)
 
+        caps = []
+
         class _AlwaysTruncated:
             """
             Purpose:
-                A client that always stops at the generation limit mid-structure.
+                A client that always stops at the generation limit mid-structure, recording the cap each attempt asked for.
             """
-            def chat(self, *unused_args, **unused_kwargs):
+            def chat(self, *unused_args, **kwargs):
                 """
                 Purpose:
                     Yield a final chunk holding partial text and a limit-reached reason.
 
                 Parameters:
                     unused_args: Positional arguments, ignored.
-                    unused_kwargs: Keyword arguments, ignored.
+                    kwargs: Keyword arguments; the output cap is read from options.
 
                 Returns:
                     A single final chunk reporting the generation limit.
                 """
+                caps.append(kwargs["options"]["num_predict"])
                 yield _chunk('{"action":"read_fil', done=True,
                              done_reason="length", eval_count=65536)
 
@@ -215,7 +265,8 @@ class TestTruncationDetection:
         assert "response" not in result
         assert "error" in result
         assert "truncated" in result["error"]
-        assert str(OLLAMA_NUM_PREDICT) in result["error"]
+        assert caps[0] == OLLAMA_NUM_PREDICT
+        assert all(later == min(earlier * 2, OLLAMA_MAX_NUM_PREDICT) for earlier, later in zip(caps, caps[1:]))
         assert result.get("fatal") is not True
         assert prov.unavailable is None
 

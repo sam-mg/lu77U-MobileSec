@@ -4,6 +4,23 @@ import type { ScanMeta } from "../api";
 import { StatusBadge, PlatformBadge } from "./ui";
 import { timeAgo, scoreColor } from "../lib/format";
 
+/**
+ * An app name with a line-break opportunity after each slash, so a repository path such as github.com/owner/repo/release.apk wraps between its parts instead of mid-word.
+ */
+function BreakableName({ name }: { name: string }) {
+  const parts = name.split("/");
+  return (
+    <>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {part}
+          {i < parts.length - 1 ? <>/<wbr /></> : null}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function SevCell({ n, cls }: { n?: number; cls: string }) {
   const v = n ?? 0;
   return <span className={v > 0 ? cls : "text-slate-600"}>{v}</span>;
@@ -58,7 +75,10 @@ function RowActions({ s, onDelete, onStop, onPause, onResume, chevron }: Actions
   );
 }
 
-export default function ScanTable({ scans, onDelete, onStop, onPause, onResume }: Actions & { scans: ScanMeta[] }) {
+/**
+ * The scan list as a table, or as stacked rows on a phone. `compact` is the dashboard's shorter form, without the age and per-row actions, which the narrower card had pushed out of view; each row still opens the scan.
+ */
+export default function ScanTable({ scans, onDelete, onStop, onPause, onResume, compact }: Actions & { scans: ScanMeta[]; compact?: boolean }) {
   const acts = { onDelete, onStop, onPause, onResume };
   return (
     <>
@@ -112,8 +132,8 @@ export default function ScanTable({ scans, onDelete, onStop, onPause, onResume }
               <th className="px-3 py-2.5 text-center font-medium" title="Low">L</th>
               <th className="px-3 py-2.5 text-center font-medium">Score</th>
               <th className="px-3 py-2.5 font-medium">Status</th>
-              <th className="px-3 py-2.5 font-medium">When</th>
-              <th className="px-3 py-2.5" />
+              {!compact && <th className="px-3 py-2.5 font-medium">When</th>}
+              {!compact && <th className="px-3 py-2.5" />}
             </tr>
           </thead>
           <tbody>
@@ -123,8 +143,8 @@ export default function ScanTable({ scans, onDelete, onStop, onPause, onResume }
               return (
                 <tr key={s.id} className="group border-b border-ink-800/60 transition-colors hover:bg-ink-800/30">
                   <td className="px-3 py-3">
-                    <Link to={`/scans/${s.id}`} className="block">
-                      <div className="font-medium text-slate-200 group-hover:text-white">{name}</div>
+                    <Link to={`/scans/${s.id}`} className="block min-w-[10rem]">
+                      <div className="break-words font-medium text-slate-200 group-hover:text-white"><BreakableName name={name || ""} /></div>
                       <div className="font-mono text-[11px] text-slate-500">{sum.package_name || s.filename}</div>
                     </Link>
                   </td>
@@ -139,10 +159,12 @@ export default function ScanTable({ scans, onDelete, onStop, onPause, onResume }
                     {sum.security_score == null ? "-" : Math.round(sum.security_score)}
                   </td>
                   <td className="px-3 py-3"><StatusBadge status={s.status} pauseReason={s.pause_reason} /></td>
-                  <td className="px-3 py-3 text-slate-400">{timeAgo(s.created_at)}</td>
-                  <td className="px-3 py-3">
-                    <RowActions s={s} {...acts} chevron />
-                  </td>
+                  {!compact && <td className="whitespace-nowrap px-3 py-3 text-slate-400">{timeAgo(s.created_at)}</td>}
+                  {!compact && (
+                    <td className="px-3 py-3">
+                      <RowActions s={s} {...acts} chevron />
+                    </td>
+                  )}
                 </tr>
               );
             })}

@@ -123,22 +123,23 @@ A feature or fix is not finished until something would fail if it regressed.
 
 ## 8. The push gate
 
-All four must pass or the push is refused:
+All five must pass or the push is refused:
 
 ```bash
+python scripts/check_commit_message.py --unpushed   # section 10, for every commit not yet pushed
 python scripts/check_comment_style.py    # the standard above
 python -m pytest                         # the whole suite
 ./scripts/codeql_scan.sh                 # CodeQL, every finding-producing suite, zero tolerance
 ./scripts/verify_install.sh              # a fresh venv, pip install -e ., -v and -V both actually work
 ```
 
-Run all four with `./scripts/preflight.sh`. Enable the hook once per clone with `./scripts/install_hooks.sh`.
+Run all five with `./scripts/preflight.sh`. Enable the hooks once per clone with `./scripts/install_hooks.sh`.
 
 `./scripts/verify_install.sh` builds a brand-new venv, installs the package into it from a cold state (every dependency from PyPI, nothing reused from any other venv on the machine), then runs the two entry-point flags a first-time user would actually try: `-v` must print the exact version `pyproject.toml` declares, and `-V` must start the real web dashboard cleanly - it starts it with `--port`/`--no-browser` (both real, undocumented flags meant for exactly this) and stops it again, since `-V` alone blocks forever by design and never exits on its own. This is the slowest gate by a wide margin, because reusing anything would defeat the point of the check.
 
 `./scripts/codeql_scan.sh` installs its own CodeQL CLI and query packs on first run (a few hundred MB, cached outside the repo at `~/.codeql-lu77u` and `~/.codeql/packages`, so only the first run per machine pays for it) and fails on **any** result from `security-and-quality`, `security-experimental` and `code-quality-extended` for Python and JavaScript, and `actions-all` for the workflows - not just security findings, and not just high-confidence ones. There is no suppression mechanism: a finding is fixed or the code is restructured so the query no longer applies, never silenced, because this project's own rule against `#` comments rules out CodeQL's usual inline `lgtm[rule-id]` suppression. Nothing is dropped from the suites either: a query whose upstream form has no code-level sanitizer is not skipped, it is re-modelled and still runs under the same id. `js/untrusted-data-to-external-api-more-sources` is one: real validation in this codebase (a TypeScript type guard, primitive-only extraction, a JSON round trip) provably does not satisfy its stock form, because its `Sanitizer` extension point has zero implementations in the shipped library - its own documentation names extending its safe-API classes, not sanitizing application code, as the supported fix. `scripts/codeql/lu77u-js-models/` is a small local query pack that does exactly that, narrowly, for the two packages (`react`, `react-router-dom`) this codebase's fetch-into-hook pattern hits; `scripts/codeql/javascript-suite.qls` wires the re-modelled copy in place of the stock one so the check still runs against every file, under the same rule id, and still catches a real external-API sink.
 
-`git push --no-verify` bypasses the hook, but `.github/workflows/ci.yml` runs the identical four scripts, so a bypassed push fails there instead.
+`git push --no-verify` bypasses the hook, but `.github/workflows/ci.yml` runs the identical five scripts, so a bypassed push fails there instead.
 
 ## 9. Working on this repo
 
@@ -146,3 +147,18 @@ Run all four with `./scripts/preflight.sh`. Enable the hook once per clone with 
 - Never weaken a rule or a test to make a check pass. Fix the code.
 - When the checker and the code disagree, work out which is actually wrong before changing either.
 - Do not edit anything under `etc/` - those are other people's repositories.
+
+## 10. Commit messages
+
+The first line is the subject. If more is needed, add one blank line, then a flat list with one `- ` item per line. Each item is a single line however long it runs: never hard-wrap it, and never write paragraphs or any other block.
+
+```text
+# WRONG - items wrapped onto a second line
+- Benchmarks: Ghera results (59/60 vulnerable apps found, 17/59 fixed apps
+  still reported), comparison with published results
+
+# RIGHT - one line per item, however long
+- Benchmarks: Ghera results (59/60 vulnerable apps found, 17/59 fixed apps still reported), comparison with published results
+```
+
+This applies to every repository here, the wiki included. `scripts/check_commit_message.py` enforces it: the `commit-msg` hook refuses a bad message when you commit, the `pre-push` hook checks every commit a push sends, and CI checks the pushed range. Merge commits and commits GitHub itself made are skipped. The wiki has no hooks, so check it before pushing with `python ../scripts/check_commit_message.py --range origin/master..HEAD` from `wiki/`.

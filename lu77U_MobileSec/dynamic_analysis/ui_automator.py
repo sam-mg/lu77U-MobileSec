@@ -190,6 +190,25 @@ class UIAutomator:
             verbose_print(f"uiautomator2 connection failed: {exc}", self.verbose)
             return False
 
+    def close(self) -> None:
+        """
+        Purpose:
+            Stop the automation service this connection started on the device.
+
+        Side effects:
+            Stops uiautomator2's server on the device; errors are logged and ignored.
+
+        Implementation notes:
+            The server holds the device's single UI-automation connection for as long as it runs, and it outlives the scan that started it. Left running, every `uiautomator dump` after it hangs, and the next scan's verification agent, which reads the screen that way, could not see a field or a button to tap.
+        """
+        if self._u2_device is None:
+            return
+        try:
+            self._u2_device.stop_uiautomator()
+        except Exception as exc:
+            verbose_print(f"Stopping uiautomator2 failed: {exc}", self.verbose)
+        self._u2_device = None
+
     def dump_ui_hierarchy(self) -> Optional[str]:
         """
         Purpose:

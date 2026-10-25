@@ -24,14 +24,71 @@ Security considerations:
 import contextlib
 import json
 import threading
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
-from .errors import ErrorClass, classify, is_fatal
+from .errors import ErrorClass, classify, is_fatal, is_unreachable
 from .schema import VULNERABILITY_SCHEMA, DEFAULT_SYSTEM_MESSAGE
 from ..config.user_settings import DEFAULT_MAX_CONCURRENT_REQUESTS
 from ..utils.verbose import verbose_print
+
+SPENT_KEY_RETRY_SECONDS = 3600
+_SPENT_KEYS: Dict[str, float] = {}
+_SPENT_KEYS_LOCK = threading.Lock()
+
+
+def first_live_key(keys: List[str]) -> int:
+    """
+    Purpose:
+        Choose which key a new provider starts on: the first that has not run out recently.
+
+    Parameters:
+        keys: The provider's keys, in rotation order.
+
+    Returns:
+        The index of the first key no provider in this process has seen exhausted or rejected within SPENT_KEY_RETRY_SECONDS, or 0 when every key has been.
+
+    Implementation notes:
+        A scan builds several providers - the analyzer's, the grading one, the verifier's - and each used to start at the first key and fail its way through every exhausted one before reaching a working key: with four of six keys spent, ten of a small scan's twenty-one calls were refusals. A key is tried again after the hour, since a free-plan limit resets. When every key is marked, the rotation starts at the first so the refusal is still observed and the scan pauses on quota as before.
+
+    Security considerations:
+        The keys are held in this process's memory only, as each provider already holds them; they are never logged or written.
+    """
+    now = time.time()
+    with _SPENT_KEYS_LOCK:
+        for index, key in enumerate(keys):
+            spent = _SPENT_KEYS.get(key)
+            if spent is None or now - spent >= SPENT_KEY_RETRY_SECONDS:
+                return index
+    return 0
+
+
+def mark_key_spent(key: Optional[str]) -> None:
+    """
+    Purpose:
+        Remember that a key ran out or was rejected, for providers created after this one.
+
+    Parameters:
+        key: The key that failed.
+    """
+    if key:
+        with _SPENT_KEYS_LOCK:
+            _SPENT_KEYS[key] = time.time()
+
+
+def forget_spent_keys(keys: List[str]) -> None:
+    """
+    Purpose:
+        Clear what is remembered about these keys, so they are all tried again.
+
+    Parameters:
+        keys: The keys to clear.
+    """
+    with _SPENT_KEYS_LOCK:
+        for key in keys:
+            _SPENT_KEYS.pop(key, None)
 
 class BaseAIProvider(ABC):
     """
@@ -96,9 +153,10 @@ class BaseAIProvider(ABC):
         self.model = self.config.get("model") or self.default_model()
         self._keys: List[str] = list(api_keys) if api_keys else (
             [api_key] if api_key else [])
-        self._key_index = 0
-        self.api_key: Optional[str] = self._keys[0] if self._keys else None
+        self._key_index = first_live_key(self._keys)
+        self.api_key: Optional[str] = self._keys[self._key_index] if self._keys else None
         self._fatal: Optional[str] = None
+        self._unreachable: Optional[str] = None
         self.usage: Dict[str, Any] = {
             "provider": self.name, "calls": 0, "failed": 0,
             "wall_clock_s": 0.0, "prompt_tokens": 0, "completion_tokens": 0,
@@ -525,12 +583,31 @@ class BaseAIProvider(ABC):
         Implementation notes:
             Key rotation is attempted before tripping, so that a scan configured with several keys survives one of them being exhausted or revoked. Only when no key remains does the failure become fatal. Returning None for two different reasons -- rotated, or retryable -- is deliberate: in both cases the caller's next action is the same, which is to try again.
         """
+        self.note_reachability(exc)
         kind = classify(exc)
         if is_fatal(kind):
             if self.advance_key(kind, str(exc)):
                 return None
             return self._trip(kind, str(exc))
         return None
+
+    def note_reachability(self, exc) -> None:
+        """
+        Purpose:
+            Remember that the provider's host could not be reached, until a call succeeds again.
+
+        Parameters:
+            exc: The exception a failed attempt raised.
+
+        Side effects:
+            Sets the unreachable marker that usage_summary reports.
+
+        Implementation notes:
+            Cleared by the next successful call, so the summary says whether the host was unreachable when the scan stopped using it, not whether it ever blipped. That is the scan-level question: still unreachable at the end means the missing work can be redone later, and the scan is paused rather than finished.
+        """
+        if is_unreachable(exc):
+            with self._usage_lock:
+                self._unreachable = str(exc)[:200]
 
 
     def advance_key(self, kind: Optional["ErrorClass"] = None,
@@ -553,8 +630,10 @@ class BaseAIProvider(ABC):
             The log line reports positions and counts only -- never key material -- so that a verbose scan log remains safe to share.
 
         Security considerations:
-            Rotation is forward-only within a scan. A key that failed is not retried until reset_circuit restarts the rotation.
+            Rotation is forward-only within a scan. A key that failed is not retried until reset_circuit restarts the rotation, and a key that ran out or was rejected is remembered for the providers created after this one (first_live_key).
         """
+        if kind is not None and is_fatal(kind):
+            mark_key_spent(self.api_key)
         if self._key_index + 1 >= len(self._keys):
             return False
         self._key_index += 1
@@ -598,7 +677,9 @@ class BaseAIProvider(ABC):
         metrics = metrics or {}
         with self._usage_lock:
             self.usage["calls"] += 1
-            if not ok:
+            if ok:
+                self._unreachable = None
+            else:
                 self.usage["failed"] += 1
             with contextlib.suppress(TypeError, ValueError):
                 self.usage["wall_clock_s"] += float(elapsed or 0.0)
@@ -636,6 +717,7 @@ class BaseAIProvider(ABC):
         out["mode"] = self.config.get("mode")
         out["model"] = self.model
         out["unavailable"] = self._fatal
+        out["unreachable"] = self._unreachable
         out["keys_total"] = len(self._keys)
         out["keys_used"] = self._key_index + 1 if self._keys else 0
         return out
@@ -646,7 +728,7 @@ class BaseAIProvider(ABC):
             Return the provider to a usable state: clear the fatal flag, restart the key rotation, and restore the original concurrency width.
 
         Postconditions:
-            unavailable is None, the first key is active, and the gate holds its configured number of permits again.
+            unavailable is None, the first key is active, no key of this provider is remembered as spent, and the gate holds its configured number of permits again.
 
         Side effects:
             Releases exactly the permits absorbed by the shrink.
@@ -658,6 +740,7 @@ class BaseAIProvider(ABC):
             Exists so that a user who adds credit or fixes a key can resume without restarting the tool. Releasing the recorded count rather than a recomputed one is what keeps the bounded semaphore from raising.
         """
         self._fatal = None
+        forget_spent_keys(self._keys)
         self._key_index = 0
         self.api_key = self._keys[0] if self._keys else None
         with self._usage_lock:

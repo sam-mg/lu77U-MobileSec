@@ -1,0 +1,1318 @@
+{
+  "meta": {
+    "id": "ebae6171fb8c",
+    "kind": "static",
+    "filename": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/ICC/UnprotectedBroadcastRecv-PrivEscalation-Lean/benign.apk",
+    "status": "completed",
+    "created_at": "2026-10-22T10:09:04.833630+00:00",
+    "started_at": "2026-10-22T10:09:04.837583+00:00",
+    "finished_at": "2026-10-22T10:11:03.175064+00:00",
+    "duration": 118.34,
+    "progress": 100,
+    "phase": "done",
+    "error": null,
+    "pause_reason": null,
+    "resume_attempts": 0,
+    "summary": {
+      "primary_framework": "Java",
+      "total_vulnerabilities": 10,
+      "critical": 0,
+      "high": 1,
+      "medium": 1,
+      "low": 0,
+      "security_score": 77.1,
+      "package_name": "edu.ksu.cs.benign",
+      "app_name": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/ICC/UnprotectedBroadcastRecv-PrivEscalation-Lean/benign.apk",
+      "analysis_supported": true
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "boot_id": "28bfcc14bd3747a8b903d85680ec7f36",
+    "owner_pid": 15131
+  },
+  "result": {
+    "metadata": {
+      "tool": "lu77U-MobileSec",
+      "version": "0.1.5",
+      "timestamp": "2026-10-22T15:41:03.164829",
+      "target": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/ICC/UnprotectedBroadcastRecv-PrivEscalation-Lean/benign.apk",
+      "analysis_date": "2026-10-22 15:41:03"
+    },
+    "framework_detection": {
+      "detected": true,
+      "primary_framework": "Java",
+      "confidence": 0.8,
+      "confidence_level": "High",
+      "frameworks": [
+        {
+          "name": "Java",
+          "confidence": 0.8,
+          "confidence_level": "High",
+          "indicators_found": [
+            "DEX files: 1 found"
+          ]
+        }
+      ]
+    },
+    "application_info": {
+      "package_name": "edu.ksu.cs.benign",
+      "app_name": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/ICC/UnprotectedBroadcastRecv-PrivEscalation-Lean/benign.apk",
+      "version_name": "1.0",
+      "version_code": "1",
+      "min_sdk": "22",
+      "target_sdk": "27",
+      "file_size": 968817,
+      "file_size_mb": 0.92,
+      "permissions": [
+        "android.permission.SEND_SMS",
+        "android.permission.READ_PHONE_STATE"
+      ],
+      "activities": [
+        "edu.ksu.cs.benign.MainActivity"
+      ],
+      "services": [],
+      "receivers": [
+        "edu.ksu.cs.benign.MyReceiver"
+      ],
+      "providers": []
+    },
+    "vulnerability_analysis": {
+      "analyzed": true,
+      "total_vulnerabilities": 10,
+      "by_severity": {
+        "critical": 0,
+        "high": 1,
+        "medium": 1,
+        "low": 0,
+        "info": 8
+      },
+      "vulnerabilities": {
+        "critical": [],
+        "high": [
+          {
+            "title": "Exported receiver MyReceiver uses SEND_SMS for any app",
+            "severity": "High",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+            "cvss_score": 8.2,
+            "description": "MyReceiver is exported without a permission and uses an API guarded by android.permission.SEND_SMS, which the app holds, so any app that starts it gets that permission's effect without asking for it. The `MyReceiver` broadcast receiver is exported and lacks permission protection, allowing any application on the device to trigger the sending of SMS messages using the app's `SEND_SMS` permission.",
+            "file": "sources/edu/ksu/cs/benign/MyReceiver.java",
+            "location": "",
+            "line": 11,
+            "line_start": 11,
+            "line_end": 11,
+            "impact": "An attacker can send arbitrary SMS messages from the victim's device, potentially leading to financial loss or social engineering attacks.",
+            "code_snippet": "            smsManager.sendTextMessage(number, null, \"Benign: \" + text, null, null);",
+            "code_context": {
+              "start_line": 7,
+              "end_line": 15,
+              "highlight_start": 11,
+              "highlight_end": 11,
+              "lines": [
+                "        if (intent.getAction() != null && intent.getAction().equals(\"edu.ksu.cs.benign.myrecv\")) {",
+                "            java.lang.String number = intent.getStringExtra(\"number\");",
+                "            java.lang.String text = intent.getStringExtra(\"text\");",
+                "            android.telephony.SmsManager smsManager = android.telephony.SmsManager.getDefault();",
+                "            smsManager.sendTextMessage(number, null, \"Benign: \" + text, null, null);",
+                "            android.util.Log.d(\"Benign\", \"Message sent\");",
+                "        }",
+                "    }",
+                "}"
+              ],
+              "lines_html": [
+                "        <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getAction</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">!</span><span class=\"tok-op\">=</span> <span class=\"tok-kw\">null</span> <span class=\"tok-op\">&amp;</span><span class=\"tok-op\">&amp;</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getAction</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">equals</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">edu.ksu.cs.benign.myrecv</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> number <span class=\"tok-op\">=</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getStringExtra</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">number</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> text <span class=\"tok-op\">=</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getStringExtra</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">text</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            android<span class=\"tok-op\">.</span><span class=\"tok-fn\">telephony</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">SmsManager</span> smsManager <span class=\"tok-op\">=</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">telephony</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">SmsManager</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getDefault</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            smsManager<span class=\"tok-op\">.</span><span class=\"tok-fn\">sendTextMessage</span><span class=\"tok-op\">(</span>number<span class=\"tok-op\">,</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Benign: </span><span class=\"tok-str\">&quot;</span> <span class=\"tok-op\">+</span> text<span class=\"tok-op\">,</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">,</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Log</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">d</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Benign</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Message sent</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span>",
+                "    <span class=\"tok-op\">}</span>",
+                "<span class=\"tok-op\">}</span>"
+              ],
+              "hop_terms": [
+                "log.d",
+                "android.util.log"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Guard MyReceiver with a signature-level android:permission, or stop exporting it; and drop SEND_SMS if the app itself does not need it.",
+            "cwe": "CWE-441",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-01",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "High",
+              "final_severity": "High",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Privileged SMS Sending via Exported Broadcast Receiver",
+                  "file": "sources/edu/ksu/cs/benign/MyReceiver.java",
+                  "line": "11"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "The broadcast receiver 'MyReceiver' is exported and does not require",
+                  "file": "sources/edu/ksu/cs/benign/MyReceiver.java",
+                  "line": 11
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ],
+        "medium": [
+          {
+            "title": "The broadcast receiver 'MyReceiver' is exported and does not require",
+            "severity": "Medium",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+            "cvss_score": 6.2,
+            "description": "The broadcast receiver 'MyReceiver' is exported and does not require any permissions to be triggered. Any application on the device can send a broadcast with the action 'edu.ksu.cs.benign.myrecv' containing 'number' and 'text' extras, which the app then uses to send an SMS message to an arbitrary phone number.",
+            "file": "sources/edu/ksu/cs/benign/MyReceiver.java",
+            "location": "sources/edu/ksu/cs/benign/MyReceiver.java:11",
+            "line": 11,
+            "line_start": 11,
+            "line_end": 11,
+            "impact": "",
+            "code_snippet": "            smsManager.sendTextMessage(number, null, \"Benign: \" + text, null, null);",
+            "code_context": {
+              "start_line": 7,
+              "end_line": 15,
+              "highlight_start": 11,
+              "highlight_end": 11,
+              "lines": [
+                "        if (intent.getAction() != null && intent.getAction().equals(\"edu.ksu.cs.benign.myrecv\")) {",
+                "            java.lang.String number = intent.getStringExtra(\"number\");",
+                "            java.lang.String text = intent.getStringExtra(\"text\");",
+                "            android.telephony.SmsManager smsManager = android.telephony.SmsManager.getDefault();",
+                "            smsManager.sendTextMessage(number, null, \"Benign: \" + text, null, null);",
+                "            android.util.Log.d(\"Benign\", \"Message sent\");",
+                "        }",
+                "    }",
+                "}"
+              ],
+              "lines_html": [
+                "        <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getAction</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">!</span><span class=\"tok-op\">=</span> <span class=\"tok-kw\">null</span> <span class=\"tok-op\">&amp;</span><span class=\"tok-op\">&amp;</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getAction</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">equals</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">edu.ksu.cs.benign.myrecv</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> number <span class=\"tok-op\">=</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getStringExtra</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">number</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> text <span class=\"tok-op\">=</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getStringExtra</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">text</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            android<span class=\"tok-op\">.</span><span class=\"tok-fn\">telephony</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">SmsManager</span> smsManager <span class=\"tok-op\">=</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">telephony</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">SmsManager</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getDefault</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            smsManager<span class=\"tok-op\">.</span><span class=\"tok-fn\">sendTextMessage</span><span class=\"tok-op\">(</span>number<span class=\"tok-op\">,</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Benign: </span><span class=\"tok-str\">&quot;</span> <span class=\"tok-op\">+</span> text<span class=\"tok-op\">,</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">,</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Log</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">d</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Benign</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Message sent</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span>",
+                "    <span class=\"tok-op\">}</span>",
+                "<span class=\"tok-op\">}</span>"
+              ],
+              "hop_terms": [
+                "log.d",
+                "android.util.log"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-925",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-07",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported receiver MyReceiver uses SEND_SMS for any app",
+                  "file": "sources/edu/ksu/cs/benign/MyReceiver.java",
+                  "line": "11"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          }
+        ],
+        "low": [],
+        "info": [
+          {
+            "title": "App requests 2 dangerous permissions",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "Runtime permissions requested: READ_PHONE_STATE, SEND_SMS. The application requests android.permission.READ_PHONE_STATE, but this permission is not utilized within the provided source code.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 9,
+            "line_start": 9,
+            "line_end": 9,
+            "impact": "Increases the attack surface and potential data exposure if the app is compromised.",
+            "code_snippet": "    <uses-permission android:name=\"android.permission.SEND_SMS\"/>",
+            "code_context": {
+              "start_line": 5,
+              "end_line": 13,
+              "highlight_start": 9,
+              "highlight_end": 9,
+              "lines": [
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <uses-permission android:name=\"android.permission.SEND_SMS\"/>",
+                "    <uses-permission android:name=\"android.permission.READ_PHONE_STATE\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\""
+              ],
+              "lines_html": [
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.SEND_SMS&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.READ_PHONE_STATE&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Drop permissions the app does not need.",
+            "cwe": "CWE-250",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-03",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Permissions requested. A permission describes what the app could do with a vulnerability, not that it has one. It widens the impact of another finding; on its own it is inventory.",
+                "Permissions are inventory and widen the impact of other findings, such as The broadcast receiver 'MyReceiver' is exported and does not require."
+              ],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-12",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Informational",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Excessive Permissions Requested",
+                  "file": "AndroidManifest.xml",
+                  "line": "10"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported receiver MyReceiver has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Application is debuggable in this build",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "cvss_score": 9.8,
+            "description": "android:debuggable=\"true\" lets any user with adb attach a debugger to the process, read and modify memory, and inspect application data. The application does not declare a network security configuration, relying on platform defaults which, given the targetSdkVersion 27, permit cleartext traffic.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 15,
+            "line_start": 15,
+            "line_end": 15,
+            "impact": "Easier for attackers to perform MITM attacks if cleartext traffic is used.",
+            "code_snippet": "        android:debuggable=\"true\"",
+            "code_context": {
+              "start_line": 11,
+              "end_line": 19,
+              "highlight_start": 15,
+              "highlight_end": 15,
+              "lines": [
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:debuggable=\"true\"",
+                "        android:allowBackup=\"false\"",
+                "        android:supportsRtl=\"true\">",
+                "        <activity android:name=\"edu.ksu.cs.benign.MainActivity\">",
+                "            <intent-filter>"
+              ],
+              "lines_html": [
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:debuggable=</span><span class=\"tok-str\">&quot;true&quot;</span>",
+                "        <span class=\"tok-fn\">android:allowBackup=</span><span class=\"tok-str\">&quot;false&quot;</span>",
+                "        <span class=\"tok-fn\">android:supportsRtl=</span><span class=\"tok-str\">&quot;true&quot;</span>&gt;",
+                "        &lt;activity <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.MainActivity&quot;</span>&gt;",
+                "            &lt;intent-filter&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Remove android:debuggable or set it to \"false\" for release builds.",
+            "cwe": "CWE-489",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Debuggable release build. A debuggable build is a release-pipeline defect rather than an exploitable flaw - attaching a debugger already requires ADB access to the device. Worth fixing, not worth a severity."
+              ],
+              "warnings": [],
+              "original_severity": "Critical",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-03",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Informational",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Missing Network Security Configuration",
+                  "file": "AndroidManifest.xml",
+                  "line": "11"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Application is Debuggable",
+                  "file": "AndroidManifest.xml",
+                  "line": "15"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported receiver MyReceiver has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Exported receiver MyReceiver has no permission protection",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "Receiver \"edu.ksu.cs.benign.MyReceiver\" is reachable by any app on the device (android:exported=\"true\") and declares no permission. It handles myrecv.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 25,
+            "line_start": 25,
+            "line_end": 25,
+            "impact": "Any installed app can invoke this component and whatever it does with the data it is handed.",
+            "code_snippet": "            android:name=\"edu.ksu.cs.benign.MyReceiver\"",
+            "code_context": {
+              "start_line": 21,
+              "end_line": 29,
+              "highlight_start": 25,
+              "highlight_end": 25,
+              "lines": [
+                "                <category android:name=\"android.intent.category.LAUNCHER\"/>",
+                "            </intent-filter>",
+                "        </activity>",
+                "        <receiver",
+                "            android:name=\"edu.ksu.cs.benign.MyReceiver\"",
+                "            android:enabled=\"true\"",
+                "            android:exported=\"true\">",
+                "            <intent-filter>",
+                "                <action android:name=\"edu.ksu.cs.benign.myrecv\"/>"
+              ],
+              "lines_html": [
+                "                &lt;category <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.intent.category.LAUNCHER&quot;</span>/&gt;",
+                "            &lt;/intent-filter&gt;",
+                "        &lt;/activity&gt;",
+                "        &lt;receiver",
+                "            <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.MyReceiver&quot;</span>",
+                "            <span class=\"tok-fn\">android:enabled=</span><span class=\"tok-str\">&quot;true&quot;</span>",
+                "            <span class=\"tok-fn\">android:exported=</span><span class=\"tok-str\">&quot;true&quot;</span>&gt;",
+                "            &lt;intent-filter&gt;",
+                "                &lt;action <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.myrecv&quot;</span>/&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Set android:exported=\"false\" if it is internal, or guard it with a signature-level permission and validate all input.",
+            "cwe": "CWE-926",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Duplicate of the entry point described in The broadcast receiver 'MyReceiver' is exported and does not require."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "App requests 2 dangerous permissions",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "15"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Missing screenshot protection",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 4.0,
+            "description": "The app does not set `FLAG_SECURE` on its activities, meaning screen contents can be captured via screenshots or recordings.",
+            "file": "AndroidManifest.xml",
+            "location": "AndroidManifest.xml",
+            "line": 0,
+            "line_start": 0,
+            "line_end": 0,
+            "impact": "Sensitive information displayed on the screen may be leaked to other apps or the user's storage.",
+            "code_snippet": "",
+            "code_context": null,
+            "exploitation": "",
+            "recommendation": "Call `getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)` in the `onCreate` method of sensitive activities.",
+            "cwe": "CWE-200",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-12",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Screen contents not protected from capture. Without FLAG_SECURE, what a screen shows can end up in screenshots, screen recordings and the task-switcher preview. That matters on screens showing credentials, card numbers or balances; on its own it is a hardening note.",
+                "Screen contents not protected from capture reaches at most CVSS 3.3 (Low); the vector given scores this finding above anything the class does."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-14",
+              "mechanically_refuted": false,
+              "severity_cap": "Low",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported receiver MyReceiver has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "App requests 2 dangerous permissions",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": "region-1-MainActivity"
+          },
+          {
+            "title": "No network security config declared",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "The app declares neither android:networkSecurityConfig nor usesCleartextTraffic, so it relies on platform defaults and pins no domain. With targetSdkVersion 27 those defaults still permit cleartext HTTP (see the cleartext finding).",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 11,
+            "line_start": 11,
+            "line_end": 11,
+            "impact": "Without pinning, anyone who gets a CA trusted on the device can read and alter the app's TLS traffic.",
+            "code_snippet": "    <application",
+            "code_context": {
+              "start_line": 7,
+              "end_line": 15,
+              "highlight_start": 11,
+              "highlight_end": 11,
+              "lines": [
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <uses-permission android:name=\"android.permission.SEND_SMS\"/>",
+                "    <uses-permission android:name=\"android.permission.READ_PHONE_STATE\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:debuggable=\"true\""
+              ],
+              "lines_html": [
+                "        android:minSdkVersion=&quot;22&quot;",
+                "        android:targetSdkVersion=&quot;27&quot;/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.SEND_SMS&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.READ_PHONE_STATE&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:debuggable=</span><span class=\"tok-str\">&quot;true&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Declare a network security config that disables cleartext and pins the domains that carry sensitive traffic.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-03",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "No certificate pinning. Pinning defends against an attacker who already controls a trusted CA or the device's trust store. Without one of those, TLS is still doing its job. It becomes a finding when paired with what the unpinned channel actually carries.",
+                "Lack of pinning is a step in a chain; TLS still provides baseline encryption."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-01",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported receiver MyReceiver has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "App requests 2 dangerous permissions",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "targetSdkVersion 27 allows implicit component export",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "On targetSdk 27, any component with an intent-filter is exported unless it says otherwise.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "",
+            "code_snippet": "        android:targetSdkVersion=\"27\"/>",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 12,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <uses-permission android:name=\"android.permission.SEND_SMS\"/>",
+                "    <uses-permission android:name=\"android.permission.READ_PHONE_STATE\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\""
+              ],
+              "lines_html": [
+                "    android:versionName=&quot;1.0&quot;",
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.SEND_SMS&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.READ_PHONE_STATE&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise targetSdkVersion to 31+ and declare android:exported explicitly on every filtered component.",
+            "cwe": "CWE-926",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-02",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Legacy platform behaviour from SDK levels. An SDK level is a statement about which platform defaults apply, not a defect. It is context for the findings that depend on those defaults - pair it with one of them.",
+                "Target SDK defaults permit implicit export, which is the entry point for The broadcast receiver 'MyReceiver' is exported and does not require."
+              ],
+              "warnings": [
+                "Implicit export only applies below targetSdk 31; confirm the app's targetSdkVersion before treating this as exploitable."
+              ],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-11",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported receiver MyReceiver has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "App requests 2 dangerous permissions",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "15"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "targetSdkVersion 27 permits cleartext traffic by default",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+            "cvss_score": 8.2,
+            "description": "targetSdk 27 predates API 28, where cleartext HTTP became opt-in. The app targets API level 27, which allows cleartext HTTP traffic by default and permits implicit export of components with intent-filters.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "This increases the attack surface by potentially exposing the app to man-in-the-middle attacks and unintended component access.",
+            "code_snippet": "        android:targetSdkVersion=\"27\"/>",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 12,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <uses-permission android:name=\"android.permission.SEND_SMS\"/>",
+                "    <uses-permission android:name=\"android.permission.READ_PHONE_STATE\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\""
+              ],
+              "lines_html": [
+                "    android:versionName=&quot;1.0&quot;",
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.SEND_SMS&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.READ_PHONE_STATE&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise targetSdkVersion to 28 or above.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-02",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Cleartext permitted by configuration. The flag permits HTTP; it does not show that anything is sent over it. Name a request that actually goes out in cleartext, and what it carries, and this is a genuine finding.",
+                "Target SDK defaults permit cleartext, but no specific HTTP request is demonstrated."
+              ],
+              "warnings": [
+                "Cleartext is blocked by default from targetSdk 28; confirm the declared target and any network security config."
+              ],
+              "original_severity": "High",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-05",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Informational",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Legacy targetSdkVersion permits cleartext traffic and implicit export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported receiver MyReceiver has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "App requests 2 dangerous permissions",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "minSdkVersion 22 lets the app run on Android versions before 11, and its task affinity is its package name \"edu.ksu.cs.benign\". There, another app can declare the same affinity, with allowTaskReparenting, and have its own activity shown in this app's task. The app does not specify `android:taskAffinity=\"\"` and targets a legacy SDK, making it potentially susceptible to task hijacking (StrandHogg) on older Android versions.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 5,
+            "line_start": 5,
+            "line_end": 5,
+            "impact": "A malicious app with the same task affinity could place its own activity on top of the target app's activity, tricking the user into providing credentials.",
+            "code_snippet": "    package=\"edu.ksu.cs.benign\">",
+            "code_context": {
+              "start_line": 1,
+              "end_line": 9,
+              "highlight_start": 5,
+              "highlight_end": 5,
+              "lines": [
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+                "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"",
+                "    android:versionCode=\"1\"",
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <uses-permission android:name=\"android.permission.SEND_SMS\"/>"
+              ],
+              "lines_html": [
+                "<span class=\"tok-cm\">&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;</span>",
+                "&lt;manifest <span class=\"tok-fn\">xmlns:android=</span><span class=\"tok-str\">&quot;http://schemas.android.com/apk/res/android&quot;</span>",
+                "    <span class=\"tok-fn\">android:versionCode=</span><span class=\"tok-str\">&quot;1&quot;</span>",
+                "    <span class=\"tok-fn\">android:versionName=</span><span class=\"tok-str\">&quot;1.0&quot;</span>",
+                "    <span class=\"tok-fn\">package=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign&quot;</span>&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.SEND_SMS&quot;</span>/&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise minSdkVersion to 30, where Android fixed this. Until then, android:taskAffinity=\"\" on the <application> mitigates the original attack, though not its runtime variant on unpatched Android 9 and lower.",
+            "cwe": "CWE-1021",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-09",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Potential for Task Hijacking",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported receiver MyReceiver has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "App requests 2 dangerous permissions",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ]
+      },
+      "refuted": [],
+      "refuted_count": 0
+    },
+    "analyzer_details": {
+      "framework": "Java/Kotlin",
+      "analysis_time": 55.69475793838501,
+      "files_analyzed": 281,
+      "decompilation_status": "Successful",
+      "error": null,
+      "agent_coverage": {
+        "regions": [
+          {
+            "key": "region-1-MainActivity",
+            "nodes": 2,
+            "steps": 4,
+            "files_read": 2,
+            "stop_reason": "reported",
+            "findings": 7
+          }
+        ],
+        "complete": true,
+        "regions_incomplete": 0,
+        "regions_total": 1,
+        "degraded_reason": null,
+        "leads": {
+          "total": 9,
+          "routed": 9,
+          "unowned": 8,
+          "per_region": {
+            "region-1-MainActivity": 9
+          }
+        },
+        "scope": {
+          "packages": 27,
+          "rounds": 1,
+          "seeded_app_packages": 1,
+          "seeded_vendor_packages": 0,
+          "app_classes": 3,
+          "vendor_classes": 0,
+          "framework_classes": 618,
+          "undecided_classes": 0,
+          "undecided_packages": [],
+          "app_packages": [
+            "edu/ksu/cs/benign"
+          ],
+          "synthetic_classes_skipped": 0,
+          "source_checked": 2,
+          "source_missing": 0,
+          "source_repaired": 0
+        },
+        "file_review": {
+          "files": 2,
+          "parts": 1,
+          "parts_skipped": 0,
+          "parts_failed": 0,
+          "findings": 2
+        }
+      },
+      "limitation": "",
+      "llm_usage": {
+        "provider": "ollama",
+        "calls": 9,
+        "failed": 0,
+        "wall_clock_s": 112.1,
+        "prompt_tokens": 121866,
+        "completion_tokens": 11621,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0,
+        "throttled_attempts": 0,
+        "transient_attempts": 0,
+        "failed_attempt_seconds": 0.0,
+        "retried_calls": 0,
+        "truncation_retries": 0,
+        "transient_retries": 0,
+        "throttle_retries": 0,
+        "slow_calls": 0,
+        "unparseable_responses": 0,
+        "blocked_seconds": 0.0,
+        "mode": "cloud",
+        "model": "gemma4:31b",
+        "unavailable": null,
+        "unreachable": null,
+        "keys_total": 9,
+        "keys_used": 7
+      }
+    },
+    "summary": {
+      "framework_detected": true,
+      "vulnerability_scan_complete": true,
+      "total_vulnerabilities": 10,
+      "critical_count": 0,
+      "high_count": 1,
+      "medium_count": 1,
+      "low_count": 0,
+      "refuted_count": 0,
+      "security_score": 77.1,
+      "weighted_finding_count": 15,
+      "security_grade": "B"
+    },
+    "analysis": {
+      "supported": true,
+      "success": true,
+      "files_analyzed": 281,
+      "analysis_time": 55.69475793838501,
+      "framework": "Java/Kotlin",
+      "decompilation_status": "Successful",
+      "unsupported_framework": false,
+      "error": null,
+      "limitation": ""
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "dynamic_session": {
+      "attempted": false,
+      "reason": "Dynamic verification is disabled in Settings."
+    }
+  }
+}

@@ -21,6 +21,7 @@ Security considerations:
 import json
 import re
 import time
+from pathlib import Path
 from itertools import count
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -28,7 +29,7 @@ from .leads import render_leads
 from ...validation import finding_identity, finding_richness
 from .profiles import JAVA_KOTLIN, SourceProfile
 from .tools import AgentTools, MAX_READ_CHARS
-from .skills_loader import CORE_SKILL, CORE_SKILLS, load_skills
+from .skills_loader import CORE_SKILL, CORE_SKILLS, PROFILE_SKILLS, load_skills
 from ...ai.schema import VULNERABILITY_ITEM_SCHEMA, VULNERABILITY_SCHEMA
 from ...config.prompts import VulnerabilityPrompts
 from ...utils.cancellation import ScanCancelled
@@ -46,6 +47,7 @@ _ADD_FINDING_NUDGE_AFTER = 6
 _THOUGHT_MAX = 120
 
 _AGENT_TURN_MAX_TOKENS = 4000
+_MAX_FAILED_TURNS = 2
 _FORCED_REPORT_MAX_TOKENS = 6000
 
 NEXT_ACTION_SCHEMA = {
@@ -100,10 +102,10 @@ NEXT_ACTION_SCHEMA = {
         "start_line": {
             "type": "integer",
             "description": (
-                "Optional, for read_file only: 1-based line to start from. Omit to "
-                "auto-continue where the last read of this same path left off (or "
-                "start at line 1 on the first read) - omitting never repeats "
-                "content already shown."
+                "Optional, for read_file and inspect_native: 1-based line to start "
+                "from. Omit to auto-continue where the last read of this same path "
+                "left off (or start at line 1 on the first read) - omitting never "
+                "repeats content already shown."
             ),
         },
         "vulnerabilities": {
@@ -599,7 +601,7 @@ def _describe_response(action: str, path: str, paths: List[str],
     if action == "search_code":
         return f"Search results returned to the LLM ({plural(lines, 'match', 'matches')})."
     if action == "inspect_native":
-        return f"Giving the symbol table of `{path}` to the LLM ({plural(lines, 'line')})."
+        return f"Giving the native analysis of `{path}` to the LLM ({plural(lines, 'line')})."
     if action in ("find_method", "callers", "callees", "call_path", "entry_points"):
         return f"Call-graph answer returned to the LLM ({plural(lines, 'line')})."
     return "Response returned to the LLM."
@@ -684,6 +686,12 @@ def _contextual_skills(action: str, path: str, pattern: str) -> List[str]:
         extra.append("objection_runtime_toolkit")
     if any(k in blob for k in ("dart", "ffi", "pubspec", "platform channel", "methodchannel", ".asm")):
         extra.append("flutter_dart_security")
+    if any(k in blob for k in ("blutter", "libapp", "libflutter", "kernel_blob", "pp.txt",
+                               "invokemethod", "awaitstub", "returnasync", "flutter")):
+        extra.append("flutter_reverse_engineering")
+    if any(k in blob for k in ("hermes", "app_modules", "nativemodules", "reactmethod", "turbomodule",
+                               "index.android.bundle", "react-native", "asyncstorage")):
+        extra.append("react_native_reverse_engineering")
     if any(k in blob for k in ("hermes", "bundle", "asyncstorage", "webview",
                                "requirenativecomponent", "react-native")):
         extra.append("react_native_security")
@@ -714,7 +722,55 @@ def _contextual_skills(action: str, path: str, pattern: str) -> List[str]:
             "startactivity", "readobject", "taint", "source to sink",
             "source-to-sink", "dataflow", "data flow")):
         extra.append("taint_source_to_sink")
+    if any(k in blob for k in (
+            "oauth", "pkce", "redirect_uri", "response_type", "code_challenge", "grant_type",
+            "id_token", "appauth", "openid", "authorization code")):
+        extra.append("oauth_oidc_mobile")
+    if any(k in blob for k in (
+            "clipboard", "setprimaryclip", "getprimaryclip", "newplaintext", "deep link",
+            "deeplink", "getqueryparameter", "linking.", "app_links", "uni_links",
+            "autoverify", "browsable")):
+        extra.append("deeplink_clipboard_trust")
+    if any(k in blob for k in (
+            "deep link", "deeplink", "getqueryparameter", "intent://", "uri_intent_scheme",
+            "browser_fallback_url", "router", "evaluatejavascript", "shouldoverrideurlloading",
+            "onnewintent")):
+        extra.append("deeplink_endpoint_analysis")
+    if any(k in blob for k in (
+            "premium", "subscription", "entitlement", "purchase", "billing", "receipt",
+            "coupon", "promo", "referral", "redeem", "wallet", "isadmin", "ispro")):
+        extra.append("business_logic_abuse")
+    if any(k in blob for k in (
+            "secretkeyspec", "ivparameterspec", "pbekeyspec", "cipher.getinstance",
+            "keygenparameterspec", "encryptedsharedpreferences", "asyncstorage", "mmkv",
+            "sqlcipher", "flag_secure")):
+        extra.append("storage_crypto_review")
+    if any(k in blob for k in (
+            "pendingintent", "getparcelableextra", "parseuri", "zipentry", "objectinputstream",
+            "taskaffinity", "filtertoucheswhenobscured", "preferenceactivity",
+            "isvalidfragment", "biometricprompt", "bindservice", "sendbroadcast")):
+        extra.append("android_ipc_ui_attacks")
     return extra
+
+def context_file(path: str, profile: SourceProfile) -> bool:
+    """
+    Purpose:
+        Tell whether a cited file is one the model was given whole in its opening context rather than had to open.
+
+    Parameters:
+        path: The cited file.
+        profile: The framework profile, which names its summary files.
+
+    Returns:
+        True for the manifest and the profile's summary or overview file.
+
+    Implementation notes:
+        The manifest is summarised into every opening context and the agent is told not to read it, so a finding citing it was always marked as citing an unread file and capped at Medium - a benchmark scan's exported-provider finding lost its High that way. The same holds for a framework's overview file.
+    """
+    name = Path(_norm_path(path)).name.lower()
+    names = {Path(candidate).name.lower() for candidate in profile.summary_candidates}
+    return bool(name) and (name == "androidmanifest.xml" or name in names)
+
 
 def _norm_path(p: str) -> str:
     """
@@ -778,6 +834,38 @@ def _unread(source_targets, native_targets, read_files, inspected_native):
     unread_src = sorted(source_targets - read_files)
     unread_nat = sorted(native_targets - inspected_native)
     return unread_src, unread_nat
+
+_COVERAGE_NOTE_CHARS = 1500
+
+def _coverage_note(examined, unread_src, unread_nat) -> str:
+    """
+    Purpose:
+        Tell the agent what it has already examined and which flagged files are left, for a turn whose history has lost that record to compaction.
+
+    Parameters:
+        examined: The files read and native libraries inspected so far.
+        unread_src: Flagged source files not yet read.
+        unread_nat: Flagged native libraries not yet inspected.
+
+    Returns:
+        The note, ending in a blank line so it sits apart from the turn instructions.
+
+    Implementation notes:
+        Compaction drops the oldest turns, and with them the only record the agent has of which files it opened. A real scan on a mid-size model dropped 221 turns and then re-read the same handful of files for over a hundred steps, never reporting because it never knew it was done. The loop already tracks coverage exactly, so stating it costs a few hundred characters and replaces the memory compaction took. Both lists are bounded with a count of the rest, so a large app cannot crowd the history out of the prompt.
+    """
+    lines = ["## Coverage (your earlier turns were dropped above; this is the full record)"]
+    if examined:
+        lines.append(f"Already examined ({len(examined)}): "
+                     f"{_truncate(', '.join(sorted(examined)), _COVERAGE_NOTE_CHARS)}. Their contents "
+                     "are no longer above - re-read one only to check a specific line for a finding.")
+    remaining = list(unread_src) + list(unread_nat)
+    if remaining:
+        lines.append(f"Flagged and not yet examined ({len(remaining)}): "
+                     f"{_truncate(', '.join(remaining), _COVERAGE_NOTE_CHARS)}.")
+    else:
+        lines.append("Every flagged file has been examined. Record anything confirmed with "
+                     "'add_finding', then submit 'report'.")
+    return "\n".join(lines) + "\n\n"
 
 def _read_batch(tools: AgentTools, paths: List[str]):
     """
@@ -893,7 +981,7 @@ def run_agent_analysis(
         Makes many provider requests, reads the decompiled tree, and invokes the checkpoint callback.
 
     Implementation notes:
-        Findings are merged as they are reported rather than collected at the end, so a region that exhausts its budget, fails, or is cancelled still contributes what it established. The loop ends on an explicit report, on the step ceiling, or on the deadline. In the last two cases a final report is forced if nothing has been recorded, because an investigation that read the code and never got to report would otherwise be a total loss. Checkpointing is a callback rather than a direct write, so this module stays independent of where the state is stored. A malformed resume state is applied as far as it parses and the failure is logged, so a region that resumes with partial coverage state leaves a trace instead of silently re-reading files. Coverage is written into the telemetry mapping and returned, so the report can state what this region actually examined.
+        Findings are merged as they are reported rather than collected at the end, so a region that exhausts its budget, fails, or is cancelled still contributes what it established. A step whose request fails while the provider is still available - typically a reply the model reasoned past its output cap - costs that step, not the region: the loop notes the loss, asks for one short action, and carries on, and only a second consecutive failure or an unavailable provider ends the region. A benchmark scan lost its only region at step 3 to one such reply. The loop ends on an explicit report, on the step ceiling, or on the deadline. In the last two cases a final report is forced if nothing has been recorded, because an investigation that read the code and never got to report would otherwise be a total loss. Checkpointing is a callback rather than a direct write, so this module stays independent of where the state is stored. A region resumed with steps already spent counts as having driven the loop, so a provider failure on its first new turn ends it with its restored findings rather than reporting that the model could not drive the loop at all - which once discarded a resumed scan's whole analysis when the machine was offline. A malformed resume state is applied as far as it parses and the failure is logged, so a region that resumes with partial coverage state leaves a trace instead of silently re-reading files. Coverage is written into the telemetry mapping and returned, so the report can state what this region actually examined.
 
     Security considerations:
         Every tool call is confined to the decompiled tree by the tool surface. The model chooses the actions; it cannot reach outside or write.
@@ -909,6 +997,9 @@ def run_agent_analysis(
     initial_context = _build_initial_context(tools, static_signals, code_graph)
 
     skill_names: List[str] = _planned_skills(static_signals)
+    for name in PROFILE_SKILLS.get(profile.key, ()):
+        if name not in skill_names:
+            skill_names.append(name)
     system = agent_system + "\n\n# Reference skills\n\n" + load_skills(
         skill_names, verbose, core=core_skill)
     verbose_print(
@@ -1034,7 +1125,7 @@ def run_agent_analysis(
             coverage_nudged = bool(resume_state.get("coverage_nudged", coverage_nudged))
             add_finding_nudged = bool(resume_state.get("add_finding_nudged", add_finding_nudged))
             exploratory_actions = int(resume_state.get("exploratory_actions", 0) or 0)
-            if accumulated:
+            if accumulated or base_steps > 0:
                 progressed = True
         except Exception as exc:
             verbose_print(f"Resume state could not be fully restored: {exc}", verbose)
@@ -1052,7 +1143,7 @@ def run_agent_analysis(
             How many were new.
 
         Implementation notes:
-            Deduplicated on the way in, because an agent frequently resends findings it has already reported -- which the steering message also addresses, but the merge is what makes a resend harmless rather than a duplicate in the report. The count of new findings is returned so the loop can tell the agent when a report added nothing, which is a strong signal it has finished. Provenance is recorded because a finding salvaged from a truncated report or produced by the forced final report is weaker evidence than one the agent reported deliberately, and the gates weigh that.
+            Deduplicated on the way in, because an agent frequently resends findings it has already reported -- which the steering message also addresses, but the merge is what makes a resend harmless rather than a duplicate in the report. The count of new findings is returned so the loop can tell the agent when a report added nothing, which is a strong signal it has finished. Provenance is recorded because a finding salvaged from a truncated report or produced by the forced final report is weaker evidence than one the agent reported deliberately, and the gates weigh that. A native library counts as read once it has been inspected, since inspect_native is the only way to open one.
         """
         if not raw_vulns:
             return 0
@@ -1071,7 +1162,8 @@ def run_agent_analysis(
             v.setdefault("region_files_read", len(read_files) + len(inspected_native))
             v.setdefault("region_searches", region_searches)
             cited = _norm_path(str(v.get("file", "")))
-            v.setdefault("cited_file_read", bool(cited) and cited in read_files)
+            v.setdefault("cited_file_read", bool(cited) and (cited in read_files or cited in inspected_native
+                                                             or context_file(cited, profile)))
 
             key = (title, str(v.get("file", "")).strip(), str(v.get("line", "")).strip())
             identity = finding_identity(v)
@@ -1132,6 +1224,7 @@ def run_agent_analysis(
         return _finish(str(resume_state.get("stop_reason") or "reported"),
                        bool(resume_state.get("completed_ok", True)))
 
+    failed_turns = 0
     for step in count():
         steps_taken = base_steps + step
         _checkpoint()
@@ -1181,15 +1274,28 @@ def run_agent_analysis(
         else:
             history, history_start = _compact_transcript(
                 transcript, history_start, _MAX_TRANSCRIPT_CHARS, _MIN_TRANSCRIPT_CHARS)
+            coverage = ""
+            if history_start > 0:
+                coverage = _coverage_note(
+                    read_files | inspected_native,
+                    *_unread(source_targets, native_targets, read_files, inspected_native))
             prompt = (
                 f"{initial_context}\n\n## Investigation so far\n"
-                f"{history or '(nothing yet)'}\n\n{tail}"
+                f"{history or '(nothing yet)'}\n\n{coverage}{tail}"
             )
 
         result = provider.analyze(prompt, system_message=system, schema=NEXT_ACTION_SCHEMA,
                                   max_tokens=_AGENT_TURN_MAX_TOKENS, session_key=region_key)
         if not isinstance(result, dict) or "error" in result:
             verbose_print(f"Agent step {steps_taken + 1}: provider error: {result}", verbose)
+            if not getattr(provider, "unavailable", None) and failed_turns < _MAX_FAILED_TURNS:
+                failed_turns += 1
+                detail = result.get("error") if isinstance(result, dict) else result
+                transcript.append(
+                    f"[Step {steps_taken + 1}] SYSTEM NOTE: your reply to this step was lost "
+                    f"({_truncate(str(detail), 200)}). Reply with ONE short action JSON and keep "
+                    "your reasoning brief.")
+                continue
             stop_reason = ("provider_unavailable"
                            if getattr(provider, "unavailable", None)
                            else "provider_error")
@@ -1201,6 +1307,7 @@ def run_agent_analysis(
                 return [], False, ""
             break
 
+        failed_turns = 0
         action_obj = _parse_action(result.get("response", ""))
         if action_obj is None and not result.get("response") and result.get("thinking"):
             action_obj = _parse_action_from_thinking(result["thinking"])
@@ -1306,7 +1413,7 @@ def run_agent_analysis(
             if not observation.startswith("ERROR"):
                 region_searches += 1
         elif action == "inspect_native":
-            observation = tools.inspect_native(path)
+            observation = tools.inspect_native(path, start_line=start_line)
         elif action == "find_method":
             observation = tools.find_method(method)
         elif action == "callers":

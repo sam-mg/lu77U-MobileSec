@@ -465,11 +465,13 @@ class TestBudgetSetting:
         budget = user_settings.get_agent_budget()
         assert budget["max_steps_per_region"] > 0
         assert budget["max_minutes"] > 0
+        assert budget["max_review_parts"] > 0
 
     @pytest.mark.parametrize("field,value", [
         ("max_steps_per_region", -1),
         ("max_steps_per_region", 10_000),
         ("max_minutes", 10_000),
+        ("max_review_parts", 10_000),
         ("nonsense", 5),
     ])
     def test_out_of_range_values_are_rejected(self, field, value):

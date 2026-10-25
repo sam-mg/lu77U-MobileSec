@@ -114,6 +114,13 @@ And becomes dangerous here:
 **A finding is a path between the two tables.** Report the path, not the sink. A
 sink with no reachable source is a code-quality note.
 
+**The attacker behind external storage is another app.** Shared storage
+(`Environment.getExternalStorageDirectory()`, `/sdcard/...`, `Download/`) is
+writable by any app holding the storage permission on Android 9 and lower, and
+on Android 10 by one running with legacy storage. Code loaded from there (`DexClassLoader`,
+`PathClassLoader`, `System.load`), or a file read from there and trusted, is
+replaced by that app before it is used: name it as the attacker, not adb or root.
+
 ---
 
 ## Surfaces a search will not find for you
@@ -141,7 +148,10 @@ reporting; on a settings toggle it is not.
 **FileProvider path traversal.** `openFile()` builds a `File` from the caller's
 URI. Without a `getCanonicalPath()` comparison against the intended root,
 `../../databases/app.db` leaves the shared directory and the caller reads
-anything the app can.
+anything the app can. Read the guard against Java's own semantics:
+`new File(dir, name)` keeps `dir` even when `name` is absolute (`/etc/x`
+becomes `dir/etc/x`), so a check that rejects `..` does guard it; only
+`Path.resolve()` and `new File(name)` alone let an absolute name escape.
 
 **Biometric prompts that gate nothing.** `BiometricPrompt` without a
 `CryptoObject` produces a boolean the app chooses to trust. Bound to a Keystore

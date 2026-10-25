@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
-# Refuses a push unless the comment-style checker, the full test suite, the CodeQL scan and a clean-install check all pass. Enable it with:  git config core.hooksPath .githooks
+# Refuses a push unless the commit messages being pushed, the comment-style checker, the full test suite, the CodeQL scan and a clean-install check all pass. Enable it with:  ./scripts/install_hooks.sh
 #
-# Bypass is possible with --no-verify; CI runs the same four gates, so a bypassed push still fails there.
+# Bypass is possible with --no-verify; CI runs the same five gates, so a bypassed push still fails there.
 
 set -uo pipefail
+
+push_refs="$(cat)"
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root" || exit 1
@@ -27,7 +29,15 @@ fi
 
 failed=0
 
-printf '%s[1/4]%s comment style\n' "$bold" "$reset"
+printf '%s[1/5]%s commit messages\n' "$bold" "$reset"
+if printf '%s\n' "$push_refs" | "$PY" scripts/check_commit_message.py --pre-push; then
+    printf '      %sok%s\n' "$green" "$reset"
+else
+    printf '      %sfailed%s\n' "$red" "$reset"
+    failed=1
+fi
+
+printf '%s[2/5]%s comment style\n' "$bold" "$reset"
 if "$PY" scripts/check_comment_style.py; then
     printf '      %sok%s\n' "$green" "$reset"
 else
@@ -35,7 +45,7 @@ else
     failed=1
 fi
 
-printf '%s[2/4]%s tests\n' "$bold" "$reset"
+printf '%s[3/5]%s tests\n' "$bold" "$reset"
 if "$PY" -m pytest -q; then
     printf '      %sok%s\n' "$green" "$reset"
 else
@@ -43,7 +53,7 @@ else
     failed=1
 fi
 
-printf '%s[3/4]%s CodeQL\n' "$bold" "$reset"
+printf '%s[4/5]%s CodeQL\n' "$bold" "$reset"
 if ./scripts/codeql_scan.sh; then
     printf '      %sok%s\n' "$green" "$reset"
 else
@@ -51,7 +61,7 @@ else
     failed=1
 fi
 
-printf '%s[4/4]%s clean install\n' "$bold" "$reset"
+printf '%s[5/5]%s clean install\n' "$bold" "$reset"
 if ./scripts/verify_install.sh; then
     printf '      %sok%s\n' "$green" "$reset"
 else

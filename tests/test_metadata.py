@@ -295,3 +295,28 @@ class TestPackagedDataFiles:
         stray = [p.name for p in SKILLS_DIR.iterdir()
                  if p.is_file() and p.suffix != ".md"]
         assert not stray, f"not covered by the skills/*.md pattern: {stray}"
+
+    def test_the_wheel_and_the_source_archive_declare_the_same_data(self):
+        """
+        Purpose:
+            Pin that every data file the package carries outside the frontend source is declared for the wheel and for the source archive.
+
+        Implementation notes:
+            The Ghidra export script was listed in the package data but not in MANIFEST.in, so an install built from the source archive had no script and native libraries were never decompiled. Each file is checked against the package data globs and against the MANIFEST.in directory and extension it falls under.
+        """
+        import fnmatch
+
+        root = Path(__file__).resolve().parents[1]
+        package = root / "lu77U_MobileSec"
+        patterns = self._package_data().get("lu77U_MobileSec", [])
+        manifest = [line.split() for line in (root / "MANIFEST.in").read_text().splitlines()
+                    if line.startswith("recursive-include ")]
+        skipped = ("frontend", "web", "__pycache__")
+        files = [p for p in package.rglob("*") if p.is_file() and p.suffix not in (".py", ".pyc")
+                 and not set(p.relative_to(package).parts) & set(skipped)]
+        assert files
+        for path in files:
+            rel = path.relative_to(package).as_posix()
+            assert any(fnmatch.fnmatch(rel, p) for p in patterns), f"{rel} not in package-data"
+            assert any((root / words[1]) in path.parents and any(fnmatch.fnmatch(path.name, g) for g in words[2:])
+                       for words in manifest), f"{rel} not in MANIFEST.in"

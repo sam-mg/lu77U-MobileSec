@@ -201,7 +201,7 @@ def get_settings() -> Dict[str, Any]:
     for name in user_settings.PROVIDERS:
         cfg = user_settings.get_provider_config(name)
         is_cli = name in user_settings.CLI_PROVIDERS
-        keys = [] if is_cli else credentials.get_api_keys(name)
+        entries = [] if is_cli else credentials.get_api_key_entries(name)
         providers[name] = {
             "name": name,
             "display_name": PROVIDER_DISPLAY_NAMES.get(name, name),
@@ -212,10 +212,10 @@ def get_settings() -> Dict[str, Any]:
             "local_host": cfg.get("local_host"),
             "max_concurrent_requests": cfg.get(
                 "max_concurrent_requests", user_settings.DEFAULT_MAX_CONCURRENT_REQUESTS),
-            "has_api_key": bool(keys),
-            "api_key_count": len(keys),
-            "api_keys": [{"index": i, "masked": credentials.mask_key(k)}
-                        for i, k in enumerate(keys)],
+            "has_api_key": bool(entries),
+            "api_key_count": len(entries),
+            "api_keys": [{"index": i, "masked": credentials.mask_key(entry["key"]), "label": entry["label"]}
+                        for i, entry in enumerate(entries)],
             "default_model": DEFAULT_MODELS.get(name, ""),
             "needs_api_key": name != "custom" and not is_cli,
             "is_cli": is_cli,
@@ -232,6 +232,7 @@ def get_settings() -> Dict[str, Any]:
         "blutter_path": user_settings.get_blutter_path(),
         "hermes_decomp_path": user_settings.get_hermes_decomp_path(),
         "rn_decompiler_path": user_settings.get_rn_decompiler_path(),
+        "ghidra_path": user_settings.get_ghidra_path(),
         "output_dir": user_settings.get_output_dir(),
         "output_dir_default": str(default_output_base()),
         "dynamic_verification": user_settings.get_dynamic_verification(),
@@ -277,6 +278,8 @@ def update_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
         user_settings.set_hermes_decomp_path(payload.get("hermes_decomp_path") or "")
     if "rn_decompiler_path" in payload:
         user_settings.set_rn_decompiler_path(payload.get("rn_decompiler_path") or "")
+    if "ghidra_path" in payload:
+        user_settings.set_ghidra_path((payload.get("ghidra_path") or "").strip())
     if "output_dir" in payload:
         user_settings.set_output_dir((payload.get("output_dir") or "").strip())
     if "dynamic_verification" in payload:
@@ -308,27 +311,52 @@ def update_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
             user_settings.set_provider_field(name, field, value)
     return get_settings()
 
-def set_credential(provider: str, api_key: Optional[str]) -> None:
+def set_credential(provider: str, api_key: Optional[str], label: Optional[str] = None) -> None:
     """
     Purpose:
-        Store an API key for a provider.
+        Store an API key for a provider, optionally with a label saying what it is for.
 
     Parameters:
         provider: The provider identifier.
         api_key: The key, or None to clear.
+        label: Optional free text shown beside the key, such as the account it belongs to.
+
+    Raises:
+        ValueError: When the provider is unknown or the label is rejected.
 
     Side effects:
         Writes to the OS keychain or the encrypted fallback.
 
     Security considerations:
-        The key goes to the credential store, never to the settings file, which stays safe to read and copy.
+        The key and its label go to the credential store, never to the settings file, which stays safe to read and copy.
     """
     if provider not in user_settings.PROVIDERS:
         raise ValueError(f"Unknown provider: {provider!r}")
     if api_key and api_key.strip():
-        credentials.add_api_key(provider, api_key.strip())
+        credentials.add_api_key(provider, api_key.strip(), label or "")
     else:
         credentials.delete_api_key(provider)
+
+def set_credential_label(provider: str, index: int, label: Optional[str]) -> None:
+    """
+    Purpose:
+        Label one stored key by position, change its label, or clear it.
+
+    Parameters:
+        provider: The provider identifier.
+        index: Position in the provider's key list.
+        label: The new label; empty or None clears it.
+
+    Raises:
+        ValueError: When the provider is unknown, the position does not exist, or the label is rejected.
+
+    Side effects:
+        Rewrites the provider's stored keys.
+    """
+    if provider not in user_settings.PROVIDERS:
+        raise ValueError(f"Unknown provider: {provider!r}")
+    if not credentials.set_api_key_label(provider, index, label or ""):
+        raise ValueError(f"No key at index {index} for {provider!r}")
 
 def remove_credential(provider: str, index: int) -> None:
     """

@@ -130,3 +130,37 @@ def test_severity_bands(score, severity):
         The boundaries are asserted from both sides, because an off-by-one there silently shifts findings between bands and changes what a reader treats as urgent.
     """
     assert severity_from_score(score) == severity
+
+
+@pytest.mark.parametrize("vector,completed", [
+    ("AV:L/PR:N/UI:N/S:U/C:L/I:N/A:N", "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"),
+    ("CVSS:3.1/AV:L/PR:H/C:L", "AV:L/AC:L/PR:H/UI:N/S:U/C:L/I:N/A:N"),
+    ("AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:H/A:H", "AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:H/A:H"),
+    ("AV:N/C:N/I:N", None),
+    ("C:H/I:H", None),
+    ("", None),
+])
+def test_partial_vectors_are_completed_only_when_scorable(vector, completed):
+    """
+    Purpose:
+        Pin that completion keeps every stated metric, fills the rest with worst-case exploitability and no impact, and refuses a vector with no attack vector or no impact.
+
+    Parameters:
+        vector: The model's vector.
+        completed: The full vector expected, or None.
+    """
+    from lu77U_MobileSec.utils.cvss import complete_vector
+    assert complete_vector(vector) == completed
+
+
+def test_the_parser_scores_a_completed_vector():
+    """
+    Purpose:
+        Pin that a finding whose vector omits AC is scored from the completed vector rather than falling back to its severity word.
+    """
+    from lu77U_MobileSec.utils.response_parser import ResponseParser
+    finding = ResponseParser().normalize_vulnerability({
+        "title": "Premium unlocked by a local flag", "description": "d", "file": "a.js", "line": "3",
+        "severity": "Critical", "cvss_vector": "AV:L/PR:N/UI:N/S:U/C:L/I:N/A:N"})
+    assert finding["cvss_vector"] == "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
+    assert finding["severity"] == "Medium"

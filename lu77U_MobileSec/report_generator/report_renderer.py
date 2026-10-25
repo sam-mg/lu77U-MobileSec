@@ -15,7 +15,7 @@ Implementation notes:
     The builder was written against the live detection objects, and the JSON export is a flattened view of them. Rather than rewrite the builder to accept both, small shim objects present the JSON with the attribute names it already reads. That keeps one rendering path for live and stored results, which is what stops a re-rendered report differing from the original.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .comprehensive_html_builder import ComprehensiveHTMLBuilder
 
@@ -204,7 +204,7 @@ def render_report_html(result: Dict[str, Any]) -> str:
         The report HTML.
 
     Implementation notes:
-        Goes through the same builder as a live render, so a re-rendered report is identical to the original rather than a second implementation that can drift. A missing analysis section defaults to success, since an export that reached this point completed.
+        Goes through the same builder as a live render, so a re-rendered report is identical to the original rather than a second implementation that can drift. A missing analysis section defaults to success, since an export that reached this point completed. The analyzer details and the analysis alias are merged, details first: the alias carries the dashboard's names (supported, success) but not the coverage block or the limitation, and reading the alias alone once left every downloaded report without its incomplete-analysis notice.
 
     Security considerations:
         The exported result contains attacker-derived strings from the APK. Escaping is the builder's responsibility and applies identically on this path.
@@ -215,7 +215,7 @@ def render_report_html(result: Dict[str, Any]) -> str:
         "vulnerabilities": _flatten_findings(result),
         "analysis_success": bool((result.get("analysis") or {}).get("success", True)),
     }
-    analyzer_results: Optional[Dict[str, Any]] = (
-        result.get("analysis") or result.get("analyzer_details") or {})
+    analyzer_results: Dict[str, Any] = {
+        **(result.get("analyzer_details") or {}), **(result.get("analysis") or {})}
     return ComprehensiveHTMLBuilder(verbose=False).build_comprehensive_report(
         detection_result, vulnerability_results, analyzer_results)

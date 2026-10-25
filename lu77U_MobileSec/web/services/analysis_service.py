@@ -19,6 +19,7 @@ Security considerations:
 """
 
 import contextvars
+import hashlib
 import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -29,7 +30,29 @@ from ...detection.detector import MobileSecurityDetector
 from ...utils.cancellation import ScanCancelled
 from ...utils.output_manager import OutputManager
 from ...utils.verbose import plural, verbose_print
+from ...validation.validator import sdk_note
 from ..serializers import build_result
+
+def provider_outage(result: Dict[str, Any]) -> str:
+    """
+    Purpose:
+        Name the provider outage a scan stopped on, if it stopped on one.
+
+    Parameters:
+        result: The scan result.
+
+    Returns:
+        "provider_quota" for an exhausted quota, "provider_unreachable" when the provider's host could not be reached when the scan stopped using it, otherwise "".
+
+    Implementation notes:
+        Both mean the AI phases are incomplete for a reason outside the app and the scan can be redone later from its checkpoint, so both pause instead of finishing. Quota is checked first: it is the more specific verdict and carries its own retry window.
+    """
+    if quota_exhausted(result):
+        return "provider_quota"
+    details = (result or {}).get("analyzer_details") or {}
+    usage = details.get("llm_usage") or {}
+    return "provider_unreachable" if usage.get("unreachable") else ""
+
 
 def quota_exhausted(result: Dict[str, Any]) -> bool:
     """
@@ -54,10 +77,68 @@ UNSUPPORTED_FRAMEWORKS = {
     "kony", "kony visualizer", "libgdx", "unity", "unreal",
 }
 
+_DEVICE_LOCKS: Dict[str, threading.Lock] = {}
+_DEVICE_LOCKS_GUARD = threading.Lock()
+
+
+def hold_device(device: str, is_cancelled: Callable[[], bool], waiting: Callable[[], None]) -> threading.Lock:
+    """
+    Purpose:
+        Take the one-at-a-time lock for a device, waiting for any other scan using it.
+
+    Parameters:
+        device: The device serial.
+        is_cancelled: Polled while waiting, so a stopped scan does not wait forever.
+        waiting: Called once if the device is busy, to tell the user why the scan is waiting.
+
+    Returns:
+        The held lock, which the caller releases.
+
+    Raises:
+        ScanCancelled: When the scan is stopped while waiting.
+
+    Implementation notes:
+        Two scans can run at once, and each installs its app, starts and stops frida-server and drives the screen of the device it picked; with one emulator attached both picked it, and one scan's teardown stopped the other's frida-server mid-check. The static phases still run in parallel; only the device phase is serialised, per device.
+    """
+    with _DEVICE_LOCKS_GUARD:
+        lock = _DEVICE_LOCKS.setdefault(device, threading.Lock())
+    if lock.acquire(blocking=False):
+        return lock
+    waiting()
+    while not lock.acquire(timeout=2):
+        if is_cancelled():
+            raise ScanCancelled()
+    return lock
+
+
 _SESSION_PROGRESS_START = 88
 _SESSION_PROGRESS_END = 91
 
 _SESSION_UI_STEPS = 8
+
+
+def _apk_digest(apk_path: str) -> str:
+    """
+    Purpose:
+        Identify an APK by its content, for scoping reused review verdicts to one app.
+
+    Parameters:
+        apk_path: Path to the APK.
+
+    Returns:
+        The SHA-256 hex digest, or an empty string when the file cannot be read, which turns verdict reuse off.
+
+    Implementation notes:
+        Content rather than package name, because a vulnerable app and its fixed version can share a package name, a version and every file path, and a verdict on one must not be applied to the other.
+    """
+    digest = hashlib.sha256()
+    try:
+        with open(apk_path, "rb") as handle:
+            for block in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(block)
+    except OSError:
+        return ""
+    return digest.hexdigest()
 
 
 def _run_named(name: str, fn: Callable[[], Any]) -> Any:
@@ -221,7 +302,7 @@ class AnalysisService:
             Decompiles the APK, makes provider requests, may drive a device, writes reports, and removes working files.
 
         Implementation notes:
-            Detection runs first because it selects everything after it -- which analyzer, which decompiler, which prompt. An unsupported framework or a failed preflight does not end the scan: the result records the reason and the report still describes the app, because a report saying why an app was not analysed is far better than an empty one that reads as clean. Findings are graded and chained before any device work, so verification spends its budget on findings that survived gating. Working files are removed at the end unless verbose is set, since decompiled output is large and a user who wants to inspect it runs verbose.
+            Detection runs first because it selects everything after it -- which analyzer, which decompiler, which prompt. An unsupported framework or a failed preflight does not end the scan: the result records the reason and the report still describes the app, because a report saying why an app was not analysed is far better than an empty one that reads as clean. Findings are graded and chained before any device work, so verification spends its budget on findings that survived gating. Working files are removed at the end unless verbose is set, since decompiled output is large and a user who wants to inspect it runs verbose. A failed analysis is logged under an "Analysis failed" prefix, because the analyzers' own reasons do not always match the dashboard feed's filter and a scan once ended there with no reason shown at all.
         """
         self.progress("detecting", 10, "Detecting framework and reading the manifest")
         detector = MobileSecurityDetector(verbose=self.verbose)
@@ -255,7 +336,7 @@ class AnalysisService:
                 is_cancelled=self.is_cancelled,
             )
             analyzer.checkpoint = self.checkpoint
-            ready, preflight_reason = analyzer.preflight()
+            ready, preflight_reason = analyzer.preflight(apk_path)
             if not ready:
                 verbose_print(
                     f"{analyzer.framework_label} analyzer not ready: {preflight_reason}",
@@ -290,20 +371,30 @@ class AnalysisService:
                         "decompilation_status": "Successful" if analysis_success else "Failed",
                         "error": analysis_result.get("error"),
                         "agent_coverage": analysis_result.get("agent_coverage") or {},
+                        "limitation": analysis_result.get("limitation") or "",
                     }
+                if not analysis_success:
+                    verbose_print(
+                        f"Analysis failed: {analyzer_results.get('error') or 'the analyzer gave no reason'}",
+                        self.verbose)
 
                 if analysis_success:
                     if device:
-                        dynamic_session = self._run_dynamic_phase(
-                            device=device,
-                            detection_result=detection_result,
-                            apk_path=apk_path,
-                            jadx_output_dir=jadx_output_dir,
-                            vulnerabilities=vulnerabilities,
-                            static_transcript=static_transcript,
-                            ai_provider=analyzer.ai_provider,
-                            code_graph=code_graph,
-                        )
+                        lock = hold_device(device, self.is_cancelled, lambda: self.progress(
+                            "device_check", 62, f"Waiting for {device}: another scan is using it"))
+                        try:
+                            dynamic_session = self._run_dynamic_phase(
+                                device=device,
+                                detection_result=detection_result,
+                                apk_path=apk_path,
+                                jadx_output_dir=jadx_output_dir,
+                                vulnerabilities=vulnerabilities,
+                                static_transcript=static_transcript,
+                                ai_provider=analyzer.ai_provider,
+                                code_graph=code_graph,
+                            )
+                        finally:
+                            lock.release()
                         self._cleanup_deferred(analyzer, jadx_output_dir)
                     else:
                         reason = ("Dynamic verification is disabled in Settings."
@@ -327,8 +418,11 @@ class AnalysisService:
 
         chains: List[Dict[str, Any]] = []
         if vulnerabilities:
+            basic = getattr(detection_result, "basic_info", None)
             chains = self._grade_findings(
-                vulnerabilities, getattr(analyzer, "ai_provider", None) if supported else None)
+                vulnerabilities, getattr(analyzer, "ai_provider", None) if supported else None,
+                app_note=sdk_note(getattr(basic, "min_sdk", None), getattr(basic, "target_sdk", None)),
+                scope=_apk_digest(apk_path))
 
         vulnerability_results = {
             "vulnerabilities": vulnerabilities,
@@ -368,10 +462,10 @@ class AnalysisService:
             dynamic_session=dynamic_session,
         )
 
-        if quota_exhausted(result):
+        if provider_outage(result):
             verbose_print(
-                "AI provider quota exhausted; skipping working-file cleanup "
-                "so this scan stays resumable", self.verbose)
+                "AI provider quota exhausted or provider unreachable; skipping working-file "
+                "cleanup so this scan stays resumable", self.verbose)
         else:
             self._cleanup_working_files(output_manager)
         return result
@@ -400,7 +494,7 @@ class AnalysisService:
         return chosen.get("serial")
 
     def _grade_findings(self, vulnerabilities: List[Dict[str, Any]],
-                        ai_provider) -> List[Dict[str, Any]]:
+                        ai_provider, app_note: str = "", scope: str = "") -> List[Dict[str, Any]]:
         """
         Purpose:
             Deduplicate, gate, review and chain the findings.
@@ -408,6 +502,8 @@ class AnalysisService:
         Parameters:
             vulnerabilities: Raw findings from the analysis.
             ai_provider: Provider for the review passes.
+            app_note: The app's declared SDK levels, told to the review passes.
+            scope: The APK's digest, so a cached verdict is reused only for this same app.
 
         Returns:
             The graded findings, ordered for the report.
@@ -428,7 +524,7 @@ class AnalysisService:
         try:
             self.progress("validating", 88, "Validating findings")
             _run_named("validation", lambda: validate_findings(
-                vulnerabilities, provider=judge_provider,
+                vulnerabilities, provider=judge_provider, app_note=app_note, scope=scope,
                 verbose=self.verbose, is_cancelled=self.is_cancelled,
                 progress=lambda phase, unused_percent, message="":
                     self.progress(phase, 88, message)))
@@ -631,7 +727,7 @@ class AnalysisService:
         adb = adb or ADBManager(verbose=self.verbose)
         try:
             if not installed:
-                ok, message = adb.install_apk(device, apk_path)
+                ok, message = adb.install_apk(device, apk_path, package=package)
                 if not ok:
                     verbose_print(f"Device session: install failed: {message}", self.verbose)
                     return {"attempted": False,

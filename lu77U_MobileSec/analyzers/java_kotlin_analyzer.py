@@ -21,7 +21,7 @@ Security considerations:
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .agent.profiles import JAVA_KOTLIN
 from .base import BaseAnalyzer
@@ -79,10 +79,13 @@ class JavaKotlinAnalyzer(BaseAnalyzer):
         self.java_kotlin_decompiler = JavaKotlinDecompiler(verbose=self.verbose)
         self.response_parser = ResponseParser(verbose=self.verbose)
 
-    def preflight(self) -> Tuple[bool, str]:
+    def preflight(self, apk_path: Optional[str] = None) -> Tuple[bool, str]:
         """
         Purpose:
             Check that JADX is configured.
+
+        Parameters:
+            apk_path: The APK about to be scanned; unused here, since this analyzer's requirements do not depend on how the app was built.
 
         Returns:
             A readiness flag and, when not ready, the reason.

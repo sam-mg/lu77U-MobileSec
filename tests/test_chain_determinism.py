@@ -54,17 +54,30 @@ class TestAutoConfirmedPairings:
     def test_a_weak01_and_a_tls_bypass_chain_with_no_provider(self):
         """
         Purpose:
-            Pin that the pairing is made without a provider, and is reported as a critical auto-confirmed chain.
+            Pin that the pairing is made without a provider, and is reported as an auto-confirmed chain at the severity its vector scores.
 
         Implementation notes:
-            This relationship is definitional rather than dependent on data flow, which is why it needs no model: pinning is precisely the control that would have caught the bypass.
+            This relationship is definitional rather than dependent on data flow, which is why it needs no model: pinning is precisely the control that would have caught the bypass. It was labelled Critical beside a vector that scores 8.1 (an attacker on the same network), so it is High, and the vector it carries agrees.
         """
+        from lu77U_MobileSec.utils.cvss import severity_from_vector
         weak, bypass = _weak01_and_bypass()
         chains = build_chains([weak, bypass], provider=None)
         assert len(chains) == 1
         assert chains[0]["chain"]["auto_confirmed"] is True
         assert chains[0]["source"] == "chain-builder"
-        assert chains[0]["severity"] == "Critical"
+        assert chains[0]["severity"] == "High"
+        assert severity_from_vector(chains[0]["cvss_vector"])[0] == "High"
+
+    def test_user_ca_trust_does_not_pair_as_a_tls_bypass(self):
+        """
+        Purpose:
+            Pin that missing pinning beside user-CA trust makes no auto-confirmed chain, since user-CA trust is not a bypass.
+        """
+        weak, _bypass = _weak01_and_bypass()
+        user_ca = finding(title="targetSdkVersion 23 trusts user-installed CA certificates",
+                          vuln_class="NETWORK-05", severity="Medium", file="AndroidManifest.xml")
+        user_ca["gate_result"] = apply_gates(user_ca).to_dict()
+        assert build_chains([weak, user_ca], provider=None) == []
 
     def test_the_bypass_is_named_in_the_flow(self):
         """
@@ -206,6 +219,37 @@ class TestCandidateRanking:
         priority = [c for c in candidates if c["pattern"].priority]
         assert candidates[:len(priority)] == priority
 
+    def test_the_provider_chain_needs_a_provider_entry(self):
+        """
+        Purpose:
+            Pin that an exported activity feeding SQL injection is not proposed as the exported-provider chain, while an exported provider is.
+
+        Implementation notes:
+            A Ghera app's exported activity passed Intent extras to rawQuery, and the chain published "Exported ContentProvider exposes an injectable SQL query" at Critical over an app with no provider.
+        """
+        sqli = finding(title="SQL injection in MiddleActivity via Intent extras", vuln_class="CODE-01", severity="High")
+        activity = finding(title="Exported MiddleActivity lacks permission protection", vuln_class="PLATFORM-01",
+                           code_snippet='<activity android:name="edu.ksu.cs.benign.MiddleActivity">')
+        provider = finding(title="Exported UserProvider without a permission", vuln_class="PLATFORM-01",
+                           code_snippet='<provider android:name="a.UserProvider" android:exported="true">')
+
+        def chain_03(findings):
+            """
+            Purpose:
+                List the CHAIN-03 candidates for a set of findings.
+
+            Parameters:
+                findings: The findings.
+
+            Returns:
+                The (entry, target) index pairs.
+            """
+            return [(c["entry_index"], c["target_index"]) for c in find_candidate_chains(findings)
+                    if c["pattern"].id == "CHAIN-03"]
+
+        assert chain_03([activity, sqli]) == []
+        assert chain_03([provider, sqli]) == [(0, 1)]
+
     def test_the_cap_was_raised(self):
         """
         Purpose:
@@ -267,3 +311,38 @@ class TestRejectionLogging:
         out = capsys.readouterr().out
         assert "rejected" in out
         assert "unrelated Activities" in out
+
+
+
+class TestChainSeverity:
+    """
+    Purpose:
+        A chain's severity label and its CVSS vector always agreeing.
+    """
+    def test_every_pattern_is_labelled_with_the_band_its_vector_scores(self):
+        """
+        Purpose:
+            Pin that no chain pattern declares a severity its own vector does not score.
+
+        Implementation notes:
+            Six patterns disagreed, among them the backup-and-credential chain labelled High beside a physical-access vector scoring 5.9.
+        """
+        from lu77U_MobileSec.utils.cvss import severity_from_vector
+        from lu77U_MobileSec.validation.chains import CHAIN_PATTERNS, _AUTO_PAIRINGS
+        patterns = list(CHAIN_PATTERNS) + [pattern for _, _, pattern in _AUTO_PAIRINGS]
+        assert [p.id for p in patterns if severity_from_vector(p.cvss_vector)[0] != p.severity] == []
+
+    def test_a_component_that_outranks_the_pattern_lends_its_vector(self):
+        """
+        Purpose:
+            Pin that a chain raised to a component's severity carries that component's vector too, so its score still supports its label.
+        """
+        from lu77U_MobileSec.utils.cvss import severity_from_vector
+        from lu77U_MobileSec.validation.chains import CHAIN_PATTERNS, _build_chain_finding
+        pattern = next(p for p in CHAIN_PATTERNS if p.id == "CHAIN-05")
+        entry = {"title": "Backup", "severity": "Informational"}
+        target = {"title": "Token", "severity": "High", "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"}
+        chain = _build_chain_finding({"pattern": pattern, "entry_index": 0, "target_index": 1},
+                                     [entry, target], {"confirmed": True, "flow": ["a"]}, 1)
+        assert chain["severity"] == "High"
+        assert severity_from_vector(chain["cvss_vector"])[0] == "High"

@@ -1,0 +1,2395 @@
+{
+ "source": "https://bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks",
+ "revision": "ea1dbe23",
+ "variants": {
+  "Benign": {
+   "benchmarks": {
+    "Crypto/BlockCipher-ECB-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "AES/ECB/PKCS5Padding encryption in NewPasswordActivity",
+       "class": "CRYPTO-01",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 12,
+     "non_info": 6,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "9e5edd917f4e",
+     "folder": "lu77U-MobileSec-BlockCipher-ECB-InformationExposure-Lean-benign-20261023_185506",
+     "apk": "BlockCipher-ECB-InformationExposure-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Crypto/BlockCipher-NonRandomIV-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "Hardcoded AES key and IV in strings.xml",
+       "class": "CRYPTO-02",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "Hardcoded encryption keys and IVs in GradesContentProvider.java",
+       "class": "CRYPTO-02",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 4,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "ab5cd8b4ecdd",
+     "folder": "lu77U-MobileSec-BlockCipher-NonRandomIV-InformationExposure-Lean-benign-20261022_145101",
+     "apk": "BlockCipher-NonRandomIV-InformationExposure-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Crypto/ConstantKey-ForgeryAttack-Lean": {
+     "hits": [
+      {
+       "title": "Hardcoded symmetric key in ResetPasswordActivity",
+       "class": "CRYPTO-02",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "6386f7d4e455",
+     "folder": "lu77U-MobileSec-ConstantKey-ForgeryAttack-Lean-benign-20261022_145342",
+     "apk": "ConstantKey-ForgeryAttack-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Crypto/ExposedCredentials-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "Sensitive AES key stored in external storage without password",
+       "class": "STORAGE-02",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Unencrypted KeyStore in external storage directory",
+       "class": "STORAGE-01",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "87c38a497093",
+     "folder": "lu77U-MobileSec-ExposedCredentials-InformationExposure-Lean-benign-20261022_150202",
+     "apk": "ExposedCredentials-InformationExposure-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Crypto/PBE-ConstantSalt-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "Password-based key derivation uses a fixed salt",
+       "class": "CRYPTO-02",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 12,
+     "non_info": 6,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "da6967b4e304",
+     "folder": "lu77U-MobileSec-PBE-ConstantSalt-InformationExposure-Lean-benign-20261022_150922",
+     "apk": "PBE-ConstantSalt-InformationExposure-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/DynamicRegBroadcastReceiver-UnrestrictedAccess-Lean": {
+     "hits": [
+      {
+       "title": "Intent redirection to private activity via exported broadcast receiver",
+       "class": "PLATFORM-03",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 7,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "278acd4bd619",
+     "folder": "lu77U-MobileSec-DynamicRegBroadcastReceiver-UnrestrictedAccess-Lean-benign-20261023_185506",
+     "apk": "DynamicRegBroadcastReceiver-UnrestrictedAccess-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/EmptyPendingIntent-PrivEscalation-Lean": {
+     "hits": [
+      {
+       "title": "Mutable PendingIntent wraps an implicit Intent",
+       "class": "PLATFORM-08",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "631b4a763f01",
+     "folder": "lu77U-MobileSec-EmptyPendingIntent-PrivEscalation-Lean-benign-20261022_151323",
+     "apk": "EmptyPendingIntent-PrivEscalation-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/FragmentInjection-PrivEscalation-Lean": {
+     "hits": [
+      {
+       "title": "Fragment injection via unsafe reflection",
+       "class": "CODE-02",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 7,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "cbb5e7c63a24",
+     "folder": "lu77U-MobileSec-FragmentInjection-PrivEscalation-Lean-benign-20261022_151403",
+     "apk": "FragmentInjection-PrivEscalation-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/HighPriority-ActivityHijack-Lean": {
+     "hits": [
+      {
+       "title": "Implicit Intent with an app-defined action carries extras",
+       "class": "PLATFORM-07",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 0,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "443a866816d1",
+     "folder": "lu77U-MobileSec-HighPriority-ActivityHijack-Lean-benign-20261022_151703",
+     "apk": "HighPriority-ActivityHijack-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/ImplicitPendingIntent-IntentHijack-Lean": {
+     "hits": [
+      {
+       "title": "Mutable PendingIntent wraps an implicit Intent",
+       "class": "PLATFORM-08",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "e8ea69b8ab9e",
+     "folder": "lu77U-MobileSec-ImplicitPendingIntent-IntentHijack-Lean-benign-20261023_185927",
+     "apk": "ImplicitPendingIntent-IntentHijack-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/InadequatePathPermission-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "Missing permission protection in UserDetailsContentProvider",
+       "class": "PLATFORM-01",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "Exported activity UserDetailsActivity has no permission protection",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Exported Content Provider leaks sensitive user data (SSNs)",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Custom permission internalRead is weakly protected",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 12,
+     "non_info": 6,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "07398e73ad31",
+     "folder": "lu77U-MobileSec-InadequatePathPermission-InformationExposure-Lean-benign-20261022_152023",
+     "apk": "InadequatePathPermission-InformationExposure-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/IncorrectHandlingImplicitIntent-UnauthorizedAccess-Lean": {
+     "hits": [
+      {
+       "title": "Exported activity SensitiveActivity has no permission protection",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "d549e02c31f1",
+     "folder": "lu77U-MobileSec-IncorrectHandlingImplicitIntent-UnauthorizedAccess-Lean-benign-20261022_152123",
+     "apk": "IncorrectHandlingImplicitIntent-UnauthorizedAccess-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/NoValidityCheckOnBroadcastMsg-UnintendedInvocation-Lean": {
+     "hits": [
+      {
+       "title": "Exported BroadcastReceiver triggers internal file deletion",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Exported receiver LowMemoryReceiver has no permission protection",
+       "class": "PLATFORM-01",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "13e88a2b8875",
+     "folder": "lu77U-MobileSec-NoValidityCheckOnBroadcastMsg-UnintendedInvocation-Lean-benign-20261023_193158",
+     "apk": "NoValidityCheckOnBroadcastMsg-UnintendedInvocation-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/OrderedBroadcast-DataInjection-Lean": {
+     "hits": [
+      {
+       "title": "Ordered broadcast result is trusted in onReceive()",
+       "class": "PLATFORM-02",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 11,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "2fec9636cd60",
+     "folder": "lu77U-MobileSec-OrderedBroadcast-DataInjection-Lean-benign-20261023_193158",
+     "apk": "OrderedBroadcast-DataInjection-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/StickyBroadcast-DataInjection-Lean": {
+     "hits": [
+      {
+       "title": "The app sends a sticky broadcast containing a phone number",
+       "class": "PLATFORM-07",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 7,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "02512ad9edc9",
+     "folder": "lu77U-MobileSec-StickyBroadcast-DataInjection-Lean-benign-20261022_152824",
+     "apk": "StickyBroadcast-DataInjection-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/TaskAffinity-ActivityHijack-Lean": {
+     "hits": [
+      {
+       "title": "Activity ImageEditor declares a foreign task affinity",
+       "class": "PLATFORM-09",
+       "severity": "low",
+       "verified": null
+      },
+      {
+       "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+       "class": "PLATFORM-09",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "e0bcf82cbf75",
+     "folder": "lu77U-MobileSec-TaskAffinity-ActivityHijack-Lean-benign-20261022_152924",
+     "apk": "TaskAffinity-ActivityHijack-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/TaskAffinity-LauncherActivity-PhishingAttack-Lean": {
+     "hits": [
+      {
+       "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+       "class": "PLATFORM-09",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 0,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "3e971a490291",
+     "folder": "lu77U-MobileSec-TaskAffinity-LauncherActivity-PhishingAttack-Lean-benign-20261022_153224",
+     "apk": "TaskAffinity-LauncherActivity-PhishingAttack-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/TaskAffinity-PhishingAttack-Lean": {
+     "hits": [
+      {
+       "title": "Activity ImageEditor declares a foreign task affinity",
+       "class": "PLATFORM-09",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 7,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "92ebaefeb2c7",
+     "folder": "lu77U-MobileSec-TaskAffinity-PhishingAttack-Lean-benign-20261022_153344",
+     "apk": "TaskAffinity-PhishingAttack-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/TaskAffinityAndReparenting-PhishingAndDoSAttack-Lean": {
+     "hits": [
+      {
+       "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+       "class": "PLATFORM-09",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "415e35729c9c",
+     "folder": "lu77U-MobileSec-TaskAffinityAndReparenting-PhishingAndDoSAttack-Lean-benign-20261022_153544",
+     "apk": "TaskAffinityAndReparenting-PhishingAndDoSAttack-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/UnhandledException-DOS-Lean": {
+     "hits": [
+      {
+       "title": "NullPointerException in exported MainActivity",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 7,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "64ed371848f4",
+     "folder": "lu77U-MobileSec-UnhandledException-DOS-Lean-benign-20261022_153724",
+     "apk": "UnhandledException-DOS-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/UnprotectedBroadcastRecv-PrivEscalation-Lean": {
+     "hits": [
+      {
+       "title": "Exported receiver MyReceiver uses SEND_SMS for any app",
+       "class": "PLATFORM-01",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "The broadcast receiver 'MyReceiver' is exported and does not require",
+       "class": "PLATFORM-07",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Exported receiver MyReceiver has no permission protection",
+       "class": "PLATFORM-01",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "ebae6171fb8c",
+     "folder": "lu77U-MobileSec-UnprotectedBroadcastRecv-PrivEscalation-Lean-benign-20261022_153904",
+     "apk": "UnprotectedBroadcastRecv-PrivEscalation-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/WeakChecksOnDynamicInvocation-DataInjection-Lean": {
+     "hits": [
+      {
+       "title": "Path traversal in FIleContentProvider call method",
+       "class": "CODE-04",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "ContentProvider.call() writes past the write permission",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      },
+      {
+       "title": "Custom permission wperm is weakly protected",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      },
+      {
+       "title": "Weak custom permission protection level",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 4,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "7cb768a8f635",
+     "folder": "lu77U-MobileSec-WeakChecksOnDynamicInvocation-DataInjection-Lean-benign-20261022_153924",
+     "apk": "WeakChecksOnDynamicInvocation-DataInjection-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/CheckValidity-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "HostnameVerifier accepts every hostname",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "TrustManager accepts every server certificate",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "e0c5022f85a8",
+     "folder": "lu77U-MobileSec-CheckValidity-InformationExposure-Lean-benign-20261023_190147",
+     "apk": "CheckValidity-InformationExposure-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/IncorrectHostNameVerification-MITM-Lean": {
+     "hits": [
+      {
+       "title": "HostnameVerifier accepts every hostname",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "TrustManager accepts every server certificate",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "60982f7e1caf",
+     "folder": "lu77U-MobileSec-IncorrectHostNameVerification-MITM-Lean-benign-20261022_154145",
+     "apk": "IncorrectHostNameVerification-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/InsecureSSLSocket-MITM-Lean": {
+     "hits": [
+      {
+       "title": "TLS socket opened by IP address skips hostname check",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "b54386cbfd52",
+     "folder": "lu77U-MobileSec-InsecureSSLSocket-MITM-Lean-benign-20261022_154345",
+     "apk": "InsecureSSLSocket-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/InsecureSSLSocketFactory-MITM-Lean": {
+     "hits": [
+      {
+       "title": "SSLCertificateSocketFactory.getInsecure() disables certificate checks",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "ae77ed81c950",
+     "folder": "lu77U-MobileSec-InsecureSSLSocketFactory-MITM-Lean-benign-20261022_154425",
+     "apk": "InsecureSSLSocketFactory-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/InvalidCertificateAuthority-MITM-Lean": {
+     "hits": [
+      {
+       "title": "TrustManager accepts every server certificate",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "324253ed13a4",
+     "folder": "lu77U-MobileSec-InvalidCertificateAuthority-MITM-Lean-benign-20261022_154645",
+     "apk": "InvalidCertificateAuthority-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/OpenSocket-InformationLeak-Lean": {
+     "hits": [
+      {
+       "title": "Unauthenticated network server leaking myInfo.txt in MyIntentService",
+       "class": "NETWORK-02",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 0,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "720d66cd9686",
+     "folder": "lu77U-MobileSec-OpenSocket-InformationLeak-Lean-benign-20261022_154705",
+     "apk": "OpenSocket-InformationLeak-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/UnEncryptedSocketComm-MITM-Lean": {
+     "hits": [
+      {
+       "title": "Plain TCP socket carries data without TLS",
+       "class": "NETWORK-02",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 0,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "99ecdd2c1209",
+     "folder": "lu77U-MobileSec-UnEncryptedSocketComm-MITM-Lean-benign-20261022_154905",
+     "apk": "UnEncryptedSocketComm-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/UnpinnedCertificates-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "6e368b602e76",
+     "folder": "lu77U-MobileSec-UnpinnedCertificates-MITM-Lean-benign-20261022_155145",
+     "apk": "UnpinnedCertificates-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "NonAPI/MergeManifest-UnintendedBehavior-Lean": {
+     "hits": [
+      {
+       "title": "Exported service BackgroundService has no permission protection",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Exported service BackgroundService uses WAKE_LOCK for any app",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "f171f5d89345",
+     "folder": "lu77U-MobileSec-MergeManifest-UnintendedBehavior-Lean-benign-20261022_155225",
+     "apk": "MergeManifest-UnintendedBehavior-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "NonAPI/OutdatedLibrary-DirectoryTraversal-Lean": {
+     "hits": [
+      {
+       "title": "Path Traversal leading to Arbitrary File Write in Internal Storage",
+       "class": "CODE-04",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "db4410cfce28",
+     "folder": "lu77U-MobileSec-OutdatedLibrary-DirectoryTraversal-Lean-benign-20261023_114123",
+     "apk": "OutdatedLibrary-DirectoryTraversal-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Permission/UnnecesaryPerms-PrivEscalation-Lean": {
+     "hits": [
+      {
+       "title": "Exported service BackgroundService uses WAKE_LOCK for any app",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "6fa3c968fd06",
+     "folder": "lu77U-MobileSec-UnnecesaryPerms-PrivEscalation-Lean-benign-20261023_114223",
+     "apk": "UnnecesaryPerms-PrivEscalation-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Permission/WeakPermission-UnauthorizedAccess-Lean": {
+     "hits": [
+      {
+       "title": "Custom permission MYCP_ACCESS_PERM is weakly protected",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 7,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "5867b90e7832",
+     "folder": "lu77U-MobileSec-WeakPermission-UnauthorizedAccess-Lean-benign-20261023_114423",
+     "apk": "WeakPermission-UnauthorizedAccess-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/ExternalStorage-DataInjection-Lean": {
+     "hits": [
+      {
+       "title": "File on shared external storage is read back",
+       "class": "STORAGE-02",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 0,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "6073faf3f219",
+     "folder": "lu77U-MobileSec-ExternalStorage-DataInjection-Lean-benign-20261023_114503",
+     "apk": "ExternalStorage-DataInjection-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/ExternalStorage-InformationLeak-Lean": {
+     "hits": [
+      {
+       "title": "Plaintext social security number in getExternalFilesDir()",
+       "class": "STORAGE-02",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "4e1e8ca98cba",
+     "folder": "lu77U-MobileSec-ExternalStorage-InformationLeak-Lean-benign-20261023_114543",
+     "apk": "ExternalStorage-InformationLeak-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/InternalStorage-DirectoryTraversal-Lean": {
+     "hits": [
+      {
+       "title": "Path traversal via 'fileName' extra in MainActivity",
+       "class": "CODE-04",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 7,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "afe7ecd73031",
+     "folder": "lu77U-MobileSec-InternalStorage-DirectoryTraversal-Lean-benign-20261023_114903",
+     "apk": "InternalStorage-DirectoryTraversal-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/InternalToExternalStorage-InformationLeak-Lean": {
+     "hits": [
+      {
+       "title": "Exported service DownloadService has no permission protection",
+       "class": "PLATFORM-01",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "Private internal files copied to external storage in DownloadService",
+       "class": "STORAGE-02",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 11,
+     "non_info": 5,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "10ee182dd5cb",
+     "folder": "lu77U-MobileSec-InternalToExternalStorage-InformationLeak-Lean-benign-20261023_114903",
+     "apk": "InternalToExternalStorage-InformationLeak-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/SQLite-execSQL-Lean": {
+     "hits": [
+      {
+       "title": "A SQL statement built by string concatenation",
+       "class": "CODE-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "539982b27bc4",
+     "folder": "lu77U-MobileSec-SQLite-execSQL-Lean-benign-20261023_115244",
+     "apk": "SQLite-execSQL-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/SQLlite-RawQuery-SQLInjection-Lean": {
+     "hits": [
+      {
+       "title": "A selection clause built by string concatenation",
+       "class": "CODE-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "596ed51fae43",
+     "folder": "lu77U-MobileSec-SQLlite-RawQuery-SQLInjection-Lean-benign-20261023_190307",
+     "apk": "SQLlite-RawQuery-SQLInjection-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/SQLlite-SQLInjection-Lean": {
+     "hits": [
+      {
+       "title": "A selection clause built by string concatenation",
+       "class": "CODE-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 4,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "ecc0916d8990",
+     "folder": "lu77U-MobileSec-SQLlite-SQLInjection-Lean-benign-20261023_190407",
+     "apk": "SQLlite-SQLInjection-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "System/CheckCallingOrSelfPermission-PrivilegeEscalation-Lean": {
+     "hits": [
+      {
+       "title": "checkCallingOrSelfPermission() also passes for the app itself",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "0bd63eb4c91e",
+     "folder": "lu77U-MobileSec-CheckCallingOrSelfPermission-PrivilegeEscalation-Lean-benign-20261023_115704",
+     "apk": "CheckCallingOrSelfPermission-PrivilegeEscalation-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "System/CheckPermission-PrivilegeEscalation-Lean": {
+     "hits": [
+      {
+       "title": "Permission check reads the app's own identity, not the caller's",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 4,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "210c60c1c878",
+     "folder": "lu77U-MobileSec-CheckPermission-PrivilegeEscalation-Lean-benign-20261023_120204",
+     "apk": "CheckPermission-PrivilegeEscalation-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "System/ClipboardUse-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "The application copies sensitive personal data from an EditText field",
+       "class": "STORAGE-01",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Sensitive value is copied to the clipboard",
+       "class": "STORAGE-02",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "f3cbd8ae3be7",
+     "folder": "lu77U-MobileSec-ClipboardUse-InformationExposure-Lean-benign-20261023_190607",
+     "apk": "ClipboardUse-InformationExposure-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "System/DynamicCodeLoading-CodeInjection-Lean": {
+     "hits": [
+      {
+       "title": "Dynamic class loading in MainActivity.java",
+       "class": "CODE-02",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "687fc0f68bd9",
+     "folder": "lu77U-MobileSec-DynamicCodeLoading-CodeInjection-Lean-benign-20261023_190647",
+     "apk": "DynamicCodeLoading-CodeInjection-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "System/EnforceCallingOrSelfPermission-PrivilegeEscalation-Lean": {
+     "hits": [
+      {
+       "title": "enforceCallingOrSelfPermission() also passes for the app itself",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "6220f2867475",
+     "folder": "lu77U-MobileSec-EnforceCallingOrSelfPermission-PrivilegeEscalation-Lean-benign-20261023_120645",
+     "apk": "EnforceCallingOrSelfPermission-PrivilegeEscalation-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "System/EnforcePermission-PrivilegeEscalation-Lean": {
+     "hits": [
+      {
+       "title": "Permission check reads the app's own identity, not the caller's",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "e40b488e73b5",
+     "folder": "lu77U-MobileSec-EnforcePermission-PrivilegeEscalation-Lean-benign-20261023_121005",
+     "apk": "EnforcePermission-PrivilegeEscalation-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "System/UniqueIDs-IdentityLeak-Lean": {
+     "hits": [
+      {
+       "title": "IMEI/MEID stored in plaintext in UNIQUE_ID.txt",
+       "class": "STORAGE-02",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "c5692c731d60",
+     "folder": "lu77U-MobileSec-UniqueIDs-IdentityLeak-Lean-benign-20261023_121205",
+     "apk": "UniqueIDs-IdentityLeak-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/HttpConnection-MITM-Lean": {
+     "hits": [
+      {
+       "title": "Cleartext HTTP traffic permitted",
+       "class": "NETWORK-02",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 0,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "949d7225f4da",
+     "folder": "lu77U-MobileSec-HttpConnection-MITM-Lean-benign-20261023_121645",
+     "apk": "HttpConnection-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/JavaScriptExecution-CodeInjection-Lean": {
+     "hits": [
+      {
+       "title": "WebView has JavaScript enabled",
+       "class": "PLATFORM-06",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "a0a84249c3eb",
+     "folder": "lu77U-MobileSec-JavaScriptExecution-CodeInjection-Lean-benign-20261023_121705",
+     "apk": "JavaScriptExecution-CodeInjection-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/UnsafeIntentURLImpl-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "intent:// URL launched without clearing its component and selector",
+       "class": "PLATFORM-03",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 11,
+     "non_info": 4,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "8ba2a95c4446",
+     "folder": "lu77U-MobileSec-UnsafeIntentURLImpl-InformationExposure-Lean-benign-20261023_122025",
+     "apk": "UnsafeIntentURLImpl-InformationExposure-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebView-CookieOverwrite-Lean": {
+     "hits": [
+      {
+       "title": "WebView loading outside URLs shares the app's cookies",
+       "class": "PLATFORM-06",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 11,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "cea436201e50",
+     "folder": "lu77U-MobileSec-WebView-CookieOverwrite-Lean-benign-20261023_122105",
+     "apk": "WebView-CookieOverwrite-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebView-NoUserPermission-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "Class exposes 1 @JavascriptInterface method to WebView content",
+       "class": "PLATFORM-04",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "WebView exposes a JavaScript bridge as \"Benign\"",
+       "class": "PLATFORM-04",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "WebView loads arbitrary URLs from user input",
+       "class": "PLATFORM-02",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 12,
+     "non_info": 5,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "b9e16ce6d8eb",
+     "folder": "lu77U-MobileSec-WebView-NoUserPermission-InformationExposure-Lean-benign-20261023_122446",
+     "apk": "WebView-NoUserPermission-InformationExposure-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewAllowContentAccess-UnauthorizedFileAccess-Lean": {
+     "hits": [
+      {
+       "title": "WebView content:// access is enabled",
+       "class": "PLATFORM-05",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 12,
+     "non_info": 6,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "926e7b91cd91",
+     "folder": "lu77U-MobileSec-WebViewAllowContentAccess-UnauthorizedFileAccess-Lean-benign-20261023_122526",
+     "apk": "WebViewAllowContentAccess-UnauthorizedFileAccess-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewAllowFileAccess-UnauthorizedFileAccess-Lean": {
+     "hits": [
+      {
+       "title": "WebView allows file access from file:// URLs",
+       "class": "PLATFORM-05",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "d05c7b72e081",
+     "folder": "lu77U-MobileSec-WebViewAllowFileAccess-UnauthorizedFileAccess-Lean-benign-20261023_123106",
+     "apk": "WebViewAllowFileAccess-UnauthorizedFileAccess-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewIgnoreSSLWarning-MITM-Lean": {
+     "hits": [
+      {
+       "title": "SSL certificate errors ignored in MyWebViewClient.onReceivedSslError",
+       "class": "PLATFORM-06",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "WebView ignores TLS certificate errors",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 11,
+     "non_info": 4,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "655ef74eef10",
+     "folder": "lu77U-MobileSec-WebViewIgnoreSSLWarning-MITM-Lean-benign-20261023_123146",
+     "apk": "WebViewIgnoreSSLWarning-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewInterceptRequest-MITM-Lean": {
+     "hits": [
+      {
+       "title": "WebViewClient.shouldInterceptRequest() checks nothing",
+       "class": "PLATFORM-06",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 13,
+     "non_info": 4,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "c20084469fa9",
+     "folder": "lu77U-MobileSec-WebViewInterceptRequest-MITM-Lean-benign-20261023_123526",
+     "apk": "WebViewInterceptRequest-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewLoadDataWithBaseUrl-UnauthorizedFileAccess-Lean": {
+     "hits": [
+      {
+       "title": "WebView allows universal access from file:// URLs",
+       "class": "PLATFORM-05",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "b815df972011",
+     "folder": "lu77U-MobileSec-WebViewLoadDataWithBaseUrl-UnauthorizedFileAccess-Lean-benign-20261023_123706",
+     "apk": "WebViewLoadDataWithBaseUrl-UnauthorizedFileAccess-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewOverrideUrl-MITM-Lean": {
+     "hits": [
+      {
+       "title": "WebViewClient.shouldOverrideUrlLoading() checks nothing",
+       "class": "PLATFORM-06",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 11,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "49e04246ed03",
+     "folder": "lu77U-MobileSec-WebViewOverrideUrl-MITM-Lean-benign-20261023_123846",
+     "apk": "WebViewOverrideUrl-MITM-Lean-benign.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewProceed-UnauthorizedAccess-Lean": {
+     "hits": [
+      {
+       "title": "WebView sends HTTP auth credentials to any host",
+       "class": "PLATFORM-06",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 16,
+     "non_info": 8,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "7c925532d5c7",
+     "folder": "lu77U-MobileSec-WebViewProceed-UnauthorizedAccess-Lean-benign-20261023_124027",
+     "apk": "WebViewProceed-UnauthorizedAccess-Lean-benign.apk",
+     "model": "gemma4:31b"
+    }
+   },
+   "summary": {
+    "overall": {
+     "scored": 60,
+     "detected": 59,
+     "detected_low": 48,
+     "findings": 551,
+     "non_info": 151
+    },
+    "by_category": {
+     "Crypto": {
+      "scored": 5,
+      "detected": 5,
+      "detected_low": 5,
+      "findings": 52,
+      "non_info": 20
+     },
+     "ICC": {
+      "scored": 17,
+      "detected": 17,
+      "detected_low": 13,
+      "findings": 139,
+      "non_info": 31
+     },
+     "Networking": {
+      "scored": 8,
+      "detected": 7,
+      "detected_low": 5,
+      "findings": 73,
+      "non_info": 15
+     },
+     "NonAPI": {
+      "scored": 2,
+      "detected": 2,
+      "detected_low": 2,
+      "findings": 16,
+      "non_info": 4
+     },
+     "Permission": {
+      "scored": 2,
+      "detected": 2,
+      "detected_low": 2,
+      "findings": 15,
+      "non_info": 3
+     },
+     "Storage": {
+      "scored": 7,
+      "detected": 7,
+      "detected_low": 6,
+      "findings": 61,
+      "non_info": 18
+     },
+     "System": {
+      "scored": 7,
+      "detected": 7,
+      "detected_low": 7,
+      "findings": 63,
+      "non_info": 18
+     },
+     "Web": {
+      "scored": 12,
+      "detected": 12,
+      "detected_low": 8,
+      "findings": 132,
+      "non_info": 42
+     }
+    }
+   }
+  },
+  "Secure": {
+   "benchmarks": {
+    "Crypto/BlockCipher-ECB-InformationExposure-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 2,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "e89a60cc8ce3",
+     "folder": "lu77U-MobileSec-BlockCipher-ECB-InformationExposure-Lean-secure-20261023_190947",
+     "apk": "BlockCipher-ECB-InformationExposure-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Crypto/BlockCipher-NonRandomIV-InformationExposure-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 2,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "c2211c98b023",
+     "folder": "lu77U-MobileSec-BlockCipher-NonRandomIV-InformationExposure-Lean-secure-20261023_124407",
+     "apk": "BlockCipher-NonRandomIV-InformationExposure-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Crypto/ConstantKey-ForgeryAttack-Lean": {
+     "hits": [
+      {
+       "title": "Hardcoded secret key in strings.xml",
+       "class": "SECRET-01",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "453a45e7e5c3",
+     "folder": "lu77U-MobileSec-ConstantKey-ForgeryAttack-Lean-secure-20261023_124947",
+     "apk": "ConstantKey-ForgeryAttack-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Crypto/ExposedCredentials-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "Hardcoded password 'secure' for KeyStore in MainActivity",
+       "class": "CRYPTO-02",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Sensitive KeyStore stored on external storage",
+       "class": "STORAGE-02",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "60454a152cc5",
+     "folder": "lu77U-MobileSec-ExposedCredentials-InformationExposure-Lean-secure-20261023_125007",
+     "apk": "ExposedCredentials-InformationExposure-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Crypto/PBE-ConstantSalt-InformationExposure-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 11,
+     "non_info": 5,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "60195f99cade",
+     "folder": "lu77U-MobileSec-PBE-ConstantSalt-InformationExposure-Lean-secure-20261023_125528",
+     "apk": "PBE-ConstantSalt-InformationExposure-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/DynamicRegBroadcastReceiver-UnrestrictedAccess-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 1,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "ac3838e961c5",
+     "folder": "lu77U-MobileSec-DynamicRegBroadcastReceiver-UnrestrictedAccess-Lean-secure-20261023_190947",
+     "apk": "DynamicRegBroadcastReceiver-UnrestrictedAccess-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/EmptyPendingIntent-PrivEscalation-Lean": {
+     "hits": [
+      {
+       "title": "Mutable PendingIntent wraps an implicit Intent",
+       "class": "PLATFORM-08",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "0a05c9ce5553",
+     "folder": "lu77U-MobileSec-EmptyPendingIntent-PrivEscalation-Lean-secure-20261023_125928",
+     "apk": "EmptyPendingIntent-PrivEscalation-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/FragmentInjection-PrivEscalation-Lean": {
+     "hits": [
+      {
+       "title": "Arbitrary fragment instantiation in MainActivity via 'fname' Intent",
+       "class": "PLATFORM-02",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Fragment injection via unsafe reflection",
+       "class": "CODE-02",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "b947d755e199",
+     "folder": "lu77U-MobileSec-FragmentInjection-PrivEscalation-Lean-secure-20261023_125928",
+     "apk": "FragmentInjection-PrivEscalation-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/HighPriority-ActivityHijack-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "9a08a46b0cd3",
+     "folder": "lu77U-MobileSec-HighPriority-ActivityHijack-Lean-secure-20261023_130428",
+     "apk": "HighPriority-ActivityHijack-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/ImplicitPendingIntent-IntentHijack-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "7eb5662fa2e3",
+     "folder": "lu77U-MobileSec-ImplicitPendingIntent-IntentHijack-Lean-secure-20261023_191348",
+     "apk": "ImplicitPendingIntent-IntentHijack-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/InadequatePathPermission-InformationExposure-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 10,
+     "non_info": 3,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "95c6ef2c1037",
+     "folder": "lu77U-MobileSec-InadequatePathPermission-InformationExposure-Lean-secure-20261023_130708",
+     "apk": "InadequatePathPermission-InformationExposure-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/IncorrectHandlingImplicitIntent-UnauthorizedAccess-Lean": {
+     "hits": [
+      {
+       "title": "Exported SensitiveActivity guarded by undeclared permission",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 8,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "288bcce9ee0f",
+     "folder": "lu77U-MobileSec-IncorrectHandlingImplicitIntent-UnauthorizedAccess-Lean-secure-20261023_130848",
+     "apk": "IncorrectHandlingImplicitIntent-UnauthorizedAccess-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/NoValidityCheckOnBroadcastMsg-UnintendedInvocation-Lean": {
+     "hits": [
+      {
+       "title": "Exported receiver LowMemoryReceiver has no permission protection",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 7,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "7c66f1bfe224",
+     "folder": "lu77U-MobileSec-NoValidityCheckOnBroadcastMsg-UnintendedInvocation-Lean-secure-20261023_193619",
+     "apk": "NoValidityCheckOnBroadcastMsg-UnintendedInvocation-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/OrderedBroadcast-DataInjection-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 9,
+     "non_info": 2,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "902217b4df3b",
+     "folder": "lu77U-MobileSec-OrderedBroadcast-DataInjection-Lean-secure-20261023_193619",
+     "apk": "OrderedBroadcast-DataInjection-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/StickyBroadcast-DataInjection-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 1,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "a93e83401f16",
+     "folder": "lu77U-MobileSec-StickyBroadcast-DataInjection-Lean-secure-20261023_131509",
+     "apk": "StickyBroadcast-DataInjection-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/TaskAffinity-ActivityHijack-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 1,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "791f3ca2b71f",
+     "folder": "lu77U-MobileSec-TaskAffinity-ActivityHijack-Lean-secure-20261023_131649",
+     "apk": "TaskAffinity-ActivityHijack-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/TaskAffinity-LauncherActivity-PhishingAttack-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 5,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "89ae1ca37920",
+     "folder": "lu77U-MobileSec-TaskAffinity-LauncherActivity-PhishingAttack-Lean-secure-20261023_132129",
+     "apk": "TaskAffinity-LauncherActivity-PhishingAttack-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/TaskAffinity-PhishingAttack-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 1,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "6050f0b6f4bd",
+     "folder": "lu77U-MobileSec-TaskAffinity-PhishingAttack-Lean-secure-20261023_132149",
+     "apk": "TaskAffinity-PhishingAttack-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/TaskAffinityAndReparenting-PhishingAndDoSAttack-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 1,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "a92196731ddc",
+     "folder": "lu77U-MobileSec-TaskAffinityAndReparenting-PhishingAndDoSAttack-Lean-secure-20261023_132349",
+     "apk": "TaskAffinityAndReparenting-PhishingAndDoSAttack-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/UnhandledException-DOS-Lean": {
+     "hits": [
+      {
+       "title": "Denial of service via NullPointerException in MainActivity",
+       "class": "PLATFORM-02",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 7,
+     "non_info": 1,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "cfd7a8003e8e",
+     "folder": "lu77U-MobileSec-UnhandledException-DOS-Lean-secure-20261023_132410",
+     "apk": "UnhandledException-DOS-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/UnprotectedBroadcastRecv-PrivEscalation-Lean": {
+     "hits": [
+      {
+       "title": "Undeclared permission guard in edu.ksu.cs.benign.MyReceiver",
+       "class": "PLATFORM-01",
+       "severity": "medium",
+       "verified": null
+      },
+      {
+       "title": "Undeclared permission guard in edu.ksu.cs.benign.MyReceiver",
+       "class": "PLATFORM-07",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "49682cba2be7",
+     "folder": "lu77U-MobileSec-UnprotectedBroadcastRecv-PrivEscalation-Lean-secure-20261023_132630",
+     "apk": "UnprotectedBroadcastRecv-PrivEscalation-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "ICC/WeakChecksOnDynamicInvocation-DataInjection-Lean": {
+     "hits": [
+      {
+       "title": "Exported Provider guarded by dangerous permissions",
+       "class": "PLATFORM-01",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "Path traversal in the `call` method of `FIleContentProvider`",
+       "class": "CODE-04",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "Custom permission perm is weakly protected",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      },
+      {
+       "title": "Custom permission wperm is weakly protected",
+       "class": "PLATFORM-01",
+       "severity": "low",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 4,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "d62bd699a26f",
+     "folder": "lu77U-MobileSec-WeakChecksOnDynamicInvocation-DataInjection-Lean-secure-20261023_132650",
+     "apk": "WeakChecksOnDynamicInvocation-DataInjection-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/CheckValidity-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "HostnameVerifier accepts every hostname",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "Trust-all SSL/TLS strategy in MyTrustManager and MyIntentService",
+       "class": "NETWORK-01",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "93eb9d7f9fac",
+     "folder": "lu77U-MobileSec-CheckValidity-InformationExposure-Lean-secure-20261023_191828",
+     "apk": "CheckValidity-InformationExposure-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/IncorrectHostNameVerification-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "6b68af7e5226",
+     "folder": "lu77U-MobileSec-IncorrectHostNameVerification-MITM-Lean-secure-20261023_133050",
+     "apk": "IncorrectHostNameVerification-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/InsecureSSLSocket-MITM-Lean": {
+     "hits": [
+      {
+       "title": "Code trusts all TLS certificates",
+       "class": "NETWORK-01",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 2,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "1e42ac8e5c9a",
+     "folder": "lu77U-MobileSec-InsecureSSLSocket-MITM-Lean-secure-20261023_133410",
+     "apk": "InsecureSSLSocket-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/InsecureSSLSocketFactory-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "4c2cfc737f0b",
+     "folder": "lu77U-MobileSec-InsecureSSLSocketFactory-MITM-Lean-secure-20261023_133430",
+     "apk": "InsecureSSLSocketFactory-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/InvalidCertificateAuthority-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "59f38c1183c7",
+     "folder": "lu77U-MobileSec-InvalidCertificateAuthority-MITM-Lean-secure-20261023_133710",
+     "apk": "InvalidCertificateAuthority-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/OpenSocket-InformationLeak-Lean": {
+     "hits": [
+      {
+       "title": "Unencrypted exposure of myInfo.txt in MyIntentService.java",
+       "class": "NETWORK-02",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 0,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "393eeedab7da",
+     "folder": "lu77U-MobileSec-OpenSocket-InformationLeak-Lean-secure-20261023_133730",
+     "apk": "OpenSocket-InformationLeak-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/UnEncryptedSocketComm-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "1cb936a67aa5",
+     "folder": "lu77U-MobileSec-UnEncryptedSocketComm-MITM-Lean-secure-20261023_134010",
+     "apk": "UnEncryptedSocketComm-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Networking/UnpinnedCertificates-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "81f81c968eed",
+     "folder": "lu77U-MobileSec-UnpinnedCertificates-MITM-Lean-secure-20261023_135311",
+     "apk": "UnpinnedCertificates-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "NonAPI/OutdatedLibrary-DirectoryTraversal-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 2,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "54fa4e8a308a",
+     "folder": "lu77U-MobileSec-OutdatedLibrary-DirectoryTraversal-Lean-secure-20261023_140532",
+     "apk": "OutdatedLibrary-DirectoryTraversal-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Permission/UnnecesaryPerms-PrivEscalation-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 1,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "500462a7127c",
+     "folder": "lu77U-MobileSec-UnnecesaryPerms-PrivEscalation-Lean-secure-20261023_140552",
+     "apk": "UnnecesaryPerms-PrivEscalation-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Permission/WeakPermission-UnauthorizedAccess-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "7ff7d1fc0523",
+     "folder": "lu77U-MobileSec-WeakPermission-UnauthorizedAccess-Lean-secure-20261023_140932",
+     "apk": "WeakPermission-UnauthorizedAccess-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/ExternalStorage-DataInjection-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "38a09f0399a0",
+     "folder": "lu77U-MobileSec-ExternalStorage-DataInjection-Lean-secure-20261023_140952",
+     "apk": "ExternalStorage-DataInjection-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/ExternalStorage-InformationLeak-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 9,
+     "non_info": 3,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "36ebabdd82a0",
+     "folder": "lu77U-MobileSec-ExternalStorage-InformationLeak-Lean-secure-20261023_141212",
+     "apk": "ExternalStorage-InformationLeak-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/InternalStorage-DirectoryTraversal-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 9,
+     "non_info": 3,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "da16b53545d3",
+     "folder": "lu77U-MobileSec-InternalStorage-DirectoryTraversal-Lean-secure-20261023_141232",
+     "apk": "InternalStorage-DirectoryTraversal-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/InternalToExternalStorage-InformationLeak-Lean": {
+     "hits": [
+      {
+       "title": "Sensitive file written to external storage in DownloadService",
+       "class": "STORAGE-02",
+       "severity": "medium",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "718c93311cc7",
+     "folder": "lu77U-MobileSec-InternalToExternalStorage-InformationLeak-Lean-secure-20261023_141533",
+     "apk": "InternalToExternalStorage-InformationLeak-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/SQLite-execSQL-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 2,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "c99908c84b91",
+     "folder": "lu77U-MobileSec-SQLite-execSQL-Lean-secure-20261023_141553",
+     "apk": "SQLite-execSQL-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/SQLlite-RawQuery-SQLInjection-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 10,
+     "non_info": 4,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "d72bf7e03e74",
+     "folder": "lu77U-MobileSec-SQLlite-RawQuery-SQLInjection-Lean-secure-20261023_191848",
+     "apk": "SQLlite-RawQuery-SQLInjection-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Storage/SQLlite-SQLInjection-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 9,
+     "non_info": 3,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "f9dc3b6e0a18",
+     "folder": "lu77U-MobileSec-SQLlite-SQLInjection-Lean-secure-20261023_192248",
+     "apk": "SQLlite-SQLInjection-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "System/CheckCallingOrSelfPermission-PrivilegeEscalation-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "e372d71d0d2f",
+     "folder": "lu77U-MobileSec-CheckCallingOrSelfPermission-PrivilegeEscalation-Lean-secure-20261023_142433",
+     "apk": "CheckCallingOrSelfPermission-PrivilegeEscalation-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "System/CheckPermission-PrivilegeEscalation-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "d084b35a9860",
+     "folder": "lu77U-MobileSec-CheckPermission-PrivilegeEscalation-Lean-secure-20261023_142533",
+     "apk": "CheckPermission-PrivilegeEscalation-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "System/ClipboardUse-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "Sensitive value is copied to the clipboard",
+       "class": "STORAGE-02",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 0,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "22b2ac3ba2b0",
+     "folder": "lu77U-MobileSec-ClipboardUse-InformationExposure-Lean-secure-20261023_192248",
+     "apk": "ClipboardUse-InformationExposure-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "System/DynamicCodeLoading-CodeInjection-Lean": {
+     "hits": [
+      {
+       "title": "Dynamic class loading in MainActivity.java",
+       "class": "CODE-02",
+       "severity": "info",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 0,
+     "detected": true,
+     "detected_low": false,
+     "scan_id": "0ff864505293",
+     "folder": "lu77U-MobileSec-DynamicCodeLoading-CodeInjection-Lean-secure-20261023_192629",
+     "apk": "DynamicCodeLoading-CodeInjection-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "System/EnforceCallingOrSelfPermission-PrivilegeEscalation-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "817a80a350c1",
+     "folder": "lu77U-MobileSec-EnforceCallingOrSelfPermission-PrivilegeEscalation-Lean-secure-20261023_145956",
+     "apk": "EnforceCallingOrSelfPermission-PrivilegeEscalation-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "System/EnforcePermission-PrivilegeEscalation-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 6,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "374a795b3691",
+     "folder": "lu77U-MobileSec-EnforcePermission-PrivilegeEscalation-Lean-secure-20261023_150156",
+     "apk": "EnforcePermission-PrivilegeEscalation-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "System/UniqueIDs-IdentityLeak-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "5a6db768888a",
+     "folder": "lu77U-MobileSec-UniqueIDs-IdentityLeak-Lean-secure-20261023_150456",
+     "apk": "UniqueIDs-IdentityLeak-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/HttpConnection-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 7,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "54765b3b662c",
+     "folder": "lu77U-MobileSec-HttpConnection-MITM-Lean-secure-20261023_150556",
+     "apk": "HttpConnection-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/JavaScriptExecution-CodeInjection-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 0,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "5f7d1941f1da",
+     "folder": "lu77U-MobileSec-JavaScriptExecution-CodeInjection-Lean-secure-20261023_150816",
+     "apk": "JavaScriptExecution-CodeInjection-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/UnsafeIntentURLImpl-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "intent:// URL launched without clearing its component and selector",
+       "class": "PLATFORM-03",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 9,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "56692b0c35b9",
+     "folder": "lu77U-MobileSec-UnsafeIntentURLImpl-InformationExposure-Lean-secure-20261023_150917",
+     "apk": "UnsafeIntentURLImpl-InformationExposure-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebView-CookieOverwrite-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 12,
+     "non_info": 4,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "5f3865c4a77c",
+     "folder": "lu77U-MobileSec-WebView-CookieOverwrite-Lean-secure-20261023_151017",
+     "apk": "WebView-CookieOverwrite-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebView-NoUserPermission-InformationExposure-Lean": {
+     "hits": [
+      {
+       "title": "Class exposes 2 @JavascriptInterface methods to WebView content",
+       "class": "PLATFORM-04",
+       "severity": "high",
+       "verified": null
+      },
+      {
+       "title": "WebView exposes a JavaScript bridge as \"Benign\"",
+       "class": "PLATFORM-04",
+       "severity": "high",
+       "verified": null
+      }
+     ],
+     "auto": true,
+     "auto_low": true,
+     "findings": 10,
+     "non_info": 3,
+     "detected": true,
+     "detected_low": true,
+     "scan_id": "feb1ffccd9df",
+     "folder": "lu77U-MobileSec-WebView-NoUserPermission-InformationExposure-Lean-secure-20261023_151137",
+     "apk": "WebView-NoUserPermission-InformationExposure-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewAllowContentAccess-UnauthorizedFileAccess-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 10,
+     "non_info": 4,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "7599f2db483a",
+     "folder": "lu77U-MobileSec-WebViewAllowContentAccess-UnauthorizedFileAccess-Lean-secure-20261023_151317",
+     "apk": "WebViewAllowContentAccess-UnauthorizedFileAccess-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewAllowFileAccess-UnauthorizedFileAccess-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 2,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "c5a9aec7199f",
+     "folder": "lu77U-MobileSec-WebViewAllowFileAccess-UnauthorizedFileAccess-Lean-secure-20261023_151417",
+     "apk": "WebViewAllowFileAccess-UnauthorizedFileAccess-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewIgnoreSSLWarning-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 8,
+     "non_info": 1,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "101094b86064",
+     "folder": "lu77U-MobileSec-WebViewIgnoreSSLWarning-MITM-Lean-secure-20261023_151657",
+     "apk": "WebViewIgnoreSSLWarning-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewInterceptRequest-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 13,
+     "non_info": 5,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "7a6c87b49ac7",
+     "folder": "lu77U-MobileSec-WebViewInterceptRequest-MITM-Lean-secure-20261023_151717",
+     "apk": "WebViewInterceptRequest-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewLoadDataWithBaseUrl-UnauthorizedFileAccess-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 10,
+     "non_info": 3,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "b46fdcdeb742",
+     "folder": "lu77U-MobileSec-WebViewLoadDataWithBaseUrl-UnauthorizedFileAccess-Lean-secure-20261023_152017",
+     "apk": "WebViewLoadDataWithBaseUrl-UnauthorizedFileAccess-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewOverrideUrl-MITM-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 10,
+     "non_info": 2,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "79c5856361a5",
+     "folder": "lu77U-MobileSec-WebViewOverrideUrl-MITM-Lean-secure-20261023_152217",
+     "apk": "WebViewOverrideUrl-MITM-Lean-secure.apk",
+     "model": "gemma4:31b"
+    },
+    "Web/WebViewProceed-UnauthorizedAccess-Lean": {
+     "hits": [],
+     "auto": false,
+     "auto_low": false,
+     "findings": 18,
+     "non_info": 10,
+     "detected": false,
+     "detected_low": false,
+     "scan_id": "360babc9dc4b",
+     "folder": "lu77U-MobileSec-WebViewProceed-UnauthorizedAccess-Lean-secure-20261023_152257",
+     "apk": "WebViewProceed-UnauthorizedAccess-Lean-secure.apk",
+     "model": "gemma4:31b"
+    }
+   },
+   "summary": {
+    "overall": {
+     "scored": 59,
+     "detected": 17,
+     "detected_low": 14,
+     "findings": 486,
+     "non_info": 102
+    },
+    "by_category": {
+     "Crypto": {
+      "scored": 5,
+      "detected": 2,
+      "detected_low": 2,
+      "findings": 45,
+      "non_info": 14
+     },
+     "ICC": {
+      "scored": 17,
+      "detected": 7,
+      "detected_low": 7,
+      "findings": 128,
+      "non_info": 25
+     },
+     "Networking": {
+      "scored": 8,
+      "detected": 3,
+      "detected_low": 2,
+      "findings": 63,
+      "non_info": 5
+     },
+     "NonAPI": {
+      "scored": 1,
+      "detected": 0,
+      "detected_low": 0,
+      "findings": 8,
+      "non_info": 2
+     },
+     "Permission": {
+      "scored": 2,
+      "detected": 0,
+      "detected_low": 0,
+      "findings": 13,
+      "non_info": 1
+     },
+     "Storage": {
+      "scored": 7,
+      "detected": 1,
+      "detected_low": 1,
+      "findings": 60,
+      "non_info": 18
+     },
+     "System": {
+      "scored": 7,
+      "detected": 2,
+      "detected_low": 0,
+      "findings": 46,
+      "non_info": 0
+     },
+     "Web": {
+      "scored": 12,
+      "detected": 2,
+      "detected_low": 2,
+      "findings": 123,
+      "non_info": 37
+     }
+    }
+   }
+  }
+ }
+}

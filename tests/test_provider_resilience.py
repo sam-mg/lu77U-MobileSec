@@ -15,6 +15,7 @@ Implementation notes:
     A real 95-minute scan ended on a spent cloud quota and then spent another 108 seconds learning the same fact eight more times: two agent threads, six validation batches and one chain call, each retrying three times with a backoff tuned for a stalled socket. Neither agent region ever submitted a report, and nothing in the output said so. Nothing here touches the network or spends a quota.
 """
 
+import threading
 import time
 
 import pytest
@@ -178,6 +179,9 @@ class _QuotaProvider:
         self._short_circuit = BaseAIProvider._short_circuit.__get__(self)
         self._trip = BaseAIProvider._trip.__get__(self)
         self._handle_exception = BaseAIProvider._handle_exception.__get__(self)
+        self._usage_lock = threading.Lock()
+        self._unreachable = None
+        self.note_reachability = BaseAIProvider.note_reachability.__get__(self)
         self.advance_key = BaseAIProvider.advance_key.__get__(self)
         self._on_key_rotated = BaseAIProvider._on_key_rotated.__get__(self)
 

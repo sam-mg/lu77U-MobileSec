@@ -50,6 +50,10 @@ _MAX_BRIDGE_FANOUT = 12
 _DEFAULT_MAX_ENTRIES = 120
 _DEFAULT_MAX_CHARS = 20000
 
+ALWAYS_FLAGGED_ROLES = frozenset((
+    "native-bridge", "app-code", "app-entry", "platform-channel-handler", "native-module",
+))
+
 @dataclass
 class CodeNode:
     """
@@ -107,13 +111,13 @@ class CodeNode:
             Whether this class is worth an agent's attention.
 
         Returns:
-            True when it is exported, touches a sink, holds a notable string, or bridges to JavaScript.
+            True when it is exported, touches a sink, holds a notable string, bridges to native code, or is a role that is always worth reading.
 
         Implementation notes:
             This is the filter that decides what gets partitioned into regions. A class with none of these is plumbing: still readable through the tools if the agent follows a call into it, but not worth allocating budget to.
         """
         return self.exported or bool(self.signals) or bool(self.strings) \
-            or self.role == "native-bridge"
+            or self.role in ALWAYS_FLAGGED_ROLES
 
 @dataclass
 class NativeLib:

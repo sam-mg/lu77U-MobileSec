@@ -343,6 +343,119 @@ class TestCoverageReporting:
         assert ComprehensiveHTMLBuilder()._build_coverage_notice(results) == ""
 
 
+def _stored_result(analysis, details):
+    """
+    Purpose:
+        Build a minimal stored result for the on-demand report renderer.
+
+    Parameters:
+        analysis: The dashboard alias block.
+        details: The analyzer details block.
+
+    Returns:
+        The result.
+    """
+    return {
+        "metadata": {"target": "app.apk"},
+        "framework_detection": {"primary_framework": "Flutter", "frameworks": []},
+        "application_info": {"package_name": "com.example.app"},
+        "vulnerability_analysis": {"vulnerabilities": {}},
+        "analyzer_details": details,
+        "analysis": analysis,
+    }
+
+
+class TestStoredReportNotices:
+    """
+    Purpose:
+        The caveats a downloaded report shows, rendered from the stored result.
+
+    Implementation notes:
+        The renderer once read only the alias block, which carries no coverage, so no downloaded report ever showed the incomplete-analysis notice; and a failed analysis rendered "no vulnerabilities were detected" beside a score of 100.
+    """
+    def test_coverage_from_analyzer_details_reaches_the_report(self):
+        """
+        Purpose:
+            Pin that the incomplete-analysis notice renders although the alias block has no coverage.
+        """
+        from lu77U_MobileSec.report_generator.report_renderer import render_report_html
+
+        html = render_report_html(_stored_result(
+            {"supported": True, "success": True, "decompilation_status": "Successful"},
+            {"decompilation_status": "Successful",
+             "agent_coverage": {"complete": False, "regions_incomplete": 1, "regions_total": 2,
+                                "degraded_reason": "the scan's time budget was reached"}}))
+        assert "Incomplete analysis" in html and "1 of 2 code regions" in html
+
+    def test_a_limitation_renders_reduced_coverage(self):
+        """
+        Purpose:
+            Pin that a recorded limitation is shown, escaped, under its own label.
+        """
+        from lu77U_MobileSec.report_generator.report_renderer import render_report_html
+
+        html = render_report_html(_stored_result(
+            {"supported": True, "success": True, "decompilation_status": "Successful",
+             "limitation": "Dart code <not> disassembled."},
+            {"decompilation_status": "Successful"}))
+        assert "Reduced coverage" in html and "Dart code &lt;not&gt; disassembled." in html
+
+    def test_a_failed_analysis_says_so_instead_of_reporting_nothing_found(self):
+        """
+        Purpose:
+            Pin that a failed analysis names its reason and does not claim that nothing was found.
+        """
+        from lu77U_MobileSec.report_generator.report_renderer import render_report_html
+
+        reason = "Blutter could not disassemble this app's Dart AOT binary."
+        html = render_report_html(_stored_result(
+            {"supported": True, "success": False, "decompilation_status": "Failed", "error": reason},
+            {"decompilation_status": "Failed", "error": reason}))
+        assert "The analysis did not run" in html and "Blutter could not disassemble" in html
+        assert "No security vulnerabilities were detected" not in html
+
+    def test_an_unconfigured_tool_names_the_reason_not_future_support(self):
+        """
+        Purpose:
+            Pin that a supported framework whose decompiler is not configured shows that reason rather than calling its analysis unavailable.
+        """
+        from lu77U_MobileSec.report_generator.report_renderer import render_report_html
+
+        reason = "Blutter is not configured. Set blutter_path in Settings."
+        details = {"decompilation_status": "Tool Not Configured", "error": reason,
+                   "unsupported_framework": True}
+        html = render_report_html(_stored_result(
+            {"supported": False, "success": False, "unsupported_framework": True,
+             "decompilation_status": "Tool Not Configured", "error": reason}, details))
+        assert "Set blutter_path in Settings." in html
+        assert "under development" not in html
+
+
+@pytest.mark.parametrize("severity, score, as_reported", [
+    ("Low", 9.1, True),
+    ("Informational", 9.8, True),
+    ("High", 8.2, False),
+    ("Medium", 5.4, False),
+])
+def test_cvss_pill_marks_a_score_validation_overrode(severity, score, as_reported):
+    """
+    Purpose:
+        Pin that the report labels a CVSS score as the reported one exactly when the final severity sits outside its band.
+
+    Parameters:
+        severity: The finding's final severity.
+        score: The base score of the vector it was reported with.
+        as_reported: Whether the pill should say the score is the reported one.
+    """
+    from lu77U_MobileSec.report_generator.comprehensive_html_builder import ComprehensiveHTMLBuilder
+
+    html = ComprehensiveHTMLBuilder()._format_vulnerability_item({
+        "title": "Cleartext endpoint", "severity": severity, "cvss_score": score,
+        "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N", "file": "a.dart"})
+    assert f"CVSS {score:.1f}" in html
+    assert ("as reported" in html) is as_reported
+
+
 class TestRefutedFindings:
     """
     Purpose:
@@ -1127,6 +1240,18 @@ class TestAnalysisAliasMatchesAnalyzerDetails:
             dict(self._analyzer_results(), decompilation_status="Failed"), True, "x")
         assert ok["success"] is True
         assert failed["success"] is False
+
+    def test_the_limitation_is_carried(self):
+        """
+        Purpose:
+            Pin that a reduced-coverage limitation reaches the dashboard's view, and is empty when there is none.
+        """
+        from lu77U_MobileSec.web.serializers import _analysis_alias
+
+        reduced = _analysis_alias(
+            dict(self._analyzer_results(), limitation="Dart code not disassembled."), True, "x")
+        assert reduced["limitation"] == "Dart code not disassembled."
+        assert _analysis_alias(self._analyzer_results(), True, "x")["limitation"] == ""
 
     def test_build_result_uses_the_same_alias_function(self):
         """

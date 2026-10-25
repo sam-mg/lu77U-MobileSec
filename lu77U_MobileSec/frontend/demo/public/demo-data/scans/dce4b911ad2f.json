@@ -1,0 +1,1074 @@
+{
+  "meta": {
+    "id": "dce4b911ad2f",
+    "kind": "static",
+    "filename": "github.com/waseeq14/Damn-Vulnerable-React-Native/release.apk",
+    "status": "completed",
+    "created_at": "2026-10-22T09:21:01.322201+00:00",
+    "started_at": "2026-10-22T09:23:21.204741+00:00",
+    "finished_at": "2026-10-22T09:30:56.858729+00:00",
+    "duration": 455.65,
+    "progress": 100,
+    "phase": "done",
+    "error": null,
+    "pause_reason": null,
+    "resume_attempts": 0,
+    "summary": {
+      "primary_framework": "React Native",
+      "total_vulnerabilities": 13,
+      "critical": 0,
+      "high": 0,
+      "medium": 5,
+      "low": 2,
+      "security_score": 60.5,
+      "package_name": "com.dvrn.app",
+      "app_name": "github.com/waseeq14/Damn-Vulnerable-React-Native/release.apk",
+      "analysis_supported": true
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "boot_id": "28bfcc14bd3747a8b903d85680ec7f36",
+    "owner_pid": 15131
+  },
+  "result": {
+    "metadata": {
+      "tool": "lu77U-MobileSec",
+      "version": "0.1.5",
+      "timestamp": "2026-10-22T15:00:56.848031",
+      "target": "github.com/waseeq14/Damn-Vulnerable-React-Native/release.apk",
+      "analysis_date": "2026-10-22 15:00:56"
+    },
+    "framework_detection": {
+      "detected": true,
+      "primary_framework": "React Native",
+      "confidence": 0.9,
+      "confidence_level": "High",
+      "frameworks": [
+        {
+          "name": "React Native",
+          "confidence": 0.9,
+          "confidence_level": "High",
+          "indicators_found": [
+            "JavaScript bundle",
+            "React Native assets (1 files)",
+            "Hermes engine",
+            "APK contains React Native artifacts"
+          ]
+        }
+      ]
+    },
+    "application_info": {
+      "package_name": "com.dvrn.app",
+      "app_name": "github.com/waseeq14/Damn-Vulnerable-React-Native/release.apk",
+      "version_name": "1.0",
+      "version_code": "1",
+      "min_sdk": "24",
+      "target_sdk": "36",
+      "file_size": 51275628,
+      "file_size_mb": 48.9,
+      "permissions": [
+        "com.dvrn.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+        "android.permission.INTERNET"
+      ],
+      "activities": [
+        "com.dvrn.app.MainActivity"
+      ],
+      "services": [
+        "androidx.room.MultiInstanceInvalidationService"
+      ],
+      "receivers": [
+        "androidx.profileinstaller.ProfileInstallReceiver"
+      ],
+      "providers": [
+        "androidx.startup.InitializationProvider",
+        "com.reactnativecommunity.webview.RNCWebViewFileProvider"
+      ]
+    },
+    "vulnerability_analysis": {
+      "analyzed": true,
+      "total_vulnerabilities": 13,
+      "by_severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 5,
+        "low": 2,
+        "info": 6
+      },
+      "vulnerabilities": {
+        "critical": [],
+        "high": [],
+        "medium": [
+          {
+            "title": "Client-side isPremium check in app_modules/501_PremiumScreen.js",
+            "severity": "Medium",
+            "cvss_vector": "AV:L/AC:L/PR:L/UI:N/S:U/C:N/I:H/A:N",
+            "cvss_score": 5.5,
+            "description": "The entitlement check for 'isPremium' is performed purely on the client side to gate the UI. Because the corresponding API request in app_modules/502.js uses a global hardcoded API key rather than validating the user's specific account session on the server, a user can bypass the paywall by flipping the isPremium flag (e.g., via a JS hook or patching) to trigger the premium content fetch.",
+            "file": "app_modules/501_PremiumScreen.js",
+            "location": "app_modules/501_PremiumScreen.js:43",
+            "line": 43,
+            "line_start": 43,
+            "line_end": 43,
+            "impact": "",
+            "code_snippet": "  if (isPremium) {",
+            "code_context": {
+              "start_line": 39,
+              "end_line": 47,
+              "highlight_start": 43,
+              "highlight_end": 43,
+              "lines": [
+                "  items1[0] = <react-native.Text style={closure_6.title}>{\"Premium\"}</react-native.Text>;",
+                "  const jsx = Fragment.jsx;",
+                "  const Text = react_native.Text;",
+                "  const obj3 = {};",
+                "  if (isPremium) {",
+                "    let jsxResult;",
+                "    if (tmp4) {",
+                "      obj3.style = closure_6.error;",
+                "      obj3.children = tmp4;"
+              ],
+              "lines_html": [
+                "  items1<span class=\"tok-op\">[</span><span class=\"tok-num\">0</span><span class=\"tok-op\">]</span> <span class=\"tok-op\">=</span> <span class=\"tok-op\">&lt;</span>react<span class=\"tok-op\">-</span><span class=\"tok-kw\">native</span><span class=\"tok-op\">.</span>Text style<span class=\"tok-op\">=</span><span class=\"tok-op\">{</span>closure_6<span class=\"tok-op\">.</span>title<span class=\"tok-op\">}</span><span class=\"tok-op\">&gt;</span><span class=\"tok-op\">{</span><span class=\"tok-str\">&quot;Premium&quot;</span><span class=\"tok-op\">}</span><span class=\"tok-op\">&lt;</span>/react-native.Text&gt;;",
+                "  <span class=\"tok-kw\">const</span> jsx <span class=\"tok-op\">=</span> Fragment<span class=\"tok-op\">.</span>jsx<span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">const</span> Text <span class=\"tok-op\">=</span> react_native<span class=\"tok-op\">.</span>Text<span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">const</span> obj3 <span class=\"tok-op\">=</span> <span class=\"tok-op\">{</span><span class=\"tok-op\">}</span><span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>isPremium<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "    <span class=\"tok-kw\">let</span> jsxResult<span class=\"tok-op\">;</span>",
+                "    <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>tmp4<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "      obj3<span class=\"tok-op\">.</span>style <span class=\"tok-op\">=</span> closure_6<span class=\"tok-op\">.</span>error<span class=\"tok-op\">;</span>",
+                "      obj3<span class=\"tok-op\">.</span>children <span class=\"tok-op\">=</span> tmp4<span class=\"tok-op\">;</span>"
+              ],
+              "module_terms": [
+                "isPremium"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-602",
+            "owasp_mobile": "M3: Insecure Authentication/Authorization",
+            "dynamic_verification": null,
+            "vuln_class": "AUTH-03",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Generic API Key shipped in the app",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "A Generic API Key appears in app_modules/503_PREMIUM_API_KEY.js at line 8. Anything inside the package is readable by anyone who downloads it, so this value is public. The app contains a hardcoded API key 'sk_live_dvrn_9f8a2c1b4e7d' used to authenticate requests to the premium content endpoint (/api/premium). Since the key is shipped in the clear within the JavaScript bundle, any user can extract it and access premium services directly.",
+            "file": "app_modules/503_PREMIUM_API_KEY.js",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "Whatever the credential unlocks is reachable by anyone who extracts it from the APK.",
+            "code_snippet": "export const PREMIUM_API_KEY = \"sk_live_dvrn_9f8a2c1b4e7d\";",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 8,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "// Dependencies: []",
+                "",
+                "// Module 503 (PREMIUM_API_KEY)",
+                "",
+                "export const PREMIUM_API_KEY = \"sk_live_dvrn_9f8a2c1b4e7d\";"
+              ],
+              "lines_html": [
+                "<span class=\"tok-cm\">// Dependencies: []</span>",
+                "",
+                "<span class=\"tok-cm\">// Module 503 (PREMIUM_API_KEY)</span>",
+                "",
+                "<span class=\"tok-kw\">export</span> <span class=\"tok-kw\">const</span> PREMIUM_API_KEY <span class=\"tok-op\">=</span> <span class=\"tok-str\">&quot;sk_live_dvrn_9f8a2c1b4e7d&quot;</span><span class=\"tok-op\">;</span>"
+              ],
+              "module_terms": []
+            },
+            "exploitation": "",
+            "recommendation": "Move the secret server-side, or restrict the key by package signature and API scope and rotate the exposed value.",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-01",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at High",
+                "pattern": "same-location",
+                "with": {
+                  "title": "The app contains a hardcoded API key 'sk_live_dvrn_9f8a2c1b4e7d' used to auth...",
+                  "file": "app_modules/503_PREMIUM_API_KEY.js",
+                  "line": 8
+                },
+                "confirmed": true
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Sensitive value 'authToken' stored with setItem in unencrypted storage",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "The app writes a value under the key 'authToken' with setItem, the AsyncStorage API. AsyncStorage keeps values as plain text in the app's data directory. The app stores the 'authToken' in AsyncStorage, which is an unencrypted key-value store. On rooted devices or via backup extraction, an attacker can retrieve this session token in plain text.",
+            "file": "app_modules/495.js",
+            "location": "",
+            "line": 14,
+            "line_start": 14,
+            "line_end": 14,
+            "impact": "Anyone with a backup of the app data, root on the device, or a debuggable build reads the value directly.",
+            "code_snippet": "  yield _default.setItem(\"authToken\", arg0);",
+            "code_context": {
+              "start_line": 10,
+              "end_line": 18,
+              "highlight_start": 14,
+              "highlight_end": 14,
+              "lines": [
+                "",
+                "async function _saveToken(arg0) {",
+                "  let defaultResult;",
+                "  const _default = module_496.default;",
+                "  yield _default.setItem(\"authToken\", arg0);",
+                "}",
+                "async function _getToken() {",
+                "  let defaultResult;",
+                "  if (obj) {"
+              ],
+              "lines_html": [
+                "",
+                "<span class=\"tok-kw\">async</span> <span class=\"tok-kw\">function</span> _saveToken<span class=\"tok-op\">(</span>arg0<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "  <span class=\"tok-kw\">let</span> defaultResult<span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">const</span> _default <span class=\"tok-op\">=</span> module_496<span class=\"tok-op\">.</span><span class=\"tok-kw\">default</span><span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">yield</span> _default<span class=\"tok-op\">.</span>setItem<span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;authToken&quot;</span><span class=\"tok-op\">,</span> arg0<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "<span class=\"tok-op\">}</span>",
+                "<span class=\"tok-kw\">async</span> <span class=\"tok-kw\">function</span> _getToken<span class=\"tok-op\">(</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "  <span class=\"tok-kw\">let</span> defaultResult<span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>obj<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>"
+              ],
+              "module_terms": [
+                "authToken",
+                "setItem"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Keep tokens and credentials in the Android Keystore through an encrypting store such as react-native-keychain or EncryptedStorage.",
+            "cwe": "CWE-312",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "STORAGE-01",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "The app stores the 'authToken' in AsyncStorage, which is an unencrypted key-v...",
+                  "file": "app_modules/495.js",
+                  "line": 14
+                },
+                "confirmed": true
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Unvalidated file read in DebugModule.readInternalFile",
+            "severity": "Medium",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+            "cvss_score": 6.2,
+            "description": "The DebugModule exposes a native method 'readInternalFile' to the React Native bridge that reads any file from the filesystem based on a user-supplied path without validation. This allows any JavaScript executing within the app context to read sensitive internal files, such as shared preferences or databases.",
+            "file": "platform/sources/com/dvrn/app/DebugModule.java",
+            "location": "platform/sources/com/dvrn/app/DebugModule.java:23",
+            "line": 23,
+            "line_start": 23,
+            "line_end": 23,
+            "impact": "",
+            "code_snippet": "            promise.resolve(kotlin.io.FilesKt.readText$default(new java.io.File(path), null, 1, null));",
+            "code_context": {
+              "start_line": 19,
+              "end_line": 27,
+              "highlight_start": 23,
+              "highlight_end": 23,
+              "lines": [
+                "    public final void readInternalFile(java.lang.String path, com.facebook.react.bridge.Promise promise) {",
+                "        kotlin.jvm.internal.Intrinsics.checkNotNullParameter(path, \"path\");",
+                "        kotlin.jvm.internal.Intrinsics.checkNotNullParameter(promise, \"promise\");",
+                "        try {",
+                "            promise.resolve(kotlin.io.FilesKt.readText$default(new java.io.File(path), null, 1, null));",
+                "        } catch (java.lang.Exception e) {",
+                "            promise.reject(\"READ_ERROR\", e);",
+                "        }",
+                "    }"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-kw\">public</span> <span class=\"tok-kw\">final</span> <span class=\"tok-kw\">void</span> <span class=\"tok-fn\">readInternalFile</span><span class=\"tok-op\">(</span>java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> path<span class=\"tok-op\">,</span> com<span class=\"tok-op\">.</span><span class=\"tok-fn\">facebook</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">react</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">bridge</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Promise</span> promise<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "        kotlin<span class=\"tok-op\">.</span><span class=\"tok-fn\">jvm</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">internal</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Intrinsics</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">checkNotNullParameter</span><span class=\"tok-op\">(</span>path<span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">path</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        kotlin<span class=\"tok-op\">.</span><span class=\"tok-fn\">jvm</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">internal</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Intrinsics</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">checkNotNullParameter</span><span class=\"tok-op\">(</span>promise<span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">promise</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>",
+                "            promise<span class=\"tok-op\">.</span><span class=\"tok-fn\">resolve</span><span class=\"tok-op\">(</span>kotlin<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">FilesKt</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">readText$default</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">File</span><span class=\"tok-op\">(</span>path<span class=\"tok-op\">)</span><span class=\"tok-op\">,</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">,</span> <span class=\"tok-num\">1</span><span class=\"tok-op\">,</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span> <span class=\"tok-kw\">catch</span> <span class=\"tok-op\">(</span>java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Exception</span> e<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "            promise<span class=\"tok-op\">.</span><span class=\"tok-fn\">reject</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">READ_ERROR</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">,</span> e<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span>",
+                "    <span class=\"tok-op\">}</span>"
+              ],
+              "hop_terms": [
+                "readInternalFile"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-22",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "CODE-04",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [
+                "Triggering this native method requires the ability to execute arbitrary JavaScript within the app, which would require a separate injection vulnerability. Kept at Medium: the CVSS vector, scored for an attacker with local access and high privileges, still gives Medium."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "WebView onMessage handler acts on messages from any origin",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "The WebView's onMessage handler parses nativeEvent.data and acts on it without reading nativeEvent.url, so any page the WebView shows can send it commands.",
+            "file": "app_modules/504_WebViewScreen.js",
+            "location": "",
+            "line": 42,
+            "line_start": 42,
+            "line_end": 42,
+            "impact": "A page reached through a link, a redirect or injected content drives whatever actions the handler performs.",
+            "code_snippet": "  items[1] = <WebView source={obj4} onMessage={function onMessage(nativeEvent) {",
+            "code_context": {
+              "start_line": 38,
+              "end_line": 46,
+              "highlight_start": 42,
+              "highlight_end": 42,
+              "lines": [
+                "  items[0] = <react-native.Button title=\"Back\" onPress={arg0.onBack} />;",
+                "  const jsx = Fragment.jsx;",
+                "  const obj4 = { uri: \"\" + API_BASE_URL.API_BASE_URL + \"/help\" };",
+                "  const WebView = _mod505.WebView;",
+                "  items[1] = <WebView source={obj4} onMessage={function onMessage(nativeEvent) {",
+                "    const parsed = JSON.parse(nativeEvent.nativeEvent.data);",
+                "    handleAction(parsed.action, parsed.payload);",
+                "  }} style={closure_4.webview} />;",
+                "  return <View style={closure_4.container}>{items}</View>;"
+              ],
+              "lines_html": [
+                "  items<span class=\"tok-op\">[</span><span class=\"tok-num\">0</span><span class=\"tok-op\">]</span> <span class=\"tok-op\">=</span> <span class=\"tok-op\">&lt;</span>react<span class=\"tok-op\">-</span><span class=\"tok-kw\">native</span><span class=\"tok-op\">.</span>Button title<span class=\"tok-op\">=</span><span class=\"tok-str\">&quot;Back&quot;</span> onPress<span class=\"tok-op\">=</span><span class=\"tok-op\">{</span>arg0<span class=\"tok-op\">.</span>onBack<span class=\"tok-op\">}</span> <span class=\"tok-op\">/</span><span class=\"tok-op\">&gt;</span><span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">const</span> jsx <span class=\"tok-op\">=</span> Fragment<span class=\"tok-op\">.</span>jsx<span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">const</span> obj4 <span class=\"tok-op\">=</span> <span class=\"tok-op\">{</span> uri<span class=\"tok-op\">:</span> <span class=\"tok-str\">&quot;&quot;</span> <span class=\"tok-op\">+</span> API_BASE_URL<span class=\"tok-op\">.</span>API_BASE_URL <span class=\"tok-op\">+</span> <span class=\"tok-str\">&quot;/help&quot;</span> <span class=\"tok-op\">}</span><span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">const</span> WebView <span class=\"tok-op\">=</span> _mod505<span class=\"tok-op\">.</span>WebView<span class=\"tok-op\">;</span>",
+                "  items<span class=\"tok-op\">[</span><span class=\"tok-num\">1</span><span class=\"tok-op\">]</span> <span class=\"tok-op\">=</span> <span class=\"tok-op\">&lt;</span>WebView source<span class=\"tok-op\">=</span><span class=\"tok-op\">{</span>obj4<span class=\"tok-op\">}</span> onMessage<span class=\"tok-op\">=</span><span class=\"tok-op\">{</span><span class=\"tok-kw\">function</span> onMessage<span class=\"tok-op\">(</span>nativeEvent<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "    <span class=\"tok-kw\">const</span> parsed <span class=\"tok-op\">=</span> <span class=\"tok-fn\">JSON</span><span class=\"tok-op\">.</span>parse<span class=\"tok-op\">(</span>nativeEvent<span class=\"tok-op\">.</span>nativeEvent<span class=\"tok-op\">.</span>data<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "    handleAction<span class=\"tok-op\">(</span>parsed<span class=\"tok-op\">.</span>action<span class=\"tok-op\">,</span> parsed<span class=\"tok-op\">.</span>payload<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-op\">}</span><span class=\"tok-op\">}</span> style<span class=\"tok-op\">=</span><span class=\"tok-op\">{</span>closure_4<span class=\"tok-op\">.</span>webview<span class=\"tok-op\">}</span> <span class=\"tok-op\">/</span><span class=\"tok-op\">&gt;</span><span class=\"tok-op\">;</span>",
+                "  <span class=\"tok-kw\">return</span> <span class=\"tok-op\">&lt;</span>View style<span class=\"tok-op\">=</span><span class=\"tok-op\">{</span>closure_4<span class=\"tok-op\">.</span>container<span class=\"tok-op\">}</span><span class=\"tok-op\">&gt;</span><span class=\"tok-op\">{</span>items<span class=\"tok-op\">}</span><span class=\"tok-op\">&lt;</span>/View&gt;;"
+              ],
+              "module_terms": [
+                "onmessage",
+                "console.log",
+                "onMessage"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Check nativeEvent.url against the expected origin before acting on a message.",
+            "cwe": "CWE-346",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-04",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ],
+        "low": [
+          {
+            "title": "Class exposes 1 @JavascriptInterface method to WebView content",
+            "severity": "Low",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "This class annotates methods with @JavascriptInterface, so once it is bound to a WebView any loaded page can call them: postMessage. This code is in com.reactnativecommunity.webview, a third-party plugin bundled with the app rather than the app's own code, so it is reported as a dependency note.",
+            "file": "platform/sources/com/reactnativecommunity/webview/RNCWebView.java",
+            "location": "",
+            "line": 331,
+            "line_start": 331,
+            "line_end": 331,
+            "impact": "Determines what JavaScript in the WebView can reach in native code.",
+            "code_snippet": "        @android.webkit.JavascriptInterface",
+            "code_context": {
+              "start_line": 327,
+              "end_line": 335,
+              "highlight_start": 331,
+              "highlight_end": 331,
+              "lines": [
+                "        RNCWebViewBridge(com.reactnativecommunity.webview.RNCWebView rNCWebView) {",
+                "            this.mWebView = rNCWebView;",
+                "        }",
+                "",
+                "        @android.webkit.JavascriptInterface",
+                "        public void postMessage(final java.lang.String str) {",
+                "            if (this.mWebView.getMessagingEnabled()) {",
+                "                this.mWebView.post(new java.lang.Runnable() { // from class: com.reactnativecommunity.webview.RNCWebView$RNCWebViewBridge$$ExternalSyntheticLambda0",
+                "                    @Override // java.lang.Runnable"
+              ],
+              "lines_html": [
+                "        RNCWebViewBridge<span class=\"tok-op\">(</span>com<span class=\"tok-op\">.</span><span class=\"tok-fn\">reactnativecommunity</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">webview</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">RNCWebView</span> rNCWebView<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "            <span class=\"tok-kw\">this</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">mWebView</span> <span class=\"tok-op\">=</span> rNCWebView<span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span>",
+                "",
+                "        <span class=\"tok-fn\">@android.webkit.JavascriptInterface</span>",
+                "        <span class=\"tok-kw\">public</span> <span class=\"tok-kw\">void</span> <span class=\"tok-fn\">postMessage</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">final</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> str<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "            <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span><span class=\"tok-kw\">this</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">mWebView</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getMessagingEnabled</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "                <span class=\"tok-kw\">this</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">mWebView</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">post</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Runnable</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span> <span class=\"tok-cm\">// from class: com.reactnativecommunity.webview.RNCWebView$RNCWebViewBridge$$ExternalSyntheticLambda0</span>",
+                "                    <span class=\"tok-fn\">@Override</span> <span class=\"tok-cm\">// java.lang.Runnable</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Audit each exposed method for what it returns and what it performs; bind the object only to WebViews restricted to trusted origins.",
+            "cwe": "CWE-749",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-04",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Low",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "WebView sends HTTP auth credentials to any host",
+            "severity": "Low",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "onReceivedHttpAuthRequest() calls handler.proceed() with credentials and never checks the host argument, so any site the WebView reaches can ask for them. This code is in com.reactnativecommunity.webview, a third-party plugin bundled with the app rather than the app's own code, so it is reported as a dependency note.",
+            "file": "platform/sources/com/reactnativecommunity/webview/RNCWebViewClient.java",
+            "location": "",
+            "line": 86,
+            "line_start": 86,
+            "line_end": 86,
+            "impact": "A page an attacker can get loaded answers 401 and receives the stored username and password.",
+            "code_snippet": "    public void onReceivedHttpAuthRequest(android.webkit.WebView webView, android.webkit.HttpAuthHandler httpAuthHandler, java.lang.String str, java.lang.String str2) {",
+            "code_context": {
+              "start_line": 82,
+              "end_line": 90,
+              "highlight_start": 86,
+              "highlight_end": 86,
+              "lines": [
+                "        return shouldOverrideUrlLoading(webView, webResourceRequest.getUrl().toString());",
+                "    }",
+                "",
+                "    @Override // android.webkit.WebViewClient",
+                "    public void onReceivedHttpAuthRequest(android.webkit.WebView webView, android.webkit.HttpAuthHandler httpAuthHandler, java.lang.String str, java.lang.String str2) {",
+                "        com.reactnativecommunity.webview.RNCBasicAuthCredential rNCBasicAuthCredential = this.basicAuthCredential;",
+                "        if (rNCBasicAuthCredential != null) {",
+                "            httpAuthHandler.proceed(rNCBasicAuthCredential.username, this.basicAuthCredential.password);",
+                "        } else {"
+              ],
+              "lines_html": [
+                "        <span class=\"tok-kw\">return</span> shouldOverrideUrlLoading<span class=\"tok-op\">(</span>webView<span class=\"tok-op\">,</span> webResourceRequest<span class=\"tok-op\">.</span><span class=\"tok-fn\">getUrl</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">toString</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "    <span class=\"tok-op\">}</span>",
+                "",
+                "    <span class=\"tok-fn\">@Override</span> <span class=\"tok-cm\">// android.webkit.WebViewClient</span>",
+                "    <span class=\"tok-kw\">public</span> <span class=\"tok-kw\">void</span> <span class=\"tok-fn\">onReceivedHttpAuthRequest</span><span class=\"tok-op\">(</span>android<span class=\"tok-op\">.</span><span class=\"tok-fn\">webkit</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">WebView</span> webView<span class=\"tok-op\">,</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">webkit</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">HttpAuthHandler</span> httpAuthHandler<span class=\"tok-op\">,</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> str<span class=\"tok-op\">,</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> str2<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "        com<span class=\"tok-op\">.</span><span class=\"tok-fn\">reactnativecommunity</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">webview</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">RNCBasicAuthCredential</span> rNCBasicAuthCredential <span class=\"tok-op\">=</span> <span class=\"tok-kw\">this</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">basicAuthCredential</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>rNCBasicAuthCredential <span class=\"tok-op\">!</span><span class=\"tok-op\">=</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "            httpAuthHandler<span class=\"tok-op\">.</span><span class=\"tok-fn\">proceed</span><span class=\"tok-op\">(</span>rNCBasicAuthCredential<span class=\"tok-op\">.</span><span class=\"tok-fn\">username</span><span class=\"tok-op\">,</span> <span class=\"tok-kw\">this</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">basicAuthCredential</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">password</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span> <span class=\"tok-kw\">else</span> <span class=\"tok-op\">{</span>"
+              ],
+              "hop_terms": [
+                ".proceed("
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Proceed only for the host the credentials belong to, compared exactly, and cancel the request for any other host.",
+            "cwe": "CWE-522",
+            "owasp_mobile": "M3: Insecure Authentication/Authorization",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-06",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Low",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ],
+        "info": [
+          {
+            "title": "1 third-party SDK embedded",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "Detected: OkHttp 4.9.2.",
+            "file": "",
+            "location": "",
+            "line": 0,
+            "line_start": 0,
+            "line_end": 0,
+            "impact": "Supply-chain surface: each SDK's own vulnerabilities and data collection become the app's.",
+            "code_snippet": "",
+            "code_context": null,
+            "exploitation": "",
+            "recommendation": "Track the pinned versions against advisories for each SDK, and drop the ones the app does not need.",
+            "cwe": "CWE-1104",
+            "owasp_mobile": "M2: Inadequate Supply Chain Security",
+            "dynamic_verification": null,
+            "vuln_class": "SUPPLY-01",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "No screenshot protection: FLAG_SECURE is never set",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "Nothing in the app sets WindowManager.LayoutParams.FLAG_SECURE, so every screen can be screenshotted or recorded and appears in the recent-apps snapshot.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 0,
+            "line_start": 0,
+            "line_end": 0,
+            "impact": "Credentials, balances or personal data on screen end up in screenshots, screen recordings and the task-switcher preview.",
+            "code_snippet": "",
+            "code_context": null,
+            "exploitation": "",
+            "recommendation": "Set FLAG_SECURE on the windows of screens that show credentials or account data.",
+            "cwe": "CWE-200",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-12",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Screen contents not protected from capture. Without FLAG_SECURE, what a screen shows can end up in screenshots, screen recordings and the task-switcher preview. That matters on screens showing credentials, card numbers or balances; on its own it is a hardening note."
+              ],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-14",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "7"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Plain HTTP endpoint in app_modules/494_API_BASE_URL.js",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+            "cvss_score": 9.1,
+            "description": "The app is configured to use a plain HTTP endpoint (http://10.0.2.2:3000). Sensitive data, including user credentials during login (app_modules/493_login.js) and the session authToken, are transmitted in cleartext, making them susceptible to interception via Man-in-the-Middle (MITM) attacks.",
+            "file": "app_modules/494_API_BASE_URL.js",
+            "location": "app_modules/494_API_BASE_URL.js:8",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "",
+            "code_snippet": "export const API_BASE_URL = \"http://10.0.2.2:3000\";",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 8,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "// Dependencies: []",
+                "",
+                "// Module 494 (API_BASE_URL)",
+                "",
+                "export const API_BASE_URL = \"http://10.0.2.2:3000\";"
+              ],
+              "lines_html": [
+                "<span class=\"tok-cm\">// Dependencies: []</span>",
+                "",
+                "<span class=\"tok-cm\">// Module 494 (API_BASE_URL)</span>",
+                "",
+                "<span class=\"tok-kw\">export</span> <span class=\"tok-kw\">const</span> API_BASE_URL <span class=\"tok-op\">=</span> <span class=\"tok-str\">&quot;http://10.0.2.2:3000&quot;</span><span class=\"tok-op\">;</span>"
+              ],
+              "module_terms": []
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-02",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Cleartext traffic reaches at most CVSS 7.5 (High); the vector given scores this finding above anything the class does.",
+                "The plain-HTTP address in the code is a development host (private or loopback network), not an endpoint reached over the internet.",
+                "The IP address 10.0.2.2 is an emulator-only loopback and is not reachable on real devices, indicating this is a debug configuration."
+              ],
+              "warnings": [],
+              "original_severity": "Critical",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "Low",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Private network address 10.0.2.2 shipped in the app",
+                  "file": "app_modules/494_API_BASE_URL.js",
+                  "line": "8"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Private network address 10.0.2.2 shipped in the app",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "A private (RFC 1918) address appears in app_modules/494_API_BASE_URL.js at line 8. It names a development or internal host and grants nothing by itself; it is recorded because it tells a reader about internal infrastructure, or that a development endpoint shipped in the build.",
+            "file": "app_modules/494_API_BASE_URL.js",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "None directly. If the app sends requests to it, the cleartext and endpoint findings for that host carry the risk.",
+            "code_snippet": "export const API_BASE_URL = \"http://10.0.2.2:3000\";",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 8,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "// Dependencies: []",
+                "",
+                "// Module 494 (API_BASE_URL)",
+                "",
+                "export const API_BASE_URL = \"http://10.0.2.2:3000\";"
+              ],
+              "lines_html": [
+                "<span class=\"tok-cm\">// Dependencies: []</span>",
+                "",
+                "<span class=\"tok-cm\">// Module 494 (API_BASE_URL)</span>",
+                "",
+                "<span class=\"tok-kw\">export</span> <span class=\"tok-kw\">const</span> API_BASE_URL <span class=\"tok-op\">=</span> <span class=\"tok-str\">&quot;http://10.0.2.2:3000&quot;</span><span class=\"tok-op\">;</span>"
+              ],
+              "module_terms": []
+            },
+            "exploitation": "",
+            "recommendation": "Point release builds at production hosts through build configuration, and leave development addresses out of them.",
+            "cwe": "CWE-200",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-03",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Plain HTTP endpoint in app_modules/494_API_BASE_URL.js",
+                  "file": "app_modules/494_API_BASE_URL.js",
+                  "line": 8
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Private network address 192.168.18.141 shipped in the app",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "A private (RFC 1918) address appears in platform/resources/res/values/strings.xml at line 81. It names a development or internal host and grants nothing by itself; it is recorded because it tells a reader about internal infrastructure, or that a development endpoint shipped in the build.",
+            "file": "platform/resources/res/values/strings.xml",
+            "location": "",
+            "line": 81,
+            "line_start": 81,
+            "line_end": 81,
+            "impact": "None directly. If the app sends requests to it, the cleartext and endpoint findings for that host carry the risk.",
+            "code_snippet": "    <string name=\"react_native_dev_server_ip\">192.168.18.141</string>",
+            "code_context": {
+              "start_line": 77,
+              "end_line": 85,
+              "highlight_start": 81,
+              "highlight_end": 81,
+              "lines": [
+                "    <string name=\"menubar_description\">Menu Bar</string>",
+                "    <string name=\"menuitem_description\">Menu Item</string>",
+                "    <string name=\"progressbar_description\">Progress Bar</string>",
+                "    <string name=\"radiogroup_description\">Radio Group</string>",
+                "    <string name=\"react_native_dev_server_ip\">192.168.18.141</string>",
+                "    <string name=\"rn_tab_description\">Tab</string>",
+                "    <string name=\"scrollbar_description\">Scroll Bar</string>",
+                "    <string name=\"search_menu_title\">Search</string>",
+                "    <string name=\"spinbutton_description\">Spin Button</string>"
+              ],
+              "lines_html": [
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;menubar_description&quot;</span>&gt;Menu Bar&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;menuitem_description&quot;</span>&gt;Menu Item&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;progressbar_description&quot;</span>&gt;Progress Bar&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;radiogroup_description&quot;</span>&gt;Radio Group&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;react_native_dev_server_ip&quot;</span>&gt;192.168.18.141&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;rn_tab_description&quot;</span>&gt;Tab&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;scrollbar_description&quot;</span>&gt;Scroll Bar&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;search_menu_title&quot;</span>&gt;Search&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;spinbutton_description&quot;</span>&gt;Spin Button&lt;/string&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Point release builds at production hosts through build configuration, and leave development addresses out of them.",
+            "cwe": "CWE-200",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-03",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "minSdkVersion 24 lets the app run on Android versions before 11, and its task affinity is its package name \"com.dvrn.app\". There, another app can declare the same affinity, with allowTaskReparenting, and have its own activity shown in this app's task.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 7,
+            "line_start": 7,
+            "line_end": 7,
+            "impact": "On a device running Android 10 or lower, a malicious app can put a look-alike screen on top of this app's task, phishing credentials or keeping the real app from being shown.",
+            "code_snippet": "    package=\"com.dvrn.app\"",
+            "code_context": {
+              "start_line": 3,
+              "end_line": 11,
+              "highlight_start": 7,
+              "highlight_end": 7,
+              "lines": [
+                "    android:versionCode=\"1\"",
+                "    android:versionName=\"1.0\"",
+                "    android:compileSdkVersion=\"36\"",
+                "    android:compileSdkVersionCodename=\"16\"",
+                "    package=\"com.dvrn.app\"",
+                "    platformBuildVersionCode=\"36\"",
+                "    platformBuildVersionName=\"16\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"24\""
+              ],
+              "lines_html": [
+                "    android:versionCode=&quot;1&quot;",
+                "    android:versionName=&quot;1.0&quot;",
+                "    android:compileSdkVersion=&quot;36&quot;",
+                "    android:compileSdkVersionCodename=&quot;16&quot;",
+                "    package=&quot;com.dvrn.app&quot;",
+                "    platformBuildVersionCode=&quot;36&quot;",
+                "    platformBuildVersionName=&quot;16&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;24&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise minSdkVersion to 30, where Android fixed this. Until then, android:taskAffinity=\"\" on the <application> mitigates the original attack, though not its runtime variant on unpatched Android 9 and lower.",
+            "cwe": "CWE-1021",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-09",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No screenshot protection: FLAG_SECURE is never set",
+                  "file": "AndroidManifest.xml",
+                  "line": ""
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ]
+      },
+      "refuted": [],
+      "refuted_count": 0
+    },
+    "analyzer_details": {
+      "framework": "React Native",
+      "analysis_time": 355.5508658885956,
+      "files_analyzed": 20,
+      "decompilation_status": "Successful",
+      "error": null,
+      "agent_coverage": {
+        "regions": [
+          {
+            "key": "region-1-0",
+            "nodes": 20,
+            "steps": 14,
+            "files_read": 21,
+            "stop_reason": "reported",
+            "findings": 4
+          }
+        ],
+        "complete": true,
+        "regions_incomplete": 0,
+        "regions_total": 1,
+        "degraded_reason": null,
+        "file_review": {
+          "files": 20,
+          "parts": 1,
+          "parts_skipped": 0,
+          "parts_failed": 0,
+          "findings": 5
+        }
+      },
+      "limitation": "",
+      "llm_usage": {
+        "provider": "ollama",
+        "calls": 19,
+        "failed": 0,
+        "wall_clock_s": 403.9,
+        "prompt_tokens": 484303,
+        "completion_tokens": 33241,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0,
+        "throttled_attempts": 0,
+        "transient_attempts": 0,
+        "failed_attempt_seconds": 0.0,
+        "retried_calls": 0,
+        "truncation_retries": 0,
+        "transient_retries": 0,
+        "throttle_retries": 0,
+        "slow_calls": 0,
+        "unparseable_responses": 0,
+        "blocked_seconds": 0.0,
+        "mode": "cloud",
+        "model": "gemma4:31b",
+        "unavailable": null,
+        "unreachable": null,
+        "keys_total": 9,
+        "keys_used": 7
+      }
+    },
+    "summary": {
+      "framework_detected": true,
+      "vulnerability_scan_complete": true,
+      "total_vulnerabilities": 13,
+      "critical_count": 0,
+      "high_count": 0,
+      "medium_count": 5,
+      "low_count": 2,
+      "refuted_count": 0,
+      "security_score": 60.5,
+      "weighted_finding_count": 29,
+      "security_grade": "C"
+    },
+    "analysis": {
+      "supported": true,
+      "success": true,
+      "files_analyzed": 20,
+      "analysis_time": 355.5508658885956,
+      "framework": "React Native",
+      "decompilation_status": "Successful",
+      "unsupported_framework": false,
+      "error": null,
+      "limitation": ""
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "dynamic_session": {
+      "attempted": false,
+      "reason": "Dynamic verification is disabled in Settings."
+    }
+  }
+}

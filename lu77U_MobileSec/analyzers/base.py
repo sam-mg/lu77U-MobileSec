@@ -25,13 +25,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .agent.profiles import JAVA_KOTLIN, SourceProfile
+from .evidence_hop import hop_terms
 from ..report_generator.syntax_highlight import highlight_lines
 from ..utils.cancellation import ScanCancelled
 from ..utils.verbose import plural, verbose_print
-from ..validation.claim_terms import evidence_supports, salient_terms
-from ..validation.dedupe import finding_identity, finding_richness
+from ..validation.claim_terms import aliases_present, api_terms, evidence_supports, names_present, salient_terms
+from ..validation.dedupe import RULE_SOURCES, finding_identity, finding_richness
 
 CONTEXT_PADDING_LINES = 4
+
+from .layout import PLATFORM_DIR
+
+NATIVE_CONTEXT_MAX_LINES = 80
 
 _BINARY_SNIFF_BYTES = 8192
 
@@ -95,6 +100,7 @@ class BaseAnalyzer(ABC):
         is_cancelled: Polled between phases.
         profile: The framework profile selecting prompts and heuristics.
         agent_coverage: What the AI phase managed to examine, recorded for the report.
+        module_evidence_dirs: Top-level directories of the analysis root whose files are each one recovered module, so a finding citing one also records what the whole module contains.
 
     Invariants:
         Every finding that leaves an analyzer has been through evidence enrichment, so its cited location has been resolved or explicitly marked unresolved.
@@ -105,6 +111,8 @@ class BaseAnalyzer(ABC):
     framework_label: str = "unknown"
 
     profile: SourceProfile = JAVA_KOTLIN
+
+    module_evidence_dirs: Tuple[str, ...] = ()
 
     def __init__(self, verbose: bool = False, progress=None, is_cancelled=None):
         """
@@ -145,10 +153,13 @@ class BaseAnalyzer(ABC):
             verbose_print(f"Progress update could not be delivered: {exc}", self.verbose)
 
     @abstractmethod
-    def preflight(self) -> Tuple[bool, str]:
+    def preflight(self, apk_path: Optional[str] = None) -> Tuple[bool, str]:
         """
         Purpose:
             Report whether this analyzer has what it needs to run.
+
+        Parameters:
+            apk_path: The APK about to be scanned, when known, for an analyzer whose requirements depend on how the app was built.
 
         Returns:
             A readiness flag and, when not ready, the reason.
@@ -246,7 +257,7 @@ class BaseAnalyzer(ABC):
             )
             if scope:
                 self.agent_coverage["scope"] = scope
-            return findings, ok, transcript
+            return self._with_file_review(findings, source_root, code_graph, label, leads), ok, transcript
         from .agent.agent_loop import run_agent_analysis
         from ..config import user_settings
 
@@ -284,7 +295,49 @@ class BaseAnalyzer(ABC):
             self.ai_provider)
         if scope:
             self.agent_coverage["scope"] = scope
-        return findings, ok, transcript
+        return self._with_file_review(findings, source_root, code_graph, label, leads), ok, transcript
+
+    def _with_file_review(self, findings, source_root, code_graph, label: str,
+                          leads: Optional[List[Any]]) -> List[Dict[str, Any]]:
+        """
+        Purpose:
+            Add the file-by-file review's findings to the agent's.
+
+        Parameters:
+            findings: The agent's findings.
+            source_root: Root of the decompiled source.
+            code_graph: The code graph, or None.
+            label: Framework name for the review context.
+            leads: The rule engine's leads.
+
+        Returns:
+            The agent's findings followed by the review's.
+
+        Side effects:
+            Makes review requests and records the pass under agent_coverage["file_review"].
+
+        Implementation notes:
+            Runs after the agent rather than instead of it: the agent follows data between files, the review guarantees each flagged file was read once with full attention, and benchmark scans needed both. Findings are appended without merging, because the validation stage's deduplication already folds the same issue reported twice and keeps the better-evidenced copy. A provider that has gone unavailable is not asked again. Any failure other than cancellation leaves the agent's findings as they were, since the review only adds.
+        """
+        from .agent.file_review import run_file_review
+        from ..config import user_settings
+
+        if getattr(self.ai_provider, "unavailable", None):
+            return findings
+        telemetry: Dict[str, Any] = {}
+        try:
+            self.progress("agentic", 81, "Reviewing the flagged files one at a time")
+            reviewed = run_file_review(
+                self.ai_provider, source_root, self.profile, code_graph, label, leads=leads,
+                max_parts=user_settings.get_agent_budget().get("max_review_parts", 0),
+                is_cancelled=self.is_cancelled, verbose=self.verbose, telemetry=telemetry)
+        except ScanCancelled:
+            raise
+        except Exception as exc:
+            verbose_print(f"File review failed ({exc}); keeping the agent's findings", self.verbose)
+            reviewed = []
+        self.agent_coverage["file_review"] = telemetry
+        return [*(findings or []), *reviewed]
 
     @staticmethod
     def merge_findings(agent_findings: List[Dict[str, Any]],
@@ -301,7 +354,7 @@ class BaseAnalyzer(ABC):
             The merged findings.
 
         Implementation notes:
-            Two keys are used together: title plus file, and the coarse location identity. The first catches the same issue described identically, the second catches the same issue at the same place described differently -- which is the common case across two engines. Agent findings are processed first, so an index established by one is reused rather than duplicated when the rule engine reports the same thing. This is a first pass, not the full deduplication: the validation stage does the thorough job with the severity and corroboration handling.
+            Two keys are used together: title plus file, and the coarse location identity. The first catches the same issue described identically, the second the same issue at the same place described differently by one engine. Agent findings are processed first, so an index established by one is reused rather than duplicated. The location identity is not used across engines: a rule-engine finding and an AI finding at one place go on to the validation stage, whose deduplication merges them with their content absorbed, the merge recorded and different facts kept apart. Here the richer one simply replaced the other, and a Ghera scan lost the scanner's "enforcePermission() reads the app's own identity" to the agent's vaguer "exported service guarded by a weak permission" on the same line, with no trace. This is a first pass, not the full deduplication.
         """
         def key(f: Dict[str, Any]) -> Tuple[str, str]:
             """
@@ -322,10 +375,11 @@ class BaseAnalyzer(ABC):
 
         merged: List[Dict[str, Any]] = []
         seen: Dict[Tuple[str, str], int] = {}
-        seen_identity: Dict[Tuple[str, str, str], int] = {}
+        seen_identity: Dict[Tuple[Any, ...], int] = {}
         for finding in [*(agent_findings or []), *(sast_findings or [])]:
             k = key(finding)
-            identity = finding_identity(finding)
+            located = finding_identity(finding)
+            identity = None if located is None else (*located, str(finding.get("source") or "") in RULE_SOURCES)
             idx = seen.get(k)
             if idx is None and identity is not None:
                 idx = seen_identity.get(identity)
@@ -513,7 +567,8 @@ class BaseAnalyzer(ABC):
                 return (start, end)
         return None
 
-    def _build_code_context(self, source_lines: List[str], start: int, end: int, filename: str) -> Dict:
+    def _build_code_context(self, source_lines: List[str], start: int, end: int, filename: str,
+                            window: Optional[Tuple[int, int]] = None) -> Dict:
         """
         Purpose:
             Build the code excerpt shown in the report: the cited lines plus surrounding context, highlighted.
@@ -523,6 +578,7 @@ class BaseAnalyzer(ABC):
             start: First cited line.
             end: Last cited line.
             filename: Used to select a syntax lexer.
+            window: Explicit first and last context lines, replacing the default padding; widened if needed so it always contains the cited lines.
 
         Returns:
             The context block with real line numbers, the highlight range, the raw lines and their highlighted forms.
@@ -533,8 +589,12 @@ class BaseAnalyzer(ABC):
         n = len(source_lines)
         start = max(1, min(start, n))
         end = max(start, min(end, n))
-        ctx_start = max(1, start - CONTEXT_PADDING_LINES)
-        ctx_end = min(n, end + CONTEXT_PADDING_LINES)
+        if window:
+            ctx_start = max(1, min(window[0], start))
+            ctx_end = min(n, max(window[1], end))
+        else:
+            ctx_start = max(1, start - CONTEXT_PADDING_LINES)
+            ctx_end = min(n, end + CONTEXT_PADDING_LINES)
         window = source_lines[ctx_start - 1:ctx_end]
         return {
             "start_line": ctx_start,
@@ -559,7 +619,7 @@ class BaseAnalyzer(ABC):
             Reads source files and mutates the findings.
 
         Implementation notes:
-            This is the step that makes the rest of the pipeline possible. Gating refutes a claim by checking the cited code, deduplication compares locations, and the report shows the excerpt -- all of which depend on the finding pointing at a real place in a real file. Findings whose path cannot be resolved are marked rather than dropped, so the gates can downgrade them for being uncheckable instead of the analyzer silently discarding a possibly-real issue.
+            This is the step that makes the rest of the pipeline possible. Gating refutes a claim by checking the cited code, deduplication compares locations, and the report shows the excerpt -- all of which depend on the finding pointing at a real place in a real file. Findings whose path cannot be resolved are marked rather than dropped, so the gates can downgrade them for being uncheckable instead of the analyzer silently discarding a possibly-real issue. A finding citing a native library takes its excerpt from the decompiled view the agent read, when Ghidra produced one, labelled as Ghidra pseudo-C so nobody mistakes it for the developer's source. The claim vocabulary one step from the citation - the bodies of app methods the cited lines call, or the code reading a cited res/values entry - is recorded as hop_terms (see evidence_hop), because a model rightly cites a helper's call or a key's declaration while the API its claim names sits in the helper.
         """
         _enum_cache: Dict[str, bool] = {}
         for vuln in vulnerabilities:
@@ -575,10 +635,11 @@ class BaseAnalyzer(ABC):
                     vuln["source_unresolved"] = True
                     continue
                 if not _looks_like_text(source_path):
-                    verbose_print(
-                        f"Skipping code context for "
-                        f"'{vuln.get('vulnerability_type', vuln.get('title', 'finding'))}': "
-                        f"{source_path.name} is binary, not source", self.verbose)
+                    if not self._attach_native_context(vuln, source_root, source_path, _enum_cache):
+                        verbose_print(
+                            f"Skipping code context for "
+                            f"'{vuln.get('vulnerability_type', vuln.get('title', 'finding'))}': "
+                            f"{source_path.name} is binary, not source", self.verbose)
                     continue
                 source_lines = source_path.read_text(encoding="utf-8", errors="ignore").splitlines()
                 if not source_lines:
@@ -597,6 +658,11 @@ class BaseAnalyzer(ABC):
                     start, end = end, start
 
                 context = self._build_code_context(source_lines, start, end, source_path.name)
+                if self._is_recovered_module(source_path, source_root):
+                    context["module_terms"] = self._module_terms(source_lines, vuln)
+                hop = hop_terms(Path(source_root), source_path, source_lines, start, end, vuln)
+                if hop:
+                    context["hop_terms"] = hop
                 vuln["code_snippet"] = context.pop("snippet")
                 vuln["code_context"] = context
                 self._attach_evidence_fields(
@@ -608,6 +674,160 @@ class BaseAnalyzer(ABC):
                     f"(highlight {context['highlight_start']}-{context['highlight_end']})", self.verbose)
             except Exception as e:
                 verbose_print(f"Could not enrich vulnerability with source context: {e}", self.verbose)
+
+    def _is_recovered_module(self, source_path: Path, source_root) -> bool:
+        """
+        Purpose:
+            Decide whether a cited file is one recovered cross-platform module.
+
+        Parameters:
+            source_path: The resolved file.
+            source_root: Root of the analysis tree.
+
+        Returns:
+            True when the file sits under one of this analyzer's module directories.
+        """
+        if not self.module_evidence_dirs:
+            return False
+        try:
+            rel = source_path.resolve().relative_to(Path(source_root).resolve())
+        except (OSError, ValueError):
+            return False
+        return bool(rel.parts) and rel.parts[0] in self.module_evidence_dirs
+
+    @staticmethod
+    def _module_terms(source_lines: List[str], vuln: Dict) -> List[str]:
+        """
+        Purpose:
+            Record the claim vocabulary a whole recovered module contains.
+
+        Parameters:
+            source_lines: The module's lines.
+            vuln: The finding, whose title supplies the API names worth looking for.
+
+        Returns:
+            The claim-table aliases, and the APIs the title names, that occur anywhere in the module.
+
+        Implementation notes:
+            A Dart library recovered by Blutter, or a Metro module, is one source file: a WebView channel is registered in initState while the finding rightly cites its handler, and CryptoJS.AES is called a few lines below the key it is given. The few lines around a citation miss those, and real findings were refuted for it. Only the vocabulary is recorded, never the code, so the claim gates can see what the module contains at almost no cost.
+        """
+        text = "\n".join(source_lines)
+        terms = aliases_present(text)
+        names = api_terms(f"{vuln.get('title', '')} {vuln.get('vulnerability_type', '')}")
+        return terms + names_present(text, names)
+
+    def _attach_native_context(self, vuln: Dict, source_root, library: Path,
+                               enum_cache: Dict[str, bool]) -> bool:
+        """
+        Purpose:
+            Attach the decompiled code a native finding cites, taken from the view the agent read.
+
+        Parameters:
+            vuln: The finding, mutated in place.
+            source_root: Root of the decompiled tree.
+            library: The resolved library the finding cites.
+            enum_cache: Shared cache of enum lookups, passed through to the evidence fields.
+
+        Returns:
+            True when an excerpt was attached; False when the library has no decompiled view or the citation cannot be tied to any function in it.
+
+        Side effects:
+            Mutates the finding, repairing its line numbers when the citation had to be mapped.
+
+        Implementation notes:
+            Kept apart from the text-file path because a native citation is resolved differently: by the view's line numbers, or, when the model cited an address or a number past the end, by the function it names. The text path's fallback of searching for the cited snippet is never used here, since a model-written snippet is not how native citations are made. The excerpt is the whole function rather than a few lines either side, because the function's name and its buffer declarations sit in the signature and the locals, often well above the defect, and both a reader and the claim gates need them to see what the finding is about. Its header comment is reworded to say it is Ghidra pseudo-C and the context records the same, so the report never presents reconstructed code as the developer's source.
+
+        Known limitations:
+            A function longer than NATIVE_CONTEXT_MAX_LINES falls back to the usual padding, so its excerpt may not show the signature.
+        """
+        view = self._native_view_lines(source_root, library)
+        if not view:
+            return False
+        from .agent.tools import locate_native_citation
+        span = locate_native_citation(
+            view, int(vuln.get("line_number") or 0), int(vuln.get("line_end") or 0),
+            vuln.get("line"),
+            f"{vuln.get('title', '')} {vuln.get('vulnerability_type', '')} "
+            f"{vuln.get('description', '')}")
+        if span is None:
+            return False
+        start, end = span
+        vuln["line_number"], vuln["line_end"] = start, end
+        from .agent.tools import native_function_span
+        window = native_function_span(view, start)
+        if window and window[1] - window[0] < NATIVE_CONTEXT_MAX_LINES:
+            header = view[window[0] - 1]
+            if header.startswith("// ---- "):
+                view[window[0] - 1] = "// Ghidra decompilation (pseudo-C) of " + header[len("// ---- "):]
+        else:
+            window = None
+        context = self._build_code_context(view, start, end, f"{library.name}.c", window=window)
+        context["origin"] = "Ghidra decompilation (pseudo-C), not the developer's source"
+        vuln["code_snippet"] = context.pop("snippet")
+        vuln["code_context"] = context
+        self._attach_evidence_fields(vuln, view, start, end, source_root, enum_cache)
+        verbose_print(
+            f"Attached decompiled context for "
+            f"'{vuln.get('vulnerability_type', vuln.get('title', 'finding'))}': "
+            f"{library.name} lines {context['start_line']}-{context['end_line']} "
+            f"(highlight {context['highlight_start']}-{context['highlight_end']})", self.verbose)
+        return True
+
+    def decompile_platform_layer(self, apk_path: str, out_dir) -> Optional[Path]:
+        """
+        Purpose:
+            Decompile the app's Java/Kotlin platform layer next to a cross-platform app's recovered code.
+
+        Parameters:
+            apk_path: Path to the APK.
+            out_dir: The analysis root; the output goes under its platform/ directory.
+
+        Returns:
+            The platform directory, or None when JADX is not configured or produced nothing.
+
+        Side effects:
+            Runs JADX, which can take a minute or more on a large app.
+
+        Implementation notes:
+            Used by the frameworks whose logic is not in the DEX -- Flutter and React Native -- because their root, emulator and integrity checks, native modules and plugin internals still are. Written inside the analysis root so the agent's tools can read and search it beside the recovered code, and so each framework's overview can link the two. The framework packages JADX writes alongside the app (androidx, io.flutter, kotlin) are left on disk and filtered by the profile's noise fragments rather than deleted, so a lead into them can still be followed.
+        """
+        from ..tools_checker.jadx_checker import check_jadx_configured
+        from ..decompiler.java_kotlin_decompiler import JavaKotlinDecompiler
+        if not check_jadx_configured(verbose=self.verbose):
+            verbose_print("JADX not configured - skipping the platform layer", self.verbose)
+            return None
+        target = Path(out_dir) / PLATFORM_DIR
+        try:
+            result = JavaKotlinDecompiler(verbose=self.verbose).jadx_decompile(apk_path, output_dir=target)
+        except Exception as exc:
+            verbose_print(f"Platform-layer decompilation failed: {exc}", self.verbose)
+            return None
+        return Path(result) if result else None
+
+    def _native_view_lines(self, source_root, library: Path) -> List[str]:
+        """
+        Purpose:
+            Recover the decompiled view of a native library that a finding cites, numbered as the agent saw it.
+
+        Parameters:
+            source_root: Root of the decompiled tree.
+            library: The resolved library the finding cites.
+
+        Returns:
+            The view's lines, or an empty list when the file is not a native library or Ghidra produced no code for it.
+
+        Implementation notes:
+            The agent cites native findings by the line numbers of the inspect_native view, so the evidence has to come from that same view rather than from the binary. Without it a native finding carries no excerpt and the gates cap it as unverifiable, even though the agent read the decompiled code and cited the exact line. The tool surface is imported here rather than at module load because it pulls in the Ghidra runner, which only native findings need.
+        """
+        if library.suffix != ".so":
+            return []
+        try:
+            from .agent.tools import AgentTools
+            rel = library.resolve().relative_to(Path(source_root).resolve()).as_posix()
+            return AgentTools(source_root).native_view(rel) or []
+        except Exception as exc:
+            verbose_print(f"Decompiled view unavailable for {library.name}: {exc}", self.verbose)
+            return []
 
     def _attach_evidence_fields(self, vuln: Dict, source_lines: List[str],
                                 start: int, end: int,

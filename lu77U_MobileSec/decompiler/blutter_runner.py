@@ -27,6 +27,7 @@ from ..config import user_settings
 from ..utils.verbose import verbose_print
 
 DEFAULT_TIMEOUT = 1800
+BLUTTER_INFO_NAME = "blutter_info.txt"
 
 def _resolve_blutter_path() -> str:
     """
@@ -63,7 +64,7 @@ def run_blutter(lib_dir, out_dir, verbose: bool = False,
         Creates the output directory and spawns Blutter.
 
     Implementation notes:
-        Blutter is a Python script rather than an executable, so it is run through the current interpreter. That also guarantees it runs under the same Python this tool is using rather than whatever is first on PATH. The return code is not trusted on its own. Success is decided by inspecting the output: Blutter can exit zero having produced nothing useful, and treating that as success would send an empty directory to the analyzer. The check looks for either of the two artifacts a real run produces. Every failure mode returns None rather than raising, so a Flutter app whose snapshot cannot be recovered still completes the rest of its scan. The long-first-run behaviour is traced explicitly, so a user watching a slow scan can tell it is compiling rather than hung.
+        Blutter is a Python script rather than an executable, so it is run through the current interpreter. That also guarantees it runs under the same Python this tool is using rather than whatever is first on PATH. The return code is not trusted on its own. Success is decided by inspecting the output: Blutter can exit zero having produced nothing useful, and treating that as success would send an empty directory to the analyzer. The check looks for either of the two artifacts a real run produces. Every failure mode returns None rather than raising, so a Flutter app whose snapshot cannot be recovered still completes the rest of its scan. The long-first-run behaviour is traced explicitly, so a user watching a slow scan can tell it is compiling rather than hung. The Dart version, snapshot hash and build flags Blutter prints are saved beside its output, because they decide which hooking and interception techniques apply and are otherwise lost with the process's stdout.
     """
     blutter_path = _resolve_blutter_path()
     if not blutter_path:
@@ -104,6 +105,14 @@ def run_blutter(lib_dir, out_dir, verbose: bool = False,
             "Blutter produced no recognizable output (no pp.txt, empty asm/) "
             "- treating as failed", verbose)
         return None
+
+    info = [line.strip() for line in (result.stdout or "").splitlines()
+            if line.startswith(("Dart version:", "flags:"))]
+    if info:
+        try:
+            (out_dir / BLUTTER_INFO_NAME).write_text("\n".join(info) + "\n", encoding="utf-8")
+        except OSError as exc:
+            verbose_print(f"Could not save Blutter's version line: {exc}", verbose)
 
     verbose_print(f"Blutter output directory: {out_dir}", verbose)
     return out_dir

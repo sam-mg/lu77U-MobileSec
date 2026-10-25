@@ -260,6 +260,150 @@ class TestBackCompat:
         assert c.get_api_key("openai") is None
 
 
+class TestKeyLabels:
+    """
+    Purpose:
+        An optional label stored with each key, so a user with several keys can tell which account each belongs to.
+
+    Implementation notes:
+        The label lives in the same entry as its key, so removing or reordering keys carries labels along. An unlabelled pool keeps the earlier storage format byte for byte.
+    """
+    def test_a_labelled_key_reads_back_with_its_label(self, fake_store):
+        """
+        Purpose:
+            Pin that a label round-trips beside its key, and that the plain key list providers read is unchanged by it.
+
+        Parameters:
+            fake_store: The credentials module and its in-memory store.
+        """
+        c, _ = fake_store
+        c.add_api_key("ollama", "k1", "abc@gmail.com")
+        c.add_api_key("ollama", "k2")
+        assert c.get_api_key_entries("ollama") == [
+            {"key": "k1", "label": "abc@gmail.com"}, {"key": "k2", "label": ""}]
+        assert c.get_api_keys("ollama") == ["k1", "k2"]
+
+    def test_an_unlabelled_pool_keeps_the_old_format(self, fake_store):
+        """
+        Purpose:
+            Pin that keys without labels are stored as a plain list of strings, which an older version of the tool still reads.
+
+        Parameters:
+            fake_store: The credentials module and its in-memory store.
+        """
+        import json
+        c, store = fake_store
+        c.set_api_keys("ollama", ["k1", "k2"])
+        assert json.loads(store[c._key_name("ollama")]) == ["k1", "k2"]
+        c.add_api_key("ollama", "k3", "work")
+        assert json.loads(store[c._key_name("ollama")]) == ["k1", "k2", {"key": "k3", "label": "work"}]
+
+    def test_older_entries_read_with_no_label(self, fake_store):
+        """
+        Purpose:
+            Pin that a bare string and a list of strings, as earlier versions wrote them, read back with empty labels.
+
+        Parameters:
+            fake_store: The credentials module and its in-memory store.
+        """
+        c, store = fake_store
+        store[c._key_name("claude")] = "sk-legacy-bare-string"
+        store[c._key_name("ollama")] = '["k1", "k2"]'
+        assert c.get_api_key_entries("claude") == [{"key": "sk-legacy-bare-string", "label": ""}]
+        assert c.get_api_key_entries("ollama") == [{"key": "k1", "label": ""}, {"key": "k2", "label": ""}]
+
+    def test_a_list_holding_anything_else_is_still_one_literal_key(self, fake_store):
+        """
+        Purpose:
+            Pin that a JSON list with an item that is neither a string nor a key object is read as one literal key, as before.
+
+        Parameters:
+            fake_store: The credentials module and its in-memory store.
+        """
+        c, store = fake_store
+        store[c._key_name("openai")] = '["k1", 2]'
+        assert c.get_api_keys("openai") == ['["k1", 2]']
+
+    def test_adding_a_stored_key_with_a_label_labels_it(self, fake_store):
+        """
+        Purpose:
+            Pin that pasting a key that is already stored, with a label, labels it rather than adding a duplicate, and that pasting it bare keeps the label.
+
+        Parameters:
+            fake_store: The credentials module and its in-memory store.
+        """
+        c, _ = fake_store
+        c.add_api_key("ollama", "k1")
+        c.add_api_key("ollama", "k1", "abc@gmail.com")
+        c.add_api_key("ollama", " k1 ")
+        assert c.get_api_key_entries("ollama") == [{"key": "k1", "label": "abc@gmail.com"}]
+
+    def test_a_label_is_set_changed_and_cleared_by_position(self, fake_store):
+        """
+        Purpose:
+            Pin that a stored key's label can be set, changed and cleared by its position, and that a stale position changes nothing.
+
+        Parameters:
+            fake_store: The credentials module and its in-memory store.
+        """
+        c, _ = fake_store
+        c.set_api_keys("ollama", ["k1", "k2"])
+        assert c.set_api_key_label("ollama", 1, "def@gmail.com")
+        assert c.get_api_key_entries("ollama")[1]["label"] == "def@gmail.com"
+        assert c.set_api_key_label("ollama", 1, "")
+        assert c.get_api_key_entries("ollama")[1]["label"] == ""
+        assert not c.set_api_key_label("ollama", 5, "x")
+        assert c.get_api_keys("ollama") == ["k1", "k2"]
+
+    def test_removing_a_key_keeps_the_other_labels(self, fake_store):
+        """
+        Purpose:
+            Pin that removing one key leaves every other key with its own label, since labels travel with their keys.
+
+        Parameters:
+            fake_store: The credentials module and its in-memory store.
+        """
+        c, _ = fake_store
+        c.add_api_key("ollama", "k1", "first")
+        c.add_api_key("ollama", "k2", "second")
+        c.add_api_key("ollama", "k3", "third")
+        c.remove_api_key("ollama", 0)
+        assert c.get_api_key_entries("ollama") == [
+            {"key": "k2", "label": "second"}, {"key": "k3", "label": "third"}]
+
+    @pytest.mark.parametrize("label, cleaned", [
+        ("  abc@gmail.com  ", "abc@gmail.com"),
+        ("work\n account", "work account"),
+        ("", ""),
+        (None, ""),
+        ("prénom@exemple.fr", "prénom@exemple.fr"),
+    ])
+    def test_a_label_is_normalised(self, label, cleaned):
+        """
+        Purpose:
+            Pin that a label's whitespace is collapsed to single spaces, so it always fits on one line.
+
+        Parameters:
+            label: The label as typed.
+            cleaned: What is stored.
+        """
+        from lu77U_MobileSec.config import credentials as c
+        assert c.clean_label(label) == cleaned
+
+    @pytest.mark.parametrize("label", ["x" * 81, "bad\x00label", "gmail.com\u202eevil"])
+    def test_a_label_that_cannot_show_safely_is_refused(self, label):
+        """
+        Purpose:
+            Pin that an overlong label, a control character and an invisible bidirectional override are refused.
+
+        Parameters:
+            label: A label that must be rejected.
+        """
+        from lu77U_MobileSec.config import credentials as c
+        with pytest.raises(ValueError):
+            c.clean_label(label)
+
+
 class TestMasking:
     """
     Purpose:
@@ -372,6 +516,31 @@ class TestKeyRotation:
         """
         prov = _Provider(api_keys=["k1", "k2", "k3"])
         assert prov.api_key == "k1"
+
+    def test_a_later_provider_skips_a_key_an_earlier_one_found_spent(self):
+        """
+        Purpose:
+            Pin that a key one provider found exhausted is skipped by the providers created after it, until its hour is up, and that resetting the circuit tries it again.
+        """
+        from lu77U_MobileSec.ai import base_provider
+        first = _Provider(api_keys=["k1", "k2", "k3"])
+        first._handle_exception(Exception("you have reached your session usage limit, upgrade for higher limits"))
+        assert _Provider(api_keys=["k1", "k2", "k3"]).api_key == "k2"
+        base_provider._SPENT_KEYS["k1"] -= base_provider.SPENT_KEY_RETRY_SECONDS
+        assert _Provider(api_keys=["k1", "k2", "k3"]).api_key == "k1"
+        base_provider.mark_key_spent("k1")
+        first.reset_circuit()
+        assert _Provider(api_keys=["k1", "k2", "k3"]).api_key == "k1"
+
+    def test_a_pool_spent_throughout_starts_on_its_first_key(self):
+        """
+        Purpose:
+            Pin that when every key is marked spent a provider starts on the first, so the refusal is still seen and the scan pauses on quota.
+        """
+        from lu77U_MobileSec.ai import base_provider
+        for key in ("k1", "k2"):
+            base_provider.mark_key_spent(key)
+        assert _Provider(api_keys=["k1", "k2"]).api_key == "k1"
 
     def test_a_fatal_quota_error_rotates_instead_of_tripping(self):
         """
@@ -1422,6 +1591,79 @@ class TestSettingsWebLayer:
         r = client.post("/api/settings/credentials",
                         json={"provider": "not-a-real-provider", "api_key": "x"})
         assert r.status_code == 400
+
+
+class TestKeyLabelsWebLayer:
+    """
+    Purpose:
+        The settings endpoints that take, show and change a key's label.
+    """
+    def test_a_label_given_with_a_key_is_shown_beside_its_masked_form(self, api_client):
+        """
+        Purpose:
+            Pin that a label sent with a new key comes back beside the masked key, and that the payload still carries no full key.
+
+        Parameters:
+            api_client: The test client and the credentials module.
+        """
+        client, c = api_client
+        secret = "sk-label-test-0123456789abcdef"
+        client.post("/api/settings/credentials",
+                    json={"provider": "ollama", "api_key": secret, "label": "abc@gmail.com"})
+        response = client.get("/api/settings")
+        stored = response.json()["providers"]["ollama"]["api_keys"]
+        assert stored == [{"index": 0, "masked": c.mask_key(secret), "label": "abc@gmail.com"}]
+        assert not _contains_constant_time(response.text, secret)
+
+    def test_a_stored_key_is_labelled_by_position(self, api_client):
+        """
+        Purpose:
+            Pin that the label endpoint sets and clears a stored key's label without the key being sent.
+
+        Parameters:
+            api_client: The test client and the credentials module.
+        """
+        client, c = api_client
+        c.set_api_keys("ollama", ["k1-0123456789ab", "k2-0123456789ab"])
+        assert client.put("/api/settings/credentials/ollama/1/label", json={"label": "def@gmail.com"}).status_code == 200
+        labels = [k["label"] for k in client.get("/api/settings").json()["providers"]["ollama"]["api_keys"]]
+        assert labels == ["", "def@gmail.com"]
+        client.put("/api/settings/credentials/ollama/1/label", json={"label": ""})
+        assert c.get_api_key_entries("ollama")[1]["label"] == ""
+
+    @pytest.mark.parametrize("path, body", [
+        ("/api/settings/credentials/ollama/3/label", {"label": "x"}),
+        ("/api/settings/credentials/ollama/0/label", {"label": "x" * 81}),
+        ("/api/settings/credentials/nope/0/label", {"label": "x"}),
+    ])
+    def test_a_bad_label_request_is_a_400(self, api_client, path, body):
+        """
+        Purpose:
+            Pin that a missing position, an overlong label and an unknown provider are refused with a 400 and change nothing.
+
+        Parameters:
+            api_client: The test client and the credentials module.
+            path: The label endpoint path.
+            body: The request body.
+        """
+        client, c = api_client
+        c.set_api_keys("ollama", ["k1-0123456789ab"])
+        assert client.put(path, json=body).status_code == 400
+        assert c.get_api_key_entries("ollama") == [{"key": "k1-0123456789ab", "label": ""}]
+
+    def test_an_overlong_label_on_a_new_key_stores_nothing(self, api_client):
+        """
+        Purpose:
+            Pin that a key sent with a label the store refuses is rejected whole, so a key never lands without the label the user meant to give it.
+
+        Parameters:
+            api_client: The test client and the credentials module.
+        """
+        client, c = api_client
+        response = client.post("/api/settings/credentials",
+                               json={"provider": "ollama", "api_key": "k1-0123456789ab", "label": "x" * 81})
+        assert response.status_code == 400
+        assert c.get_api_keys("ollama") == []
 
 
 class TestConfiguredCheckLogging:

@@ -21,14 +21,15 @@ Security considerations:
 import hashlib
 import hmac
 import json
+import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .gates import (GateResult, VERDICT_ORDER, apply_gates, lower_severity,
                     normalize_severity, severity_rank)
 from .dedupe import deduplicate, infer_vuln_class
-from .taxonomy import required_proof
+from .taxonomy import describe, required_proof
 from ..utils.cancellation import ScanCancelled
-from ..utils.cvss import severity_from_vector
+from ..utils.cvss import parse_vector, severity_from_vector
 from ..utils.verbose import plural, verbose_print
 
 JUDGMENT_BATCH_SIZE = 25
@@ -55,7 +56,12 @@ Ask of every finding:
 
 1. Exploitability - can an attacker trigger this on a real, unmodified device? Anything \
 needing root, ADB, developer mode or physical access to an unlocked device is not \
-something an attacker does to a victim. Code that is never called is not exploitable.
+something an attacker does to a victim. Code that is never called is not exploitable. \
+Name the weakest attacker who reaches it: remote (a web page, a link, a QR code, a \
+network position), another app on the device, physical access, a rooted device. An \
+exported component is reached by another app, not remotely; a deep link is remote only \
+when a web page can fire it. A finding that claims a stronger attacker than its path \
+supports is overstated.
 2. Reachability - is the affected code reachable from an entry point: an exported \
 component, a deep link, a network response, WebView content? An unreachable sink is a \
 code-quality note.
@@ -70,7 +76,43 @@ with no permission" is.
 `proof_expected` line naming what its class has to establish. A finding that asserts the \
 class without establishing that is a note.
 7. Standalone value - is this a vulnerability alone, or one step of a chain? Absent \
-pinning, cleartext configuration and enabled backup are steps.
+pinning, cleartext configuration and enabled backup are steps. A credential in plain \
+storage, a hardcoded key or a client-side gate is not a step, and is never CHAIN_REQUIRED. \
+Its CVSS vector already scores the attacker it needs - local access, root as high \
+privileges - so needing root or a backup is not by itself a reason to DOWNGRADE it again. \
+Downgrade it when the vector claims a stronger attacker than the path supports, or when \
+what is stored is not sensitive.
+8. Mitigations - only real ones count. Obfuscation, native code and string encryption \
+slow a reader down but recover nothing: a key or rule in the app is still the \
+attacker's. A check the client makes and trusts - a root-detection result, a biometric \
+callback with no key behind it, an entitlement flag in local storage - is one hook away \
+and mitigates nothing unless a server verifies it. A newer-Android default closes a path \
+only for apps that target that level (cleartext off from 28, explicit export and \
+immutable PendingIntents from 31): check the app's targetSdkVersion. A mutable \
+PendingIntent whose base Intent names its component cannot be redirected by whoever \
+holds it, who can only fill in fields the base left empty, such as extras: it matters \
+only when that component acts on them. A protection the OS \
+version gives whatever the target - scoped storage keeping other apps out of \
+Android/data from Android 11, the task-hijacking fix in 11 - covers only devices running \
+it: an app whose minSdkVersion is lower installs on older devices, where the path is open. \
+Android/data/<package> (getExternalFilesDir, getExternalCacheDir) was never private before \
+scoped storage: Android 4.4 only stopped requiring a permission for the app's own access, \
+and any app holding READ_EXTERNAL_STORAGE reads it on Android 10 and lower. Any app can \
+send an exported receiver an explicit Intent, with any action or none, whatever its intent \
+filter lists. Registering for a protected system broadcast (BOOT_COMPLETED, \
+DEVICE_STORAGE_LOW, NEW_OUTGOING_CALL and the like) does not change that; only a receiver \
+that checks getAction() for the protected action before acting is out of other apps' \
+reach, because they cannot send that action itself. A component \
+guarded by a signature-level permission the app declares is reachable only by apps signed \
+with the same key, so no other developer's app is the attacker there; a guard naming a \
+permission the app never declares guards nothing, since another app can declare it first. \
+Java's new File(dir, name) keeps dir even when name is absolute (unlike Path.resolve), so \
+a ".." check on name does guard that path. The declared levels are stated above the \
+findings when known.
+
+Downgrade on a specific fact: a guard on the path, a platform default this app actually \
+gets, a precondition the finding skipped. General doubt is not a reason - a finding that \
+names a concrete path keeps its severity.
 
 Then: could it be demonstrated today; is the gain specific; is it distinct from the \
 other findings in this batch; is it documented well enough to act on.
@@ -78,7 +120,7 @@ other findings in this batch; is it documented well enough to act on.
 Return one verdict per finding:
 
 PASS            - valid as written, severity is right
-DOWNGRADE       - real, but overstated; give the severity it deserves
+DOWNGRADE       - real, but overstated; give the severity it deserves, Low at the least
 CHAIN_REQUIRED  - real, but only matters combined with another finding
 INFORMATIONAL   - worth telling the owner, not a vulnerability
 
@@ -89,7 +131,7 @@ real exploitable path keeps its severity, and softening those is the more expens
 mistake.
 
 Reasons are read by the app's owner. Say what is missing or why it does not hold, in ONE \
-concrete sentence. "Does not meet the bar" tells them nothing. Omit "reason" entirely on a \
+concrete sentence, and name another finding by its title, never by its id. "Does not meet the bar" tells them nothing. Omit "reason" entirely on a \
 PASS - it is discarded for PASS and there is nothing to explain."""
 
 
@@ -183,6 +225,241 @@ _VERIFY_SCHEMA = {
 }
 
 
+_TITLE_MAX_CHARS = 72
+_TITLE_TRAILING_WORDS = frozenset(("of", "and", "or", "to", "the", "a", "an", "with", "in", "for", "by",
+                                   "from", "on", "at", "that", "which", "via", "using", "is", "are",
+                                   "without", "where", "when", "who", "whose", "they", "it", "its", "their",
+                                   "this", "as", "into", "can", "be", "was", "were", "has", "have"))
+_TITLE_CLAUSE_MARKERS = (", allowing", ", which", " because", ", making", ", enabling", "; ",
+                         ", so ", " that allows", " so that", " - ", ", leading", ", exposing")
+
+_TITLE_SYSTEM = """You write the titles of security findings for a report read by the app's \
+owner. Rewrite each title as a short noun phrase of at most 70 characters that names the \
+weakness and where it is, the way a heading in a security report does: "SQL injection in the \
+notes search", "Hardcoded TVEETER API credentials in APICreds2Activity", "Session token stored \
+unencrypted in AsyncStorage". Keep class, file, method and identifier names exactly as written. \
+Add nothing the description does not say, and leave out severity words. No trailing period. \
+Return one object per finding: its id and the new title."""
+
+_TITLE_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "id": {"type": "integer", "description": "The finding's id from the input list."},
+            "title": {"type": "string", "maxLength": 90},
+        },
+        "required": ["id", "title"],
+    },
+}
+
+
+def needs_title(finding: Dict[str, Any]) -> bool:
+    """
+    Purpose:
+        Tell whether a finding's title reads as a cut-off sentence rather than a heading.
+
+    Parameters:
+        finding: The finding dict.
+
+    Returns:
+        True for a title that ends in an ellipsis, runs past _TITLE_MAX_CHARS, or is a whole sentence.
+
+    Implementation notes:
+        A model that leaves the title out gets the first sentence of its description, cut at 77 characters with "...", which published titles such as "The decision to display premium content is made on the client side based on t...".
+    """
+    title = str(finding.get("title") or "").strip()
+    if not title:
+        return False
+    return (title.endswith(("...", "\u2026")) or len(title) > _TITLE_MAX_CHARS
+            or (title.endswith(".") and len(title.split()) >= 6))
+
+
+def shorten_title(title: str, description: str = "") -> str:
+    """
+    Purpose:
+        Turn a sentence-shaped title into a heading without a model.
+
+    Parameters:
+        title: The title.
+        description: The finding's description, whose first sentence replaces a title that was itself cut short.
+
+    Returns:
+        The title without its ellipsis, final period and parentheticals, cut at its first clause boundary past the subject, and at a word boundary within _TITLE_MAX_CHARS with no dangling connective or pronoun.
+
+    Implementation notes:
+        The fallback when the title pass cannot run. It keeps the opening clause, which in a model's finding sentence is nearly always the weakness and where it is, and drops what follows ("..., allowing an attacker to ..."). A title that already ends in "..." was cut mid-word from the description, so the description's own sentence is used instead of the fragment.
+    """
+    text = str(title or "").strip()
+    stem = text.rstrip(".\u2026 ")
+    if text.endswith(("...", "\u2026")) and str(description or "").startswith(stem[:40]):
+        text = re.split(r"(?<=[.!?])\s", str(description).strip(), maxsplit=1)[0]
+    text = re.sub(r"\s*\([^)]*\)", "", text).rstrip(".\u2026 ").strip()
+    for marker in _TITLE_CLAUSE_MARKERS:
+        cut = text.find(marker)
+        if cut >= 25:
+            text = text[:cut]
+            break
+    if len(text) > _TITLE_MAX_CHARS:
+        text = text[:_TITLE_MAX_CHARS].rsplit(" ", 1)[0]
+    words = text.rstrip(",;:- ").split()
+    while len(words) > 3 and words[-1].lower() in _TITLE_TRAILING_WORDS:
+        words.pop()
+    text = " ".join(words)
+    return (text[0].upper() + text[1:]) if text else str(title or "")
+
+
+_TITLE_FUNCTION_WORDS = frozenset((
+    "a", "an", "the", "and", "or", "of", "in", "on", "at", "to", "for", "by", "via", "with",
+    "without", "from", "into", "over", "under", "as", "per", "vs"))
+_TITLE_PROPER_WORDS = frozenset((
+    "Android", "Google", "Firebase", "Flutter", "Dart", "Java", "Kotlin", "React", "Native",
+    "Cordova", "Xamarin", "Hermes", "Blutter", "Ghidra", "Frida", "Logcat", "Keystore", "Intent",
+    "Chrome", "Edge", "Windows", "Linux", "Gradle", "Play", "Stripe", "Slack", "Base64"))
+_TITLE_CASED_WORD_RE = re.compile(r"[A-Z][a-z]+(?:'s)?")
+
+
+def sentence_case(title: str) -> str:
+    """
+    Purpose:
+        Turn a title written in Title Case into the sentence case every other title uses.
+
+    Parameters:
+        title: The title.
+
+    Returns:
+        The title with its capitalised ordinary words lowered, or the title unchanged when it is not in Title Case.
+
+    Implementation notes:
+        A title counts as Title Case when, after its first word, at least one ordinary capitalised word appears and no ordinary lower-case word other than a short function word does; "Hardcoded encryption key in the app's Dart code" has lower-case words and is left alone, while "Plaintext Credentials in Temporary File" becomes "Plaintext credentials in temporary file". Only plain capitalised words are lowered: identifiers (ContentProvider, APICreds2Activity), acronyms (PIN, SQL), quoted or punctuated tokens and a short list of proper names keep their case. Each part of a hyphenated word is treated as a word, so "Client-Side" becomes "Client-side". Published scans mixed both styles in one list, because the model writes either.
+    """
+    words = str(title or "").split(" ")
+    if len(words) < 2:
+        return str(title or "")
+    parts = [(i, j, part) for i, word in enumerate(words) for j, part in enumerate(word.split("-"))
+             if (i, j) != (0, 0)]
+    capitalised = [(i, j) for i, j, part in parts
+                   if _TITLE_CASED_WORD_RE.fullmatch(part) and part not in _TITLE_PROPER_WORDS]
+    lowered = [part for _, _, part in parts if part[:1].islower() and part.isalpha()
+               and part not in _TITLE_FUNCTION_WORDS]
+    if not capitalised or lowered:
+        return str(title)
+    marked = set(capitalised)
+    rebuilt = []
+    for i, word in enumerate(words):
+        pieces = word.split("-")
+        rebuilt.append("-".join(piece.lower() if (i, j) in marked else piece
+                                for j, piece in enumerate(pieces)))
+    return " ".join(rebuilt)
+
+
+def _title_view(index: int, finding: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Purpose:
+        Build the compact view the title pass reads.
+
+    Parameters:
+        index: Its position in the batch.
+        finding: The finding.
+
+    Returns:
+        The view dict.
+    """
+    return {
+        "id": index,
+        "title": _text(finding.get("title")),
+        "description": _text(finding.get("description"))[:400],
+        "file": finding.get("file") or "",
+        "vuln_class": finding.get("vuln_class") or "",
+    }
+
+
+def _merge_title(finding: Dict[str, Any], entry: Dict[str, Any]) -> None:
+    """
+    Purpose:
+        Apply one rewritten title.
+
+    Parameters:
+        finding: The finding dict, mutated in place.
+        entry: The model's answer for it.
+
+    Side effects:
+        Replaces the title when the answer is a usable heading.
+    """
+    title = str(entry.get("title") or "").strip().rstrip(". ")
+    if 8 <= len(title) <= 90 and not title.endswith(("...", "\u2026")):
+        finding["title"] = title
+
+
+def polish_titles(findings: List[Dict[str, Any]], provider=None, verbose: bool = False,
+                  is_cancelled: Optional[Callable[[], bool]] = None,
+                  progress: Optional[Callable[..., None]] = None, fallback: bool = True) -> None:
+    """
+    Purpose:
+        Give sentence-shaped titles a heading's shape before the report is written.
+
+    Parameters:
+        findings: All findings, mutated in place.
+        provider: The model provider, or None to use only the deterministic shortener.
+        verbose: Traces the pass.
+        is_cancelled: Polled between batches.
+        progress: Receives progress updates.
+        fallback: Whether titles the model left unusable are then reshaped by shorten_title; off when a caller applies its own titles first.
+
+    Side effects:
+        Rewrites the titles that need it; makes provider requests when a provider is given.
+
+    Implementation notes:
+        Runs after grading, so the gates and the reviewer judged the claim as the agent wrote it; only its wording changes, and a review reason that named a finding by its old title is pointed at the new one. One batch covers many titles, because each answer is a few words. A mechanically refuted finding never reaches the model, here as in the review passes; it and any title the model leaves unusable, or every title when there is no provider or the request fails, fall back to shorten_title. Every title then goes through sentence_case, so a list does not mix "Plaintext Credentials in Temporary File" with "Hardcoded encryption key in the app's Dart code".
+    """
+    before = {id(f): f.get("title") for f in findings}
+    pending = [f for f in findings if needs_title(f)]
+    graded = [f for f in pending if not (f.get("gate_result") or {}).get("mechanically_refuted")]
+    if provider is not None and graded:
+        _run_pass(graded, provider, verbose, is_cancelled or (lambda: False),
+                  progress or (lambda *unused_a, **unused_kw: None),
+                  system=_TITLE_SYSTEM, schema=_TITLE_SCHEMA, batch_size=JUDGMENT_BATCH_SIZE,
+                  summarize=_title_view, merge=_merge_title, label="Titling findings",
+                  intro="Rewrite each title. Return one object per finding, keyed by its id.")
+    for finding in pending if fallback else []:
+        if needs_title(finding):
+            finding["title"] = shorten_title(finding.get("title"), finding.get("description") or "")
+    for finding in findings if fallback else []:
+        if finding.get("title"):
+            finding["title"] = sentence_case(finding["title"])
+    rename_references(findings, {before[id(f)]: f.get("title") for f in findings})
+
+
+def rename_references(findings: List[Dict[str, Any]], renames: Dict[str, str]) -> None:
+    """
+    Purpose:
+        Rewrite review reasons that name a finding by a title it no longer has.
+
+    Parameters:
+        findings: The findings whose reasons are rewritten, updated in place.
+        renames: Old title to new title.
+
+    Side effects:
+        Replaces each old title in the findings' gate reasons with the new one.
+
+    Implementation notes:
+        The review pass runs before the title pass and is asked to name other findings by title, so a published reason pointed at "Sensitive Credentials Stored in Plaintext SQLite Database", a title the report no longer contained once the title pass had rewritten it. Titles shorter than twelve characters are left alone, since a short one could match ordinary words.
+    """
+    pairs = [(old, new) for old, new in renames.items() if old and new and old != new and len(old) >= 12]
+    if not pairs:
+        return
+    for finding in findings:
+        gate = finding.get("gate_result")
+        if not isinstance(gate, dict) or not gate.get("reasons"):
+            continue
+        reasons = []
+        for reason in gate["reasons"]:
+            for old, new in pairs:
+                reason = reason.replace(old, new)
+            reasons.append(reason)
+        gate["reasons"] = reasons
+
+
 def is_rule_finding(finding: Dict[str, Any]) -> bool:
     """
     Purpose:
@@ -205,30 +482,32 @@ def is_rule_finding(finding: Dict[str, Any]) -> bool:
     return True
 
 
-_VERDICT_CACHE: Dict[Tuple[str, str, str, str], List[Tuple[str, Dict[str, Any]]]] = {}
+_VERDICT_CACHE: Dict[Tuple[str, ...], List[Tuple[str, Dict[str, Any]]]] = {}
 
 
-def _verdict_key(finding: Dict[str, Any]) -> Optional[Tuple[str, str, str, str, str]]:
+def _verdict_key(finding: Dict[str, Any], scope: str = "") -> Optional[Tuple[str, ...]]:
     """
     Purpose:
-        Build a cache key identifying one exact claim, so an identical finding in a later run reuses its verdict instead of being re-reviewed.
+        Build a cache key identifying one exact claim about one app, so an identical finding in a later run of the same app reuses its verdict instead of being re-reviewed.
 
     Parameters:
         finding: The finding dict.
+        scope: Identifies the app the finding is about; empty when unknown.
 
     Returns:
-        A key tuple, or None when the finding lacks the file or snippet needed to identify it.
+        A key tuple, or None when there is no scope or the finding lacks the file or snippet needed to identify it.
 
     Implementation notes:
-        The key covers class, file, line, as-filed severity and a hash of the snippet. The snippet is hashed rather than stored so the cache does not retain application source. The severity used is the one before gating, so that a cached verdict is keyed to what was originally claimed rather than to the outcome of applying it -- otherwise the cache would never hit twice. None is returned rather than a partial key, so a finding that cannot be identified precisely is always re-reviewed.
+        The key covers the app, class, file, line, as-filed severity and a hash of the snippet. The app is part of it because the rest does not identify one: two apps can share a package path, a file name and a one-line snippet such as a method signature, and the verdict on one app's claim was being applied to the other's. In a run of the Ghera benchmark more than half of the fixed apps' findings took the vulnerable app's verdict, including a receiver judged spoofable whose fixed version checks the action before acting. Without a scope nothing is cached, since nothing says two findings are about the same app. The snippet is hashed rather than stored so the cache does not retain application source. The severity used is the one before gating, so that a cached verdict is keyed to what was originally claimed rather than to the outcome of applying it -- otherwise the cache would never hit twice. None is returned rather than a partial key, so a finding that cannot be identified precisely is always re-reviewed.
     """
     snippet = str(finding.get("code_snippet") or "").strip()
     file = str(finding.get("file") or "").strip()
-    if not snippet or not file:
+    if not scope or not snippet or not file:
         return None
     filed = (finding.get("gate_result") or {}).get("original_severity") \
         or finding.get("severity")
     return (
+        scope,
         str(finding.get("vuln_class") or "").strip(),
         file,
         str(finding.get("line") or finding.get("line_number") or "").strip(),
@@ -237,7 +516,7 @@ def _verdict_key(finding: Dict[str, Any]) -> Optional[Tuple[str, str, str, str, 
     )
 
 
-def _cache_lookup(key: Tuple[str, str, str, str, str]) -> Optional[Dict[str, Any]]:
+def _cache_lookup(key: Tuple[str, ...]) -> Optional[Dict[str, Any]]:
     """
     Purpose:
         Look up a prior verdict for a cache key, comparing the embedded snippet hash in constant time so a lookup cannot leak the stored digest through timing.
@@ -249,7 +528,7 @@ def _cache_lookup(key: Tuple[str, str, str, str, str]) -> Optional[Dict[str, Any
         The cached gate result for an exact match, or None when no cached entry shares the key's prefix and digest.
 
     Implementation notes:
-        The dict is keyed on everything but the digest so an ordinary dict lookup narrows to the (usually single) candidate sharing class, file, line and severity, then hmac.compare_digest checks the digest itself; the loop never breaks early on a match, so its runtime depends only on how many candidates share the prefix, never on which byte of the digest matched.
+        The dict is keyed on everything but the digest so an ordinary dict lookup narrows to the (usually single) candidate sharing app, class, file, line and severity, then hmac.compare_digest checks the digest itself; the loop never breaks early on a match, so its runtime depends only on how many candidates share the prefix, never on which byte of the digest matched.
     """
     prefix, digest = key[:-1], key[-1]
     match = None
@@ -259,7 +538,7 @@ def _cache_lookup(key: Tuple[str, str, str, str, str]) -> Optional[Dict[str, Any
     return match
 
 
-def _cache_store(key: Tuple[str, str, str, str, str], result: Dict[str, Any]) -> None:
+def _cache_store(key: Tuple[str, ...], result: Dict[str, Any]) -> None:
     """
     Purpose:
         Remember a verdict under its cache key, replacing any earlier entry for the same snippet hash.
@@ -294,12 +573,34 @@ def clear_verdict_cache() -> None:
     _VERDICT_CACHE.clear()
 
 
+def sdk_note(min_sdk: Any = None, target_sdk: Any = None) -> str:
+    """
+    Purpose:
+        State the app's declared SDK levels for the review passes.
+
+    Parameters:
+        min_sdk: The declared minSdkVersion, or None when unknown.
+        target_sdk: The declared targetSdkVersion, or None when unknown.
+
+    Returns:
+        One sentence, or an empty string when neither level is known.
+
+    Implementation notes:
+        The review prompt tells the model to check the target SDK before calling a path closed, and to weigh what older devices leave open, but it was never given either level. A Ghera app copying private files into its external files directory was rated Informational because those are "not world-readable by design on modern Android" - true from Android 11, while the app installs on far older versions.
+    """
+    parts = [f"{name} {value}" for name, value in (("minSdkVersion", min_sdk), ("targetSdkVersion", target_sdk))
+             if value not in (None, "", "N/A")]
+    return f"The app declares {' and '.join(parts)}." if parts else ""
+
+
 def validate_findings(
     findings: List[Dict[str, Any]],
     provider=None,
     verbose: bool = False,
     is_cancelled: Optional[Callable[[], bool]] = None,
     progress: Optional[Callable[..., None]] = None,
+    app_note: str = "",
+    scope: str = "",
 ) -> List[Dict[str, Any]]:
     """
     Purpose:
@@ -311,6 +612,8 @@ def validate_findings(
         verbose: Traces each stage.
         is_cancelled: Polled between batches so a user stop takes effect promptly.
         progress: Reports progress to the dashboard.
+        app_note: Facts about the app both review passes are told first, such as its declared SDK levels (see sdk_note); empty for none.
+        scope: Identifies the app, such as its APK's digest, so a verdict is reused only for the same app; empty disables reuse.
 
     Returns:
         The validated findings, sorted by severity then title.
@@ -322,7 +625,7 @@ def validate_findings(
         Mutates each finding's severity and gate result, and populates the verdict cache.
 
     Implementation notes:
-        Order matters throughout. Deduplication runs first so the review passes are not asked about the same issue twice. Class inference and CVSS scoring fill gaps before gating, because gates read both. Gates run before the AI so that mechanical conclusions are available to the prompt as context. Cached verdicts are applied before batching, and those findings are excluded from the batches, so a re-scan of an unchanged app is substantially cheaper. Running without a provider is a supported mode: the mechanical gates alone still produce a usable, if more conservative, result. The cache is written after the passes and only for findings that did not come from it, so a cached verdict is not rewritten over itself.
+        Order matters throughout. Deduplication runs first so the review passes are not asked about the same issue twice. Class inference and CVSS scoring fill gaps before gating, because gates read both. Gates run before the AI so that mechanical conclusions are available to the prompt as context. Cached verdicts are applied before batching, and those findings are excluded from the batches, so a re-scan of an unchanged app is substantially cheaper; they are reused only within one scope, the same app. Running without a provider is a supported mode: the mechanical gates alone still produce a usable, if more conservative, result. The cache is written after the passes and only for findings that did not come from it, so a cached verdict is not rewritten over itself.
     """
     if not findings:
         return findings
@@ -350,7 +653,7 @@ def validate_findings(
     if provider is not None:
         cached: List[Dict[str, Any]] = []
         for finding in findings:
-            key = _verdict_key(finding)
+            key = _verdict_key(finding, scope)
             prior = _cache_lookup(key) if key is not None else None
             if prior is not None:
                 _apply(finding, prior.get("verdict", "PASS"),
@@ -360,31 +663,57 @@ def validate_findings(
                 cached.append(finding)
 
         cached_ids = {id(f) for f in cached}
-        graded = [f for f in findings
-                  if id(f) not in cached_ids
-                  and not (f.get("gate_result") or {}).get("mechanically_refuted")]
-        rule_findings = [f for f in graded if is_rule_finding(f)]
-        agent_findings = [f for f in graded if not is_rule_finding(f)]
-
-        _run_pass(rule_findings, provider, verbose, is_cancelled, progress,
-                  system=_VERIFY_SYSTEM, schema=_VERIFY_SCHEMA,
-                  batch_size=VERIFY_BATCH_SIZE, summarize=_verify_view,
-                  merge=_merge_verify, label="Verifying rule findings",
-                  intro="Review each pattern-rule finding against the code shown. "
-                        "Return one object per finding.")
-        _run_pass(agent_findings, provider, verbose, is_cancelled, progress,
-                  system=_JUDGMENT_SYSTEM, schema=_JUDGMENT_SCHEMA,
-                  batch_size=JUDGMENT_BATCH_SIZE, summarize=_judgment_view,
-                  merge=_merge_judgment, label="Reviewing findings",
-                  intro="Review these findings. Return one object per finding, "
-                        "keyed by its id.")
+        review_findings([f for f in findings if id(f) not in cached_ids], provider, verbose,
+                        is_cancelled, progress, app_note=app_note)
 
         for finding in findings:
-            key = _verdict_key(finding)
+            key = _verdict_key(finding, scope)
             if key is not None and not finding.get("gate_result", {}).get("from_cache"):
                 _cache_store(key, dict(finding.get("gate_result") or {}))
 
+    polish_titles(findings, provider, verbose, is_cancelled, progress)
     return sort_findings(findings)
+
+
+def review_findings(findings: List[Dict[str, Any]], provider, verbose: bool = False,
+                    is_cancelled: Optional[Callable[[], bool]] = None,
+                    progress: Optional[Callable[..., None]] = None, app_note: str = "") -> None:
+    """
+    Purpose:
+        Run the model's two review passes over gated findings: rule findings checked against their code, and everything else judged for its severity.
+
+    Parameters:
+        findings: The findings to review, already gated. Mutated in place.
+        provider: The model provider.
+        verbose: Traces each batch.
+        is_cancelled: Polled between batches.
+        progress: Receives progress updates.
+        app_note: Facts about the app stated ahead of each batch, such as its declared SDK levels; empty for none.
+
+    Raises:
+        ScanCancelled: When the user stopped the scan between batches.
+
+    Side effects:
+        Makes provider requests and may change each finding's verdict, reasons and severity.
+
+    Implementation notes:
+        A mechanically refuted finding never reaches the model. Separate from validate_findings so the two passes can be driven directly on findings already gated, as the review tests do, through the same code a scan runs.
+    """
+    is_cancelled = is_cancelled or (lambda: False)
+    progress = progress or (lambda *unused_a, **unused_kw: None)
+    graded = [f for f in findings if not (f.get("gate_result") or {}).get("mechanically_refuted")]
+    _run_pass([f for f in graded if is_rule_finding(f)], provider, verbose, is_cancelled, progress,
+              system=_VERIFY_SYSTEM, schema=_VERIFY_SCHEMA,
+              batch_size=VERIFY_BATCH_SIZE, summarize=_verify_view,
+              merge=_merge_verify, label="Verifying rule findings",
+              intro=(f"{app_note} " if app_note else "") + "Review each pattern-rule finding against the code shown. "
+                    "Return one object per finding.")
+    _run_pass([f for f in graded if not is_rule_finding(f)], provider, verbose, is_cancelled, progress,
+              system=_JUDGMENT_SYSTEM, schema=_JUDGMENT_SCHEMA,
+              batch_size=JUDGMENT_BATCH_SIZE, summarize=_judgment_view,
+              merge=_merge_judgment, label="Reviewing findings",
+              intro=(f"{app_note} " if app_note else "") + "Review these findings. Return one object per finding, "
+                    "keyed by its id.")
 
 
 def _attach(finding: Dict[str, Any], result: GateResult) -> None:
@@ -449,13 +778,51 @@ def _run_pass(findings, provider, verbose, is_cancelled, progress, *,
             verbose_print(f"{label}: batch {index} failed ({exc}); keeping the "
                           "mechanical verdicts for it", verbose)
             continue
+        titles = [str(f.get("title") or f.get("vulnerability_type") or "") for f in batch]
         for entry in verdicts:
             try:
                 position = int(entry.get("id"))
             except (TypeError, ValueError):
                 continue
             if 0 <= position < len(batch):
+                if entry.get("reason"):
+                    entry = dict(entry, reason=name_references(str(entry["reason"]), titles))
                 merge(batch[position], entry)
+
+
+_ID_REFERENCE_RE = re.compile(r"\b(?:ID|id|Id|finding|Finding)\s?#?(\d{1,3})\b")
+
+
+def name_references(text: str, titles: List[str]) -> str:
+    """
+    Purpose:
+        Replace a model's references to other findings by batch id with their titles.
+
+    Parameters:
+        text: A reason the model wrote.
+        titles: The titles of the batch's findings, by id.
+
+    Returns:
+        The text with each in-range id reference replaced by "the finding" and the quoted title.
+
+    Implementation notes:
+        The ids exist only inside one request; a published reason read "the actual vulnerability is the SQL injection in ID 3", which no reader can follow.
+    """
+    def named(match) -> str:
+        """
+        Purpose:
+            Name one reference.
+
+        Parameters:
+            match: The id reference.
+
+        Returns:
+            The quoted title, or the reference unchanged when the id is out of range.
+        """
+        index = int(match.group(1))
+        return f'the finding "{titles[index]}"' if 0 <= index < len(titles) and titles[index] else match.group(0)
+
+    return _ID_REFERENCE_RE.sub(named, text)
 
 
 _PER_VERDICT_TOKENS = 100
@@ -513,7 +880,7 @@ def _judgment_view(index: int, finding: Dict[str, Any]) -> Dict[str, Any]:
         The view dict.
 
     Implementation notes:
-        Fields are clipped to bounded lengths so one verbose finding cannot crowd out the rest of the batch. The class's proof requirement is attached, which is what lets the prompt ask whether the finding establishes what its class demands rather than merely asserts it. Mechanical verdicts are included only when they are not PASS, so the model sees what the gates already concluded and can agree or disagree, without being primed on findings the gates had no opinion about.
+        Fields are clipped to bounded lengths so one verbose finding cannot crowd out the rest of the batch. The class's proof requirement is attached, which is what lets the prompt ask whether the finding establishes what its class demands rather than merely asserts it. Mechanical verdicts are included only when they are not PASS, so the model sees what the gates already concluded and can agree or disagree, without being primed on findings the gates had no opinion about. Code in an unusual format carries a note saying how to read it (code_format_note).
     """
     gate = finding.get("gate_result") or {}
     view = {
@@ -527,6 +894,8 @@ def _judgment_view(index: int, finding: Dict[str, Any]) -> Dict[str, Any]:
         "impact": _clip(finding.get("impact"), 400),
         "evidence": _clip(finding.get("code_snippet") or finding.get("evidence"), 400),
     }
+    if code_format_note(finding):
+        view["code_format"] = code_format_note(finding)
     proof = required_proof(finding.get("vuln_class") or "")
     if proof:
         view["proof_expected"] = proof
@@ -549,7 +918,7 @@ def _verify_view(index: int, finding: Dict[str, Any]) -> Dict[str, Any]:
         The view dict.
 
     Implementation notes:
-        Framed as a claim plus the code, because the question being asked is factual rather than evaluative. The detector name is included so the model knows what kind of pattern fired. The description is relabelled as why the rule fired, which is what it actually is for a rule finding, and stops the model treating a generic rule message as an assertion of fact.
+        Framed as a claim plus the code, because the question being asked is factual rather than evaluative. The detector name is included so the model knows what kind of pattern fired. The description is relabelled as why the rule fired, which is what it actually is for a rule finding, and stops the model treating a generic rule message as an assertion of fact. Code in an unusual format carries a note saying how to read it (code_format_note).
     """
     view = {
         "id": index,
@@ -562,10 +931,33 @@ def _verify_view(index: int, finding: Dict[str, Any]) -> Dict[str, Any]:
         "why_the_rule_fired": _clip(finding.get("description"), 500),
         "code": _code_window(finding),
     }
+    if code_format_note(finding):
+        view["code_format"] = code_format_note(finding)
     proof = required_proof(finding.get("vuln_class") or "")
     if proof:
         view["proof_expected"] = proof
     return view
+
+
+_DISASSEMBLY_NOTE = ("Blutter disassembly of the app's compiled Dart code: every line is written as a // "
+                     "comment, and each one is an instruction the app executes, not a source comment.")
+
+
+def code_format_note(finding: Dict[str, Any]) -> str:
+    """
+    Purpose:
+        Say how to read a finding's code excerpt when its format is not ordinary source.
+
+    Parameters:
+        finding: The finding dict.
+
+    Returns:
+        A note for Blutter disassembly of a Flutter app, or "" for anything else.
+
+    Implementation notes:
+        Blutter writes each disassembled instruction as a "//" line under asm/, and a review pass reading one refuted a real pinning call because "the pattern matched comments, not executable code".
+    """
+    return _DISASSEMBLY_NOTE if str(finding.get("file") or "").replace("\\", "/").startswith("asm/") else ""
 
 
 def _code_window(finding: Dict[str, Any]) -> str:
@@ -687,6 +1079,8 @@ def _merge_verify(finding: Dict[str, Any], entry: Dict[str, Any]) -> None:
         return
 
     if verdict == "UNVERIFIED":
+        if normalize_severity(finding.get("severity")) == "Informational":
+            return
         _apply(finding, "DOWNGRADE",
                f"Could not be confirmed from the available source: {reason}"
                if reason else "Could not be confirmed from the available source.",
@@ -705,6 +1099,30 @@ def _merge_verify(finding: Dict[str, Any], entry: Dict[str, Any]) -> None:
                    else "The source supports a lower severity.", proposed)
 
 
+def review_floor(finding: Dict[str, Any]) -> str:
+    """
+    Purpose:
+        Find the lowest severity a review's DOWNGRADE may give a finding.
+
+    Parameters:
+        finding: The finding dict.
+
+    Returns:
+        The severity of the finding's CVSS vector re-scored for the strongest local attacker - local access with high privileges - or Low when that is lower or there is no vector.
+
+    Implementation notes:
+        A reviewer that downgrades because the attacker needs root, a backup or adb is restating what the vector's attack vector and privileges already score. Re-scoring the vector with that attacker gives the severity the claim is still worth: plaintext credentials an attacker with root reads (AV:L/PR:H/C:H) are 4.4, Medium. Once the review pass's answers were actually read, it moved every local-storage finding of a benchmark app to Low for "requires root or a backup", including credentials its own vector scored Medium for exactly that attacker. A finding that is not a vulnerability at all is still INFORMATIONAL, which this floor does not touch, and the impact metrics are kept, so a vector that overstates what is exposed still lowers it.
+    """
+    metrics = parse_vector(str(finding.get("cvss_vector") or ""))
+    if metrics is None:
+        return "Low"
+    if metrics.get("AV") in ("N", "A"):
+        metrics["AV"] = "L"
+    metrics["PR"] = "H"
+    floor = severity_from_vector("/".join(f"{key}:{value}" for key, value in metrics.items()))[0] or "Low"
+    return floor if severity_rank(floor) > severity_rank("Low") else "Low"
+
+
 def _apply(finding: Dict[str, Any], verdict: str, reason: Optional[str],
            proposed_severity: Optional[str]) -> None:
     """
@@ -721,16 +1139,31 @@ def _apply(finding: Dict[str, Any], verdict: str, reason: Optional[str],
         Mutates the finding's severity and gate result.
 
     Implementation notes:
-        A verdict no stronger than the current one still records its reason but does not change the verdict, so the AI can add context to a gate conclusion without weakening it. A proposed severity is used only when it is lower than the current one; otherwise the verdict's own one-step downgrade applies. This is what stops a review inflating severities. The gate's severity cap is re-applied at the end, so a mitigation established mechanically survives the AI pass. Without that, a confirmation could undo a cap the code itself justified.
+        A CHAIN_REQUIRED verdict on a class the catalogue marks standalone is applied as a DOWNGRADE: whether a class needs a partner is the catalogue's decision, and a reviewer that thinks the attacker's position is weak is saying the severity is lower, which the vector and a one-step downgrade express without collapsing the finding to Informational. A benchmark scan lost a PIN stored in plain preferences that way, the reviewer calling the private sandbox a reason to need a backup finding. A verdict no stronger than the current one still records its reason but does not change the verdict, so the AI can add context to a gate conclusion without weakening it. A proposed severity is used only when it is lower than the current one; otherwise the verdict's own one-step downgrade applies. This is what stops a review inflating severities. A DOWNGRADE says the finding is real but overstated, so it never takes a finding below review_floor, and never below Low: that is what INFORMATIONAL is for. A DOWNGRADE the floor stops entirely leaves the verdict where it was and records the reviewer's reason with why the severity held, rather than labelling an unchanged severity a downgrade. Once the review pass's answers were actually read, it moved five hardcoded secrets of one benchmark app to Informational under DOWNGRADE, and the scan graded the app A with nothing left to fix. The gate's severity cap is re-applied at the end, so a mitigation established mechanically survives the AI pass. Without that, a confirmation could undo a cap the code itself justified.
     """
     gate = finding.setdefault("gate_result", GateResult().to_dict())
     current = gate.get("verdict", "PASS")
     reason = _clip(reason, 400)
+    if verdict == "CHAIN_REQUIRED":
+        entry = describe(str(finding.get("vuln_class") or infer_vuln_class(finding)).strip().upper())
+        if entry is not None and entry.standalone:
+            verdict = "DOWNGRADE"
 
     if VERDICT_ORDER.index(verdict) <= VERDICT_ORDER.index(current):
         if verdict != "PASS" and reason and reason not in gate.setdefault("reasons", []):
             gate["reasons"].append(reason)
         return
+
+    if verdict == "DOWNGRADE":
+        held = normalize_severity(finding.get("severity"))
+        floor = review_floor(finding)
+        if severity_rank(held) <= severity_rank(floor):
+            note = (f"{reason} " if reason else "") + (
+                f"Kept at {held}: the CVSS vector, scored for an attacker with local access and "
+                f"high privileges, still gives {floor}.")
+            if note not in gate.setdefault("reasons", []):
+                gate["reasons"].append(note)
+            return
 
     gate["verdict"] = verdict
     if reason and reason not in gate.setdefault("reasons", []):
@@ -744,6 +1177,9 @@ def _apply(finding: Dict[str, Any], verdict: str, reason: Optional[str],
         final = (proposed if proposed_severity
                  and severity_rank(proposed) < severity_rank(current_severity)
                  else lower_severity(current_severity))
+        floor = review_floor(finding)
+        if severity_rank(final) < severity_rank(floor) <= severity_rank(current_severity):
+            final = floor
     else:
         final = finding.get("severity") or gate.get("final_severity") or "Medium"
 

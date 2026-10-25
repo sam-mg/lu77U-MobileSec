@@ -126,3 +126,53 @@ def _extract_extras(hermes_path: str, bundle_path, out_dir: Path, verbose: bool)
                 verbose_print(f"hermes-decomp {subcommand} -> {filename}", verbose)
         except Exception as exc:
             verbose_print(f"hermes-decomp {subcommand} unavailable ({exc}); skipping", verbose)
+
+
+def extract_hbc_modules(bundle_path, out_dir, verbose: bool = False,
+                        timeout: int = DEFAULT_TIMEOUT) -> Optional[Path]:
+    """
+    Purpose:
+        Extract every Metro module of a Hermes bundle to its own decompiled file.
+
+    Parameters:
+        bundle_path: Path to the Hermes bundle.
+        out_dir: Directory to write the per-module files into; created if missing.
+        verbose: Traces the command and the outcome.
+        timeout: Seconds to allow before giving up.
+
+    Returns:
+        The directory holding the module files, or None when hermes-decomp is unconfigured, lacks the extract command, or wrote nothing.
+
+    Side effects:
+        Creates the output directory and spawns the decompiler, then runs the module-list and secrets extractions beside it.
+
+    Implementation notes:
+        Preferred over a whole-bundle decompile because a module is the unit the app is built from: per-module files carry the module's id, recovered name and dependencies in a header, which is what lets the app be told apart from the framework. Success is judged by at least one module file being written, not by the exit status. The extras are written to the parent of the module directory, so they sit beside the analysis rather than among the modules.
+    """
+    hermes_path = _resolve_hermes_decomp_path()
+    if not hermes_path:
+        verbose_print("hermes-decomp path is not configured", verbose)
+        return None
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [hermes_path, "extract", str(bundle_path), "-o", str(out_dir)]
+    verbose_print(f"Command: {' '.join(cmd)}", verbose)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError as exc:
+        verbose_print(f"hermes-decomp executable not found at {hermes_path!r}: {exc}", verbose)
+        return None
+    except subprocess.TimeoutExpired:
+        verbose_print(f"hermes-decomp extract timed out after {timeout}s", verbose)
+        return None
+    except Exception as exc:
+        verbose_print(f"hermes-decomp extract failed: {exc}", verbose)
+        return None
+    written = sum(1 for _ in out_dir.glob("*.js"))
+    verbose_print(f"hermes-decomp extract return code {result.returncode}, {written} module files", verbose)
+    if not written:
+        verbose_print(f"hermes-decomp extract wrote nothing. stderr (first 500 chars): "
+                      f"{(result.stderr or '')[:500]}", verbose)
+        return None
+    _extract_extras(hermes_path, bundle_path, out_dir.parent, verbose)
+    return out_dir

@@ -154,6 +154,33 @@ def classify(exc_or_message) -> ErrorClass:
     return ErrorClass.TRANSIENT
 
 
+_UNREACHABLE_PHRASES = (
+    "nodename nor servname", "name or service not known", "temporary failure in name resolution",
+    "getaddrinfo failed", "network is unreachable", "no route to host", "connection refused",
+    "failed to establish a new connection", "cannot connect to host", "failed to resolve",
+)
+
+
+def is_unreachable(exc_or_message) -> bool:
+    """
+    Purpose:
+        Report whether a failure means the provider's host could not be reached at all.
+
+    Parameters:
+        exc_or_message: An exception or a message string.
+
+    Returns:
+        True for a name-resolution or connection failure: DNS lookup failed, the network is down, or nothing answered.
+
+    Implementation notes:
+        These stay TRANSIENT for the retry loop, since a dropped connection often comes back within one call's retries. The distinction matters at scan level: a scan that ends while the host is still unreachable has lost nothing that a later run cannot redo, and is paused for one rather than finished with no findings. A real resumed scan ran while the machine was offline and was recorded as completed with zero findings.
+    """
+    if isinstance(exc_or_message, (ConnectionRefusedError, ConnectionAbortedError)):
+        return True
+    text = str(exc_or_message).lower()
+    return any(phrase in text for phrase in _UNREACHABLE_PHRASES)
+
+
 def is_fatal(kind: ErrorClass) -> bool:
     """
     Purpose:

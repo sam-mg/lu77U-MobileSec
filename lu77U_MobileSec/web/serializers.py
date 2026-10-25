@@ -104,7 +104,7 @@ def _analysis_alias(analyzer_results: Dict[str, Any], supported: bool,
         The analysis section.
 
     Implementation notes:
-        Success is derived from the decompilation status rather than trusted as a separate flag, so the summary cannot claim success for a scan whose decompilation failed. The alias layer exists so the analyzer output can change its internal key names without breaking the frontend.
+        Success is derived from the decompilation status rather than trusted as a separate flag, so the summary cannot claim success for a scan whose decompilation failed. The alias layer exists so the analyzer output can change its internal key names without breaking the frontend. The limitation is carried because the scan page has to say when part of the app could only be read in reduced form, such as a Flutter build whose Dart code could not be disassembled.
     """
     return {
         "supported": supported,
@@ -115,6 +115,7 @@ def _analysis_alias(analyzer_results: Dict[str, Any], supported: bool,
         "decompilation_status": analyzer_results.get("decompilation_status"),
         "unsupported_framework": analyzer_results.get("unsupported_framework", False),
         "error": analyzer_results.get("error"),
+        "limitation": analyzer_results.get("limitation") or "",
     }
 
 

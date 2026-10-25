@@ -59,8 +59,9 @@ class FakeAdb:
 
     Attributes:
         calls: Every argument vector the code under test ran.
-        install_results: Queued install outcomes, consumed in order.
+        install_results: Queued install outcomes, each a result or an exception to raise, consumed in order.
         settings: The device's verification settings, mutated as the code changes them.
+        shell_outputs: Standard output for device shell commands, keyed by the start of the command.
 
     Implementation notes:
         The settings are modelled as real mutable state rather than asserted call-by-call, which is what lets the tests prove the values were genuinely restored rather than merely that some restore command was issued.
@@ -78,6 +79,7 @@ class FakeAdb:
             "package_verifier_user_consent": "1",
             "upload_apk_enable": "1",
         }
+        self.shell_outputs = {}
 
     def run(self, cmd, capture_output_unused, text_unused, timeout_unused):
         """
@@ -96,7 +98,10 @@ class FakeAdb:
         self.calls.append(list(cmd))
         if "install" in cmd:
             if self.install_results:
-                return self.install_results.pop(0)
+                result = self.install_results.pop(0)
+                if isinstance(result, Exception):
+                    raise result
+                return result
             return FakeCompleted(0, "Success", "")
         if "settings" in cmd:
             if "get" in cmd:
@@ -110,6 +115,10 @@ class FakeAdb:
                 key = cmd[-1]
                 self.settings.pop(key, None)
                 return FakeCompleted(0, "", "")
+        if "shell" in cmd:
+            for prefix, output in self.shell_outputs.items():
+                if cmd[-1].startswith(prefix):
+                    return FakeCompleted(0, output, "")
         return FakeCompleted(0, "", "")
 
 
@@ -216,6 +225,31 @@ class TestOrdinaryInstall:
         assert _settings_calls(fake_adb) == []
 
 
+def test_an_apk_for_another_abi_is_not_sent(fake_adb, tmp_path):
+    """
+    Purpose:
+        Pin that an APK whose native code targets none of the device's ABIs is refused with that reason before any install, and that an overlapping ABI installs as usual.
+
+    Parameters:
+        fake_adb: The fake device, reporting an arm64-only ABI list.
+        tmp_path: Directory for the APK.
+
+    Implementation notes:
+        An APK pulled from an x86_64 emulator was sent to an arm64 one and failed with adb's bare INSTALL_FAILED_NO_MATCHING_ABIS.
+    """
+    import zipfile
+    apk = tmp_path / "app.apk"
+    with zipfile.ZipFile(apk, "w") as zf:
+        zf.writestr("lib/x86_64/libapp.so", b"x")
+    fake_adb.shell_outputs = {"ro.product.cpu.abilist": "arm64-v8a"}
+    ok, message = ADBManager().install_apk(DEVICE, str(apk))
+    assert ok is False
+    assert "x86_64" in message and "arm64-v8a" in message
+    assert _install_calls(fake_adb) == []
+    fake_adb.shell_outputs = {"ro.product.cpu.abilist": "x86_64,x86"}
+    assert ADBManager().install_apk(DEVICE, str(apk)) == (True, "Success")
+
+
 class TestVerifierBlockedInstall:
     """
     Purpose:
@@ -235,6 +269,39 @@ class TestVerifierBlockedInstall:
         ok, message = ADBManager().install_apk(DEVICE, "/tmp/app.apk")
         assert (ok, message) == (True, "Success")
         assert len(_install_calls(fake_adb)) == 2
+
+    def test_a_copy_signed_with_another_key_is_replaced(self, fake_adb):
+        """
+        Purpose:
+            Pin that an install refused because the installed copy has another signing key uninstalls that copy and installs once more, and that this needs a valid package name.
+
+        Parameters:
+            fake_adb: The fake device.
+        """
+        refused = FakeCompleted(1, "Performing Streamed Install",
+                                "Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Package a.b signatures do not match]")
+        fake_adb.install_results = [refused]
+        ok, message = ADBManager().install_apk(DEVICE, "/tmp/app.apk", package="a.b")
+        assert ok and "different key" in message
+        assert ["uninstall", "a.b"] == [c for c in fake_adb.calls if "uninstall" in c][0][-2:]
+        fake_adb.install_results = [refused]
+        fake_adb.calls.clear()
+        ok, _ = ADBManager().install_apk(DEVICE, "/tmp/app.apk")
+        assert not ok and not [c for c in fake_adb.calls if "uninstall" in c]
+
+    def test_an_install_that_hangs_is_retried_with_verification_disabled(self, fake_adb):
+        """
+        Purpose:
+            Pin that an install which timed out, as one waiting on the verifier's consent dialog does, is retried once with verification disabled.
+
+        Parameters:
+            fake_adb: The fake device.
+        """
+        fake_adb.install_results = [subprocess.TimeoutExpired(["adb", "install"], 180)]
+        ok, message = ADBManager().install_apk(DEVICE, "/tmp/app.apk")
+        assert (ok, message) == (True, "Success")
+        assert len(_install_calls(fake_adb)) == 2
+        assert any(c[-1] in ("0", "-1") for c in fake_adb.calls if "put" in c)
 
     def test_the_verifier_is_disabled_before_the_retry_install(self, fake_adb):
         """
@@ -305,3 +372,106 @@ class TestVerifierBlockedInstall:
         ok, _ = ADBManager().install_apk(DEVICE, "/tmp/app.apk")
         assert ok is True
         assert len(_install_calls(fake_adb)) == 2
+
+
+PACKAGE = "com.demo.vault"
+INSTALLED_PATH = "/data/app/~~dB6k8IVjQrt4KMgs==/com.demo.vault-5gPKSg4Rd91UUp==/base.apk"
+
+
+class TestReuseInstalledCopy:
+    """
+    Purpose:
+        Installing only when the device does not already hold this exact build.
+    """
+
+    @pytest.fixture
+    def local_apk(self, tmp_path, monkeypatch):
+        """
+        Purpose:
+            Write a local APK stand-in and fix the version its manifest reports.
+
+        Parameters:
+            tmp_path: Directory the file is written into.
+            monkeypatch: Replaces the manifest reader.
+
+        Returns:
+            The file's path and SHA-256.
+        """
+        import hashlib
+        from lu77U_MobileSec.dynamic_analysis import adb_manager
+        apk = tmp_path / "app.apk"
+        apk.write_bytes(b"demo apk bytes")
+        monkeypatch.setattr(adb_manager, "local_apk_version", lambda unused_path: ("7", "1.4.0"))
+        return str(apk), hashlib.sha256(b"demo apk bytes").hexdigest()
+
+    def _device(self, fake_adb, *, paths=(INSTALLED_PATH,), code="7", name="1.4.0", sha=None):
+        """
+        Purpose:
+            Script what the device reports about the installed package.
+
+        Parameters:
+            fake_adb: The fake device.
+            paths: Installed APK paths; empty when the package is absent.
+            code: The installed versionCode.
+            name: The installed versionName.
+            sha: The installed base.apk's SHA-256, or None when sha256sum gives nothing.
+        """
+        fake_adb.shell_outputs = {
+            f"pm path {PACKAGE}": "".join(f"package:{p}\n" for p in paths),
+            f"dumpsys package {PACKAGE}": f"    versionCode={code} minSdk=21 targetSdk=34\n    versionName={name}\n",
+            "sha256sum ": f"{sha}  {INSTALLED_PATH}\n" if sha else "",
+        }
+
+    def test_the_same_build_is_not_reinstalled(self, fake_adb, local_apk):
+        """
+        Purpose:
+            Pin that an installed copy with the same version and hash is reused.
+
+        Parameters:
+            fake_adb: The fake device.
+            local_apk: The local APK and its hash.
+        """
+        path, sha = local_apk
+        self._device(fake_adb, sha=sha)
+        ok, message = ADBManager().install_apk(DEVICE, path, package=PACKAGE)
+        assert ok and message.startswith("Already installed")
+        assert _install_calls(fake_adb) == []
+
+    @pytest.mark.parametrize("device", [
+        {"paths": ()},
+        {"code": "6"},
+        {"name": "1.3.9"},
+        {"sha": "0" * 64},
+        {"sha": None},
+        {"paths": (INSTALLED_PATH, "/data/app/x/split_config.arm64_v8a.apk")},
+        {"paths": ("/data/app/bad path; reboot/base.apk",)},
+    ])
+    def test_anything_else_is_installed(self, fake_adb, local_apk, device):
+        """
+        Purpose:
+            Pin that a missing package, another version, a different build, an unprovable hash, a split install or an unusable path all lead to an install.
+
+        Parameters:
+            fake_adb: The fake device.
+            local_apk: The local APK and its hash.
+            device: What the device reports, overriding a matching installed copy.
+        """
+        path, sha = local_apk
+        self._device(fake_adb, **{"sha": sha, **device})
+        ok, _ = ADBManager().install_apk(DEVICE, path, package=PACKAGE)
+        assert ok and len(_install_calls(fake_adb)) == 1
+        assert not any("sha256sum /data/app/bad" in c[-1] for c in fake_adb.calls)
+
+    def test_without_a_package_name_it_installs_directly(self, fake_adb, local_apk):
+        """
+        Purpose:
+            Pin that a caller that does not name the package gets a plain install and no device queries.
+
+        Parameters:
+            fake_adb: The fake device.
+            local_apk: The local APK and its hash.
+        """
+        path, _sha = local_apk
+        ADBManager().install_apk(DEVICE, path)
+        assert len(_install_calls(fake_adb)) == 1
+        assert not [c for c in fake_adb.calls if "shell" in c]

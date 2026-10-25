@@ -33,10 +33,30 @@ _MAX_FILES = 60000
 _MAX_FINDINGS = 120
 
 _NOISE = ("/androidx/", "/android/support/", "/com/google/android/gms/",
-          "/kotlin/", "/kotlinx/", "/node_modules/", "/okhttp3/", "/retrofit2/")
+          "/kotlin/", "/kotlinx/", "/node_modules/", "/okhttp3/", "/retrofit2/",
+          "/io/flutter/", "/asm/flutter/", "/framework_modules/", "/com/facebook/react/")
+
+_GENERATED_NAMES = ("rn_scan_overview.txt", "flutter_scan_overview.txt")
 
 _CONFIG_NAMES = {"google-services.json", "strings.xml", "config.xml",
                  "AndroidManifest.xml", "GoogleService-Info.plist"}
+
+
+def _is_generated(rel: str) -> bool:
+    """
+    Purpose:
+        Recognise the scan overviews this tool writes into the analysis root.
+
+    Parameters:
+        rel: The file's path relative to the source root.
+
+    Returns:
+        True when the file is one of the tool's own overviews.
+
+    Implementation notes:
+        An overview quotes the leads it found in the app, so scanning it reports each credential or address a second time, cited to a file that is not in the app; a real React Native scan reported a private network address against the overview. Matched only at the root, where the tool writes them, so an app asset that happens to share the name is still scanned.
+    """
+    return rel.replace("\\", "/") in _GENERATED_NAMES
 
 
 def _is_noise(rel: str) -> bool:
@@ -51,7 +71,7 @@ def _is_noise(rel: str) -> bool:
         True when the file should be skipped.
 
     Implementation notes:
-        Bundled libraries carry their own test fixtures and sample keys, which match credential patterns and are not the app's secrets. Skipping them is what keeps this extractor's output readable.
+        Bundled libraries carry their own test fixtures and sample keys, which match credential patterns and are not the app's secrets. Skipping them is what keeps this extractor's output readable. The Flutter embedding (io/flutter in the platform layer) and Blutter's disassembly of the Flutter framework (asm/flutter) are in every Flutter app and name settings keys such as BRIEFLY_SHOW_PASSWORD that read like credentials; React Native's framework modules and its com.facebook.react Java are skipped for the same reason.
     """
     probe = "/" + rel.replace("\\", "/")
     return any(fragment in probe for fragment in _NOISE)
@@ -73,7 +93,7 @@ def analyze_secrets(source_root, verbose: bool = False) -> List[SastFinding]:
         Reads source files.
 
     Implementation notes:
-        Each match is classified by the pattern that found it, so a finding names what kind of credential it is -- which is what tells a reader how urgently to rotate it. Patterns marked public produce findings classified accordingly rather than being suppressed here, because a public identifier is still worth listing with its server-side protection noted.
+        Each match is classified by the pattern that found it, so a finding names what kind of credential it is -- which is what tells a reader how urgently to rotate it. Patterns marked public produce findings classified accordingly rather than being suppressed here, because a public identifier is still worth listing with its server-side protection noted. A private network address is a note rather than a credential: it names an internal or development host and unlocks nothing, so filing it as a hardcoded credential overstated it.
 
     Security considerations:
         Matched values are not written into the findings.
@@ -101,7 +121,7 @@ def analyze_secrets(source_root, verbose: bool = False) -> List[SastFinding]:
             rel = str(path.relative_to(root))
         except (OSError, ValueError):
             continue
-        if _is_noise(rel):
+        if _is_noise(rel) or _is_generated(rel):
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
@@ -140,6 +160,25 @@ def analyze_secrets(source_root, verbose: bool = False) -> List[SastFinding]:
                         "to this package name and signing certificate, and an API "
                         "restriction to only the services the app uses. An unrestricted "
                         "key should be rotated and restricted."),
+                    evidence=hit["value"],
+                    cwe="CWE-200", owasp_mobile="M8: Security Misconfiguration",
+                    extra={"secret_type": hit["name"]}))
+                continue
+
+            if hit["name"] == "Private Network Address":
+                out.append(SastFinding(
+                    title=f"Private network address {hit['value']} shipped in the app",
+                    severity="Informational", vuln_class="SECRET-03",
+                    file=rel, line=hit["line"], detector="secrets", confidence="HIGH",
+                    description=(
+                        f"A private (RFC 1918) address appears in {rel} at line {hit['line']}. It "
+                        "names a development or internal host and grants nothing by itself; it is "
+                        "recorded because it tells a reader about internal infrastructure, or that a "
+                        "development endpoint shipped in the build."),
+                    impact="None directly. If the app sends requests to it, the cleartext and "
+                           "endpoint findings for that host carry the risk.",
+                    recommendation="Point release builds at production hosts through build "
+                                   "configuration, and leave development addresses out of them.",
                     evidence=hit["value"],
                     cwe="CWE-200", owasp_mobile="M8: Security Misconfiguration",
                     extra={"secret_type": hit["name"]}))

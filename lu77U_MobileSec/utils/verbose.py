@@ -163,6 +163,8 @@ _MILESTONE_PATTERNS = tuple(re.compile(p) for p in (
     r"^Partition(ing|ed) ",
     r"^Wrote \d+ assembly string sidecar",
     r"^Recovered \d+ \.NET assembl",
+    r"^Recovered \d+ strings? from libapp\.so",
+    r"^Starting [\w/ ]+ APK analysis",
     r"^Running agentic",
     r"^Fan-out",
     r"^Agent context:",

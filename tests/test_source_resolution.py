@@ -15,6 +15,8 @@ Implementation notes:
     A real decompiled tree held 50 files named one letter and 162 named another, because obfuscated class names collide constantly. The old fallback returned whichever twin the filesystem happened to list first, which is not even stable between two runs over the same tree. The rule these pin is to refuse rather than guess, and to use the construct the finding claims when that identifies exactly one twin.
 """
 
+import re
+
 import pytest
 
 from lu77U_MobileSec.analyzers.java_kotlin_analyzer import JavaKotlinAnalyzer
@@ -281,6 +283,133 @@ class TestEnrichmentMarksUnresolvedFindings:
         assert "code_snippet" not in vulns[0] or not vulns[0].get("code_snippet")
         assert "source_unresolved" not in vulns[0]
 
+
+    def test_a_native_finding_takes_its_excerpt_from_the_decompiled_view(self, tmp_path, analyzer, monkeypatch):
+        """
+        Purpose:
+            Pin that a finding citing a native library is given the decompiled line it cited, with the whole function as context and labelled as Ghidra pseudo-C, when Ghidra produced code for that library.
+
+        Parameters:
+            tmp_path: The tree root.
+            analyzer: The analyzer under test.
+            monkeypatch: Supplies a decompilation in place of running Ghidra.
+
+        Implementation notes:
+            The agent cites native findings by the line numbers of the inspect_native view, so the excerpt must come from that same view. The line number used here is found from the view itself rather than hard-coded, which keeps the test about the mapping rather than about the view's layout.
+        """
+        from lu77U_MobileSec.analyzers.agent import tools as agent_tools
+        from lu77U_MobileSec.analyzers.agent.tools import AgentTools
+        from lu77U_MobileSec.decompiler.ghidra_runner import NativeDecompilation, NativeFunction
+
+        lib_dir = tmp_path / "resources" / "lib" / "arm64-v8a"
+        lib_dir.mkdir(parents=True)
+        (lib_dir / "libdivajni.so").write_bytes(
+            b"\x7fELF" + b"\x00" * 12 + b"\x02\x00\xb7\x00" + bytes(range(200)))
+        code = ("void Java_a_B_launch(long *param_1,long param_2,long param_3)\n\n{\n"
+                "  char local_18 [24];\n  strcpy(local_18,__src);\n}")
+        decompiled = NativeDecompilation(
+            language="AARCH64:LE:64:v8A", pointer_size=8, function_count=1,
+            functions=[NativeFunction(name="Java_a_B_launch", entry="00100100", size=40,
+                                      calls=["strcpy"], code=code)])
+        monkeypatch.setattr(agent_tools, "decompile_native_library",
+                            lambda path: decompiled if path.suffix == ".so" else None)
+        rel = "resources/lib/arm64-v8a/libdivajni.so"
+        view = AgentTools(tmp_path).native_view(rel)
+        cited = next(i for i, line in enumerate(view, 1) if re.search(r"strcpy\(local_18", line))
+
+        vulns = [{"title": "Unbounded strcpy into a stack buffer", "file": rel, "line_number": cited}]
+        analyzer.enrich_vulnerabilities(vulns, tmp_path)
+        assert vulns[0]["code_snippet"].strip() == "strcpy(local_18,__src);"
+        assert vulns[0]["code_context"]["highlight_start"] == cited
+        context = vulns[0]["code_context"]
+        assert context["origin"].startswith("Ghidra decompilation (pseudo-C)")
+        assert context["lines"][0].startswith("// Ghidra decompilation (pseudo-C) of Java_a_B_launch @ 00100100")
+        assert any(re.search(r"void Java_a_B_launch\(", line) for line in context["lines"])
+        assert "source_unresolved" not in vulns[0]
+
+    def test_a_native_finding_citing_an_address_is_repaired(self, tmp_path, analyzer, monkeypatch):
+        """
+        Purpose:
+            Pin that a native finding whose line field holds the function's entry address still gets the decompiled call it describes, not the symbol table at the end of the view.
+
+        Parameters:
+            tmp_path: The tree root.
+            analyzer: The analyzer under test.
+            monkeypatch: Supplies a decompilation in place of running Ghidra.
+
+        Implementation notes:
+            This is what a real DIVA scan produced: "line": "001005e0". The parser turned it into a number far past the end of the view, and the excerpt clamped onto the last lines, which are symbols.
+        """
+        from lu77U_MobileSec.analyzers.agent import tools as agent_tools
+        from lu77U_MobileSec.decompiler.ghidra_runner import NativeDecompilation, NativeFunction
+
+        lib_dir = tmp_path / "resources" / "lib" / "arm64-v8a"
+        lib_dir.mkdir(parents=True)
+        (lib_dir / "libdivajni.so").write_bytes(
+            b"\x7fELF" + b"\x00" * 12 + b"\x02\x00\xb7\x00" + bytes(range(200)))
+        code = ("void Java_a_B_initiateLaunchSequence(long *param_1,long param_2,long param_3)\n\n{\n"
+                "  char local_18 [24];\n  strcpy(local_18,__src);\n}")
+        decompiled = NativeDecompilation(
+            language="AARCH64:LE:64:v8A", pointer_size=8, function_count=1,
+            functions=[NativeFunction(name="Java_a_B_initiateLaunchSequence", entry="001005e0",
+                                      size=40, calls=["strcpy"], code=code)])
+        monkeypatch.setattr(agent_tools, "decompile_native_library",
+                            lambda path: decompiled if path.suffix == ".so" else None)
+
+        vulns = [{"title": "Stack buffer overflow via unbounded strcpy",
+                  "description": "initiateLaunchSequence strcpy's the Java string into 24 bytes",
+                  "file": "resources/lib/arm64-v8a/libdivajni.so",
+                  "line": "001005e0", "line_number": 1005}]
+        analyzer.enrich_vulnerabilities(vulns, tmp_path)
+        assert vulns[0]["code_snippet"].strip() == "strcpy(local_18,__src);"
+
+    def test_a_native_finding_naming_its_function_survives_the_claim_gate(self, tmp_path, analyzer, monkeypatch):
+        """
+        Purpose:
+            Pin that a native finding whose title names its JNI method is not refuted when the defect sits well below the function's signature.
+
+        Parameters:
+            tmp_path: The tree root.
+            analyzer: The analyzer under test.
+            monkeypatch: Supplies a decompilation in place of running Ghidra.
+
+        Implementation notes:
+            A real DIVA scan refuted "Stack overflow via unbounded strcpy in initiateLaunchSequence JNI fn": the excerpt was the strcpy line with four lines either side, the signature naming initiateLaunchSequence was nine lines above, and the API-claim gate found the named method nowhere in the evidence. Showing the whole function is what keeps the name in the evidence.
+        """
+        from lu77U_MobileSec.analyzers.agent import tools as agent_tools
+        from lu77U_MobileSec.decompiler.ghidra_runner import NativeDecompilation, NativeFunction
+        from lu77U_MobileSec.validation.gates import apply_gates
+
+        lib_dir = tmp_path / "resources" / "lib" / "arm64-v8a"
+        lib_dir.mkdir(parents=True)
+        (lib_dir / "libdivajni.so").write_bytes(
+            b"\x7fELF" + b"\x00" * 12 + b"\x02\x00\xb7\x00" + bytes(range(200)))
+        locals_ = "\n".join(f"  int iVar{i};" for i in range(10))
+        code = ("bool Java_jakhar_aseem_diva_DivaJni_initiateLaunchSequence\n"
+                "               (long *param_1,undefined8 param_2,undefined8 param_3)\n\n{\n"
+                f"{locals_}\n  char local_18 [24];\n\n"
+                "  strcpy(local_18,__src);\n  return 0;\n}")
+        decompiled = NativeDecompilation(
+            language="AARCH64:LE:64:v8A", pointer_size=8, function_count=1,
+            functions=[NativeFunction(name="Java_jakhar_aseem_diva_DivaJni_initiateLaunchSequence",
+                                      entry="001005e0", size=108, calls=["strcpy"], code=code)])
+        monkeypatch.setattr(agent_tools, "decompile_native_library",
+                            lambda path: decompiled if path.suffix == ".so" else None)
+        rel = "resources/lib/arm64-v8a/libdivajni.so"
+        view = agent_tools.AgentTools(tmp_path).native_view(rel)
+        cited = next(i for i, line in enumerate(view, 1) if re.search(r"strcpy\(local_18", line))
+        signature = next(i for i, line in enumerate(view, 1) if re.match(r"bool Java_", line))
+        assert cited - signature > 4
+
+        vuln = {"title": "Stack overflow via unbounded strcpy in initiateLaunchSequence JNI fn",
+                "description": "The JNI string is copied into a 24-byte stack buffer.",
+                "file": rel, "line": str(cited), "line_number": cited, "severity": "High",
+                "confidence": "HIGH", "source": "agent"}
+        analyzer.enrich_vulnerabilities([vuln], tmp_path)
+        assert vuln["code_snippet"].strip() == "strcpy(local_18,__src);"
+        result = apply_gates(vuln)
+        assert result.mechanically_refuted is False
+        assert result.verdict != "FALSE_POSITIVE"
 
 class TestJadxRenameResolution:
     """

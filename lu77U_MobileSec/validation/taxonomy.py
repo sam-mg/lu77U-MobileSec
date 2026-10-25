@@ -12,7 +12,7 @@ Dependencies:
     dataclasses only.
 
 Implementation notes:
-    A single code drives three separate things: the CWE and OWASP identifiers that appear in the report, whether the finding survives gating on its own, and what evidence the AI is told to produce. Asking the model for one code rather than three related identifiers is both easier to get right and impossible to make self-contradictory. The standalone flag is the substantive judgement encoded here. Several classes -- missing pinning, cleartext capability, an unencrypted database, backup extractability -- describe a weakness that is only a finding when something else makes it reachable. Marking them non-standalone is what stops a report padding itself with configuration observations presented as vulnerabilities. The proof strings are written as instructions to the model and are deliberately specific about what would distinguish a real finding from a theoretical one. The public surface is declared in __all__ because some of it, ALL_CODES in particular, is read only by importers and would otherwise look unused to static analysis.
+    A single code drives four separate things: the CWE and OWASP identifiers that appear in the report, whether the finding survives gating on its own, the highest severity it can be graded at, and what evidence the AI is told to produce. Asking the model for one code rather than three related identifiers is both easier to get right and impossible to make self-contradictory. The standalone flag is the substantive judgement encoded here. Several classes -- missing pinning, cleartext capability, an unencrypted database, backup extractability -- describe a weakness that is only a finding when something else makes it reachable. Marking them non-standalone is what stops a report padding itself with configuration observations presented as vulnerabilities. The CVSS ceilings are the top of each class's range in the vulnerability_classes skill, kept equal to it by a test; a vector scoring above its class's ceiling is a model overstating what the class can do - a token in app storage scored like remote code execution - and the gates cap it there. The proof strings are written as instructions to the model and are deliberately specific about what would distinguish a real finding from a theoretical one. The public surface is declared in __all__ because some of it, ALL_CODES in particular, is read only by importers and would otherwise look unused to static analysis.
 
 Security considerations:
     This table decides what gets reported and how severe it looks. Marking a class standalone that should not be inflates reports with noise; the reverse silently suppresses real findings.
@@ -48,6 +48,7 @@ class VulnClass:
         proof: What evidence a finding of this class must carry, phrased as guidance to the model.
         cwe: CWE identifier, filled into findings automatically.
         owasp_mobile: OWASP Mobile Top 10 category, filled in automatically.
+        max_cvss: The highest CVSS base score a finding of this class reaches, from the catalogue's range; 10.0 where the class has no ceiling.
 
     Invariants:
         Frozen, and codes are unique across the catalogue.
@@ -62,9 +63,10 @@ class VulnClass:
     proof: str = ""
     cwe: str = ""
     owasp_mobile: str = ""
+    max_cvss: float = 10.0
 
 
-def _c(code, label, group, standalone=True, proof="", cwe="", owasp_mobile=""):
+def _c(code, label, group, standalone=True, proof="", cwe="", owasp_mobile="", max_cvss=10.0):
     """
     Purpose:
         Shorthand constructor so the catalogue reads as a table rather than as pages of keyword arguments.
@@ -77,6 +79,7 @@ def _c(code, label, group, standalone=True, proof="", cwe="", owasp_mobile=""):
         proof: Required evidence, as guidance to the model.
         cwe: CWE identifier.
         owasp_mobile: OWASP Mobile category.
+        max_cvss: The class's CVSS ceiling.
 
     Returns:
         The constructed class entry.
@@ -85,90 +88,122 @@ def _c(code, label, group, standalone=True, proof="", cwe="", owasp_mobile=""):
         Exists purely for legibility of the catalogue below. The defaults mean an entry only states what is unusual about it.
     """
     return VulnClass(code=code, label=label, group=group, standalone=standalone,
-                     proof=proof, cwe=cwe, owasp_mobile=owasp_mobile)
+                     proof=proof, cwe=cwe, owasp_mobile=owasp_mobile, max_cvss=max_cvss)
 
 
 VULN_CLASSES: Tuple[VulnClass, ...] = (
     _c("PLATFORM-01", "Exported component without a permission guard", "PLATFORM",
        proof="The specific action or data an unprivileged caller obtains.",
-       cwe="CWE-926", owasp_mobile="M8: Security Misconfiguration"),
+       cwe="CWE-926", owasp_mobile="M8: Security Misconfiguration",
+       max_cvss=8.0),
     _c("PLATFORM-02", "Deep link or Intent input reaching a sink", "PLATFORM",
        proof="The parameter name, and the sink the value reaches.",
-       cwe="CWE-20", owasp_mobile="M4: Insufficient Input/Output Validation"),
+       cwe="CWE-20", owasp_mobile="M4: Insufficient Input/Output Validation",
+       max_cvss=8.1),
     _c("PLATFORM-03", "Intent redirection", "PLATFORM",
        proof="The component the redirected Intent reaches, and what it holds.",
-       cwe="CWE-926", owasp_mobile="M8: Security Misconfiguration"),
+       cwe="CWE-926", owasp_mobile="M8: Security Misconfiguration",
+       max_cvss=7.7),
     _c("PLATFORM-04", "WebView native bridge exposed to web content", "PLATFORM",
        proof="The bridge name and what its methods expose.",
-       cwe="CWE-749", owasp_mobile="M4: Insufficient Input/Output Validation"),
+       cwe="CWE-749", owasp_mobile="M4: Insufficient Input/Output Validation",
+       max_cvss=9.8),
     _c("PLATFORM-05", "WebView file access from web content", "PLATFORM",
        proof="Which local files become readable, and by what content.",
-       cwe="CWE-200", owasp_mobile="M8: Security Misconfiguration"),
+       cwe="CWE-200", owasp_mobile="M8: Security Misconfiguration",
+       max_cvss=8.8),
     _c("PLATFORM-06", "WebView misconfiguration", "PLATFORM",
        proof="What the WebView actually loads.",
-       cwe="CWE-16", owasp_mobile="M8: Security Misconfiguration"),
+       cwe="CWE-16", owasp_mobile="M8: Security Misconfiguration",
+       max_cvss=8.1),
     _c("PLATFORM-07", "Unprotected broadcast", "PLATFORM",
        proof="The extra that is sensitive, named.",
-       cwe="CWE-925", owasp_mobile="M8: Security Misconfiguration"),
+       cwe="CWE-925", owasp_mobile="M8: Security Misconfiguration",
+       max_cvss=7.5),
     _c("PLATFORM-08", "Mutable PendingIntent with an implicit base Intent", "PLATFORM",
        proof="The app's targetSdkVersion, since the default flipped at 31.",
-       cwe="CWE-927", owasp_mobile="M8: Security Misconfiguration"),
+       cwe="CWE-927", owasp_mobile="M8: Security Misconfiguration",
+       max_cvss=7.7),
     _c("PLATFORM-09", "Task hijacking through taskAffinity", "PLATFORM",
        proof="The activity, its affinity value, and what it displays - a login "
              "screen matters, a settings page does not.",
-       cwe="CWE-668", owasp_mobile="M8: Security Misconfiguration"),
+       cwe="CWE-668", owasp_mobile="M8: Security Misconfiguration",
+       max_cvss=6.5),
     _c("PLATFORM-10", "Screen overlay and tapjacking exposure", "PLATFORM",
        standalone=False,
        proof="A sensitive action reachable by touch that has no "
              "filterTouchesWhenObscured or FLAG_SECURE.",
-       cwe="CWE-1021", owasp_mobile="M4: Insufficient Input/Output Validation"),
+       cwe="CWE-1021", owasp_mobile="M4: Insufficient Input/Output Validation",
+       max_cvss=6.5),
+    _c("PLATFORM-12", "Screen contents not protected from capture", "PLATFORM", standalone=False,
+       proof="A screen that shows credentials, card numbers or account data with no FLAG_SECURE.",
+       cwe="CWE-200", owasp_mobile="M8: Security Misconfiguration",
+       max_cvss=3.3),
     _c("PLATFORM-11", "FileProvider path traversal", "PLATFORM",
        proof="The unvalidated path segment, and what it reaches outside the "
              "declared root.",
-       cwe="CWE-22", owasp_mobile="M4: Insufficient Input/Output Validation"),
+       cwe="CWE-22", owasp_mobile="M4: Insufficient Input/Output Validation",
+       max_cvss=8.1),
 
     _c("STORAGE-01", "Credential in plain app storage", "STORAGE",
        proof="The specific value stored, and where.",
-       cwe="CWE-312", owasp_mobile="M9: Insecure Data Storage"),
+       cwe="CWE-312", owasp_mobile="M9: Insecure Data Storage",
+       max_cvss=6.5),
     _c("STORAGE-02", "Sensitive data on shared or external storage", "STORAGE",
        proof="The value, and that the path is world-readable.",
-       cwe="CWE-922", owasp_mobile="M9: Insecure Data Storage"),
+       cwe="CWE-922", owasp_mobile="M9: Insecure Data Storage",
+       max_cvss=7.5),
     _c("STORAGE-03", "Unencrypted local database", "STORAGE", standalone=False,
        proof="A route off the device - backup, external storage, an exported provider.",
-       cwe="CWE-311", owasp_mobile="M9: Insecure Data Storage"),
+       cwe="CWE-311", owasp_mobile="M9: Insecure Data Storage",
+       max_cvss=5.5),
     _c("STORAGE-04", "App data extractable by backup", "STORAGE", standalone=False,
        proof="A named credential inside the storage the backup would copy.",
-       cwe="CWE-530", owasp_mobile="M9: Insecure Data Storage"),
+       cwe="CWE-530", owasp_mobile="M9: Insecure Data Storage",
+       max_cvss=5.5),
 
     _c("NETWORK-01", "TLS certificate or hostname validation disabled", "NETWORK",
        proof="The trust-all implementation, and what the channel carries.",
-       cwe="CWE-295", owasp_mobile="M5: Insecure Communication"),
+       cwe="CWE-295", owasp_mobile="M5: Insecure Communication",
+       max_cvss=7.4),
     _c("NETWORK-02", "Cleartext traffic", "NETWORK", standalone=False,
        proof="A request that actually goes out over HTTP, and what is in it.",
-       cwe="CWE-319", owasp_mobile="M5: Insecure Communication"),
+       cwe="CWE-319", owasp_mobile="M5: Insecure Communication",
+       max_cvss=7.5),
     _c("NETWORK-03", "No certificate pinning", "NETWORK", standalone=False,
        proof="A demonstrated interception path plus the data on that channel.",
-       cwe="CWE-300", owasp_mobile="M5: Insecure Communication"),
+       cwe="CWE-300", owasp_mobile="M5: Insecure Communication",
+       max_cvss=3.7),
+    _c("NETWORK-05", "User-installed CA certificates trusted", "NETWORK", standalone=False,
+       proof="The traffic on that channel worth intercepting, and how a CA gets onto the device.",
+       cwe="CWE-295", owasp_mobile="M5: Insecure Communication",
+       max_cvss=6.8),
     _c("NETWORK-04", "Sensitive data in a URL", "NETWORK",
        proof="The parameter, and where the URL is logged or sent.",
-       cwe="CWE-598", owasp_mobile="M5: Insecure Communication"),
+       cwe="CWE-598", owasp_mobile="M5: Insecure Communication",
+       max_cvss=6.5),
 
     _c("CRYPTO-01", "Broken or deprecated cryptographic primitive", "CRYPTO",
        proof="The data it protects - a checksum use is not a finding.",
-       cwe="CWE-327", owasp_mobile="M10: Insufficient Cryptography"),
+       cwe="CWE-327", owasp_mobile="M10: Insufficient Cryptography",
+       max_cvss=7.5),
     _c("CRYPTO-02", "Hardcoded key or IV", "CRYPTO",
        proof="The value, and what it decrypts.",
-       cwe="CWE-321", owasp_mobile="M10: Insufficient Cryptography"),
+       cwe="CWE-321", owasp_mobile="M10: Insufficient Cryptography",
+       max_cvss=7.5),
     _c("CRYPTO-03", "Predictable randomness in a security context", "CRYPTO",
        proof="What the random value is used for.",
-       cwe="CWE-330", owasp_mobile="M10: Insufficient Cryptography"),
+       cwe="CWE-330", owasp_mobile="M10: Insufficient Cryptography",
+       max_cvss=7.5),
 
     _c("SECRET-01", "Hardcoded credential or API key", "SECRET",
        proof="The service it authenticates to and the access that key type grants.",
-       cwe="CWE-798", owasp_mobile="M1: Improper Credential Usage"),
+       cwe="CWE-798", owasp_mobile="M1: Improper Credential Usage",
+       max_cvss=9.1),
     _c("SECRET-02", "Sensitive value written to the log", "SECRET",
        proof="The value, and that the call is reachable in a release build.",
-       cwe="CWE-532", owasp_mobile="M9: Insecure Data Storage"),
+       cwe="CWE-532", owasp_mobile="M9: Insecure Data Storage",
+       max_cvss=5.5),
     _c("SECRET-03", "Public identifier shipped in the app", "SECRET",
        standalone=False,
        proof="Which project or client the identifier names, and whether the "
@@ -177,33 +212,56 @@ VULN_CLASSES: Tuple[VulnClass, ...] = (
 
     _c("CODE-01", "SQL injection", "CODE",
        proof="The concatenation, and whether the query is reachable from outside.",
-       cwe="CWE-89", owasp_mobile="M4: Insufficient Input/Output Validation"),
+       cwe="CWE-89", owasp_mobile="M4: Insufficient Input/Output Validation",
+       max_cvss=9.1),
     _c("CODE-02", "Command execution or unsafe reflection", "CODE",
        proof="That the executed value can be influenced from outside the app.",
-       cwe="CWE-78", owasp_mobile="M4: Insufficient Input/Output Validation"),
+       cwe="CWE-78", owasp_mobile="M4: Insufficient Input/Output Validation",
+       max_cvss=9.8),
     _c("CODE-03", "Unsafe deserialization", "CODE",
        proof="That deserialized data crosses a trust boundary.",
-       cwe="CWE-502", owasp_mobile="M4: Insufficient Input/Output Validation"),
+       cwe="CWE-502", owasp_mobile="M4: Insufficient Input/Output Validation",
+       max_cvss=9.8),
+    _c("CODE-04", "Path traversal in file handling", "CODE",
+       proof="That a name supplied from outside escapes the intended directory, and what is read or written there.",
+       cwe="CWE-22", owasp_mobile="M4: Insufficient Input/Output Validation",
+       max_cvss=8.8),
+    _c("CODE-05", "Memory corruption in native code", "CODE",
+       proof="The unbounded copy or write, the size of its destination, and the Java or Dart caller whose input reaches it.",
+       cwe="CWE-787", owasp_mobile="M4: Insufficient Input/Output Validation",
+       max_cvss=9.8),
 
     _c("SUPPLY-01", "Third-party SDK with a known vulnerability", "SUPPLY",
        proof="The exact version, and whether this app reaches the vulnerable path.",
        cwe="CWE-1104", owasp_mobile="M2: Inadequate Supply Chain Security"),
     _c("SUPPLY-02", "Debug or instrumentation SDK in a release build", "SUPPLY",
        proof="The SDK, and the surface it opens.",
-       cwe="CWE-489", owasp_mobile="M2: Inadequate Supply Chain Security"),
+       cwe="CWE-489", owasp_mobile="M2: Inadequate Supply Chain Security",
+       max_cvss=6.5),
 
     _c("AUTH-01", "Token or session handling flaw", "AUTH",
        proof="Where the token ends up and who can read it there.",
-       cwe="CWE-287", owasp_mobile="M3: Insecure Authentication/Authorization"),
+       cwe="CWE-287", owasp_mobile="M3: Insecure Authentication/Authorization",
+       max_cvss=8.8),
     _c("AUTH-02", "Biometric check not bound to a cryptographic operation", "AUTH",
        proof="That the protected work runs on the callback rather than behind a "
              "CryptoObject-wrapped Keystore key.",
-       cwe="CWE-287", owasp_mobile="M3: Insecure Authentication/Authorization"),
+       cwe="CWE-287", owasp_mobile="M3: Insecure Authentication/Authorization",
+       max_cvss=6.8),
+    _c("AUTH-03", "Client-side authorization decision", "AUTH",
+       proof="The value the decision reads on the device (a stored flag, a local comparison), and the paid, privileged or hidden feature it unlocks without the server checking.",
+       cwe="CWE-602", owasp_mobile="M3: Insecure Authentication/Authorization",
+       max_cvss=6.5),
+    _c("AUTH-04", "Weak local authentication", "AUTH",
+       proof="What the PIN or password is checked against, and the missing attempt limit or the hardcoded value that makes guessing or bypassing it practical.",
+       cwe="CWE-307", owasp_mobile="M3: Insecure Authentication/Authorization",
+       max_cvss=6.8),
 
     _c("BACKEND-01", "Misconfigured backend service", "BACKEND",
        proof="The service and endpoint. Access rules live on the server, so a "
              "static finding names what to check rather than asserting it is open.",
-       cwe="CWE-200", owasp_mobile="M8: Security Misconfiguration"),
+       cwe="CWE-200", owasp_mobile="M8: Security Misconfiguration",
+       max_cvss=9.1),
 
     _c("BUILD-01", "Debuggable release build", "BUILD", standalone=False,
        proof="Nothing rescues this - it is a release-process note.",
@@ -215,7 +273,7 @@ VULN_CLASSES: Tuple[VulnClass, ...] = (
     _c("BUILD-03", "Excessive or dangerous permissions", "BUILD", standalone=False,
        proof="A finding whose impact the permission widens.",
        cwe="CWE-250", owasp_mobile="M8: Security Misconfiguration"),
-    _c("BUILD-04", "Missing hardening control", "BUILD", standalone=False,
+    _c("BUILD-04", "Client-side hardening control (present or missing)", "BUILD", standalone=False,
        proof="Nothing rescues this - controls raise cost, they are not boundaries.",
        cwe="CWE-693", owasp_mobile="M7: Insufficient Binary Protections"),
 )

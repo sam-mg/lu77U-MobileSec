@@ -1,0 +1,1893 @@
+{
+  "meta": {
+    "id": "86a61dcd54e9",
+    "kind": "static",
+    "filename": "github.com/Schmiemandev/dvfa/release.apk",
+    "status": "completed",
+    "created_at": "2026-10-22T09:21:01.667928+00:00",
+    "started_at": "2026-10-22T09:30:56.860137+00:00",
+    "finished_at": "2026-10-22T09:35:28.206685+00:00",
+    "duration": 271.35,
+    "progress": 100,
+    "phase": "done",
+    "error": null,
+    "pause_reason": null,
+    "resume_attempts": 0,
+    "summary": {
+      "primary_framework": "Flutter",
+      "total_vulnerabilities": 17,
+      "critical": 0,
+      "high": 1,
+      "medium": 8,
+      "low": 3,
+      "security_score": 37.9,
+      "package_name": "com.schmiemandev.dvfa",
+      "app_name": "github.com/Schmiemandev/dvfa/release.apk",
+      "analysis_supported": true
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "boot_id": "28bfcc14bd3747a8b903d85680ec7f36",
+    "owner_pid": 15131
+  },
+  "result": {
+    "metadata": {
+      "tool": "lu77U-MobileSec",
+      "version": "0.1.5",
+      "timestamp": "2026-10-22T15:05:28.191769",
+      "target": "github.com/Schmiemandev/dvfa/release.apk",
+      "analysis_date": "2026-10-22 15:05:28"
+    },
+    "framework_detection": {
+      "detected": true,
+      "primary_framework": "Flutter",
+      "confidence": 0.9,
+      "confidence_level": "High",
+      "frameworks": [
+        {
+          "name": "Flutter",
+          "confidence": 0.9,
+          "confidence_level": "High",
+          "indicators_found": [
+            "libflutter.so (3 architectures)",
+            "Flutter assets (8 files)",
+            "APK contains Flutter artifacts"
+          ]
+        }
+      ]
+    },
+    "application_info": {
+      "package_name": "com.schmiemandev.dvfa",
+      "app_name": "github.com/Schmiemandev/dvfa/release.apk",
+      "version_name": "1.0.0",
+      "version_code": "1",
+      "min_sdk": "24",
+      "target_sdk": "36",
+      "file_size": 55799470,
+      "file_size_mb": 53.21,
+      "permissions": [
+        "android.permission.USE_FINGERPRINT",
+        "com.schmiemandev.dvfa.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+        "android.permission.USE_BIOMETRIC"
+      ],
+      "activities": [
+        "com.schmiemandev.dvfa.MainActivity"
+      ],
+      "services": [],
+      "receivers": [
+        "androidx.profileinstaller.ProfileInstallReceiver"
+      ],
+      "providers": [
+        "androidx.startup.InitializationProvider"
+      ]
+    },
+    "vulnerability_analysis": {
+      "analyzed": true,
+      "total_vulnerabilities": 17,
+      "by_severity": {
+        "critical": 0,
+        "high": 1,
+        "medium": 8,
+        "low": 3,
+        "info": 5
+      },
+      "vulnerabilities": {
+        "critical": [],
+        "high": [
+          {
+            "title": "Hardcoded encryption key in the app's Dart code",
+            "severity": "High",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+            "cvss_score": 8.2,
+            "description": "A Key object is built from the string literal on the cited line, which is compiled into the app. The application uses a hardcoded AES key 'DVFA_STATIC_KEY_8899001122334455' and a hardcoded IV 'DVFA_STATIC_IV__' to encrypt the user's statement, allowing anyone with access to the APK to decrypt sensitive financial data.",
+            "file": "asm/dvfa/dashboard_screen.dart",
+            "location": "",
+            "line": 739,
+            "line_start": 739,
+            "line_end": 739,
+            "impact": "Anyone who unpacks the app recovers the value and decrypts what it protects.",
+            "code_snippet": "    // 0x373a48: r2 = \"DVFA_STATIC_KEY_8899001122334455\"",
+            "code_context": {
+              "start_line": 735,
+              "end_line": 743,
+              "highlight_start": 739,
+              "highlight_end": 739,
+              "lines": [
+                "    //     0x373a3c: b.ls            #0x373b00",
+                "    // 0x373a40: r0 = Key()",
+                "    //     0x373a40: bl              #0x39b7b4  ; AllocateKeyStub -> Key (size=0xc)",
+                "    // 0x373a44: mov             x1, x0",
+                "    // 0x373a48: r2 = \"DVFA_STATIC_KEY_8899001122334455\"",
+                "    //     0x373a48: add             x2, PP, #0xe, lsl #12  ; [pp+0xe960] \"DVFA_STATIC_KEY_8899001122334455\"",
+                "    //     0x373a4c: ldr             x2, [x2, #0x960]",
+                "    // 0x373a50: stur            x0, [fp, #-0x10]",
+                "    // 0x373a54: r0 = Encrypted.fromUtf8()"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x373a3c: b.ls            #0x373b00</span>",
+                "    <span class=\"tok-cm\">// 0x373a40: r0 = Key()</span>",
+                "    <span class=\"tok-cm\">//     0x373a40: bl              #0x39b7b4  ; AllocateKeyStub -&gt; Key (size=0xc)</span>",
+                "    <span class=\"tok-cm\">// 0x373a44: mov             x1, x0</span>",
+                "    <span class=\"tok-cm\">// 0x373a48: r2 = &quot;DVFA_STATIC_KEY_8899001122334455&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x373a48: add             x2, PP, #0xe, lsl #12  ; [pp+0xe960] &quot;DVFA_STATIC_KEY_8899001122334455&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x373a4c: ldr             x2, [x2, #0x960]</span>",
+                "    <span class=\"tok-cm\">// 0x373a50: stur            x0, [fp, #-0x10]</span>",
+                "    <span class=\"tok-cm\">// 0x373a54: r0 = Encrypted.fromUtf8()</span>"
+              ],
+              "module_terms": [
+                "aes",
+                "sharedpreferences",
+                "log.d"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Generate keys in the Android Keystore and a fresh random IV for every encryption.",
+            "cwe": "CWE-321",
+            "owasp_mobile": "M10: Insufficient Cryptography",
+            "dynamic_verification": null,
+            "vuln_class": "CRYPTO-02",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "High",
+              "final_severity": "High",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at High",
+                "pattern": "same-location",
+                "with": {
+                  "title": "The application uses a hardcoded AES key 'DVFA_STATIC_KEY_8899001122334455' a...",
+                  "file": "asm/dvfa/dashboard_screen.dart",
+                  "line": 739
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same code line, reported by static-analyzer at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Hardcoded initialisation vector in the app's Dart code",
+                  "file": "asm/dvfa/dashboard_screen.dart",
+                  "line": "748"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Client-side authorization for 'Platinum Lounge' in SharedPreferences",
+                  "file": "asm/dvfa/dashboard_screen.dart",
+                  "line": 1045
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "App code uses a plain-HTTP endpoint (api.dvfa.local)",
+                  "file": "asm/dvfa/dashboard_screen.dart",
+                  "line": "1241"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ],
+        "medium": [
+          {
+            "title": "App code uses a plain-HTTP endpoint (api.dvfa.local)",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "The app's own code holds the endpoint http://api.dvfa.local/v1/balance, which is requested over unencrypted HTTP. The application requests sensitive balance information over an unencrypted HTTP connection (http://api.dvfa.local/v1/balance), exposing the data to interception via Man-in-the-Middle (MitM) attacks.",
+            "file": "asm/dvfa/dashboard_screen.dart",
+            "location": "",
+            "line": 1241,
+            "line_start": 1241,
+            "line_end": 1241,
+            "impact": "Anyone on the network path - shared Wi-Fi, a hostile access point - reads and changes the requests and responses.",
+            "code_snippet": "    // 0x3b3b44: r1 = \"http://api.dvfa.local/v1/balance\"",
+            "code_context": {
+              "start_line": 1237,
+              "end_line": 1245,
+              "highlight_start": 1241,
+              "highlight_end": 1241,
+              "lines": [
+                "    //     0x3b3b38: b.ls            #0x3b3b78",
+                "    // 0x3b3b3c: InitAsync() -> Future<void?>",
+                "    //     0x3b3b3c: ldr             x0, [PP, #0x15c0]  ; [pp+0x15c0] TypeArguments: <void?>",
+                "    //     0x3b3b40: bl              #0x230990  ; InitAsyncStub",
+                "    // 0x3b3b44: r1 = \"http://api.dvfa.local/v1/balance\"",
+                "    //     0x3b3b44: add             x1, PP, #0x10, lsl #12  ; [pp+0x10820] \"http://api.dvfa.local/v1/balance\"",
+                "    //     0x3b3b48: ldr             x1, [x1, #0x820]",
+                "    // 0x3b3b4c: r4 = const [0, 0x1, 0, 0x1, null]",
+                "    //     0x3b3b4c: ldr             x4, [PP, #0x4a8]  ; [pp+0x4a8] List(5) [0, 0x1, 0, 0x1, Null]"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x3b3b38: b.ls            #0x3b3b78</span>",
+                "    <span class=\"tok-cm\">// 0x3b3b3c: InitAsync() -&gt; Future&lt;void?&gt;</span>",
+                "    <span class=\"tok-cm\">//     0x3b3b3c: ldr             x0, [PP, #0x15c0]  ; [pp+0x15c0] TypeArguments: &lt;void?&gt;</span>",
+                "    <span class=\"tok-cm\">//     0x3b3b40: bl              #0x230990  ; InitAsyncStub</span>",
+                "    <span class=\"tok-cm\">// 0x3b3b44: r1 = &quot;http://api.dvfa.local/v1/balance&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x3b3b44: add             x1, PP, #0x10, lsl #12  ; [pp+0x10820] &quot;http://api.dvfa.local/v1/balance&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x3b3b48: ldr             x1, [x1, #0x820]</span>",
+                "    <span class=\"tok-cm\">// 0x3b3b4c: r4 = const [0, 0x1, 0, 0x1, null]</span>",
+                "    <span class=\"tok-cm\">//     0x3b3b4c: ldr             x4, [PP, #0x4a8]  ; [pp+0x4a8] List(5) [0, 0x1, 0, 0x1, Null]</span>"
+              ],
+              "module_terms": [
+                "aes",
+                "sharedpreferences",
+                "log.d",
+                "api.dvfa"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Serve the endpoint over HTTPS and stop permitting cleartext traffic.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-02",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at High",
+                "pattern": "same-location",
+                "with": {
+                  "title": "The application requests sensitive balance information over an unencrypted HT...",
+                  "file": "asm/dvfa/dashboard_screen.dart",
+                  "line": 1241
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Hardcoded encryption key in the app's Dart code",
+                  "file": "asm/dvfa/dashboard_screen.dart",
+                  "line": "739"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Client-side authorization for 'Platinum Lounge' in SharedPreferences",
+                  "file": "asm/dvfa/dashboard_screen.dart",
+                  "line": 1045
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Backup-enabled app stores credentials in local storage",
+            "severity": "Medium",
+            "cvss_vector": "AV:P/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+            "cvss_score": 6.1,
+            "description": "3 findings in this app combine into one exploitable path: \"Application data is backup-enabled\", \"Insecure storage of sensitive data in SQLite\" and \"Sensitive value 'pin' stored in plain SharedPreferences\".\n\nAttack path:\n1. Attacker triggers adb backup of the app\n2. Attacker extracts the backup archive\n3. Attacker locates notes_database.db in the backup data\n4. Attacker queries the SQLite database\n5. Attacker retrieves the Admin Secret from asm/dvfa/notes_screen.dart",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 0,
+            "line_start": 0,
+            "line_end": 0,
+            "impact": "Backup copies the app's private storage, and that storage holds a credential. For an app targeting below Android 12 (API 31), or a debuggable one, `adb backup` does it over USB without root, so anyone with a minute at an unlocked phone walks away with the credential; for newer targets it travels in cloud and device-transfer backups.",
+            "code_snippet": "",
+            "code_context": null,
+            "exploitation": "",
+            "recommendation": "Set android:allowBackup=\"false\", or exclude the credential store via android:dataExtractionRules. Keep tokens in EncryptedSharedPreferences or the Keystore rather than plain SharedPreferences.",
+            "cwe": "CWE-311",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "CHAIN-05",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": {
+              "id": "chain-001",
+              "pattern": "CHAIN-05",
+              "priority": false,
+              "components": [
+                "Application data is backup-enabled",
+                "Insecure storage of sensitive data in SQLite",
+                "Sensitive value 'pin' stored in plain SharedPreferences"
+              ],
+              "flow": [
+                "Attacker triggers adb backup of the app",
+                "Attacker extracts the backup archive",
+                "Attacker locates notes_database.db in the backup data",
+                "Attacker queries the SQLite database",
+                "Attacker retrieves the Admin Secret from asm/dvfa/notes_screen.dart"
+              ]
+            },
+            "chained_into": [],
+            "related_findings": [],
+            "source": "chain-builder",
+            "surface": ""
+          },
+          {
+            "title": "Client-side authorization for 'Platinum Lounge' in SharedPreferences",
+            "severity": "Medium",
+            "cvss_vector": "AV:L/AC:L/PR:L/UI:N/S:U/C:N/I:H/A:N",
+            "cvss_score": 5.5,
+            "description": "Authorization for the 'Platinum Lounge' feature is decided on the client-side by reading a boolean from SharedPreferences. A user with root access or by modifying the app's local storage can bypass this check to unlock privileged content.",
+            "file": "asm/dvfa/dashboard_screen.dart",
+            "location": "asm/dvfa/dashboard_screen.dart:1045",
+            "line": 1045,
+            "line_start": 1045,
+            "line_end": 1045,
+            "impact": "",
+            "code_snippet": "    // 0x39bbf0: r0 = getBool()",
+            "code_context": {
+              "start_line": 1041,
+              "end_line": 1049,
+              "highlight_start": 1045,
+              "highlight_end": 1045,
+              "lines": [
+                "    // 0x39bbe4: stur            x1, [fp, #-0x18]",
+                "    // 0x39bbe8: r0 = Await()",
+                "    //     0x39bbe8: bl              #0x23074c  ; AwaitStub",
+                "    // 0x39bbec: mov             x1, x0",
+                "    // 0x39bbf0: r0 = getBool()",
+                "    //     0x39bbf0: bl              #0x39c610  ; [package:shared_preferences/src/shared_preferences_legacy.dart] SharedPreferences::getBool",
+                "    // 0x39bbf4: cmp             w0, NULL",
+                "    // 0x39bbf8: b.ne            #0x39bc04",
+                "    // 0x39bbfc: ldur            x0, [fp, #-0x10]"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">// 0x39bbe4: stur            x1, [fp, #-0x18]</span>",
+                "    <span class=\"tok-cm\">// 0x39bbe8: r0 = Await()</span>",
+                "    <span class=\"tok-cm\">//     0x39bbe8: bl              #0x23074c  ; AwaitStub</span>",
+                "    <span class=\"tok-cm\">// 0x39bbec: mov             x1, x0</span>",
+                "    <span class=\"tok-cm\">// 0x39bbf0: r0 = getBool()</span>",
+                "    <span class=\"tok-cm\">//     0x39bbf0: bl              #0x39c610  ; [package:shared_preferences/src/shared_preferences_legacy.dart] SharedPreferences::getBool</span>",
+                "    <span class=\"tok-cm\">// 0x39bbf4: cmp             w0, NULL</span>",
+                "    <span class=\"tok-cm\">// 0x39bbf8: b.ne            #0x39bc04</span>",
+                "    <span class=\"tok-cm\">// 0x39bbfc: ldur            x0, [fp, #-0x10]</span>"
+              ],
+              "module_terms": [
+                "aes",
+                "sharedpreferences",
+                "log.d"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-602",
+            "owasp_mobile": "M3: Insecure Authentication/Authorization",
+            "dynamic_verification": null,
+            "vuln_class": "AUTH-03",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [
+                "Bypassing a local feature gate via root access only benefits the device owner and does not compromise other users or server-side data. Kept at Medium: the CVSS vector, scored for an attacker with local access and high privileges, still gives Medium."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Hardcoded encryption key in the app's Dart code",
+                  "file": "asm/dvfa/dashboard_screen.dart",
+                  "line": "739"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "App code uses a plain-HTTP endpoint (api.dvfa.local)",
+                  "file": "asm/dvfa/dashboard_screen.dart",
+                  "line": "1241"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Fund transfer via deep link (dvfa://transfer) in main.dart",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N",
+            "cvss_score": 6.5,
+            "description": "A deep link (dvfa://transfer) allows a remote attacker to trigger a fund transfer. The handler in main.dart reads 'to' and 'amount' parameters and pushes the TransferScreen, which automatically executes the transfer in a post-frame callback (transfer_screen.dart:888, 991) without user confirmation.",
+            "file": "asm/dvfa/main.dart",
+            "location": "asm/dvfa/main.dart:419",
+            "line": 419,
+            "line_start": 419,
+            "line_end": 419,
+            "impact": "",
+            "code_snippet": "    // 0x3d2e00: r0 = push()",
+            "code_context": {
+              "start_line": 415,
+              "end_line": 423,
+              "highlight_start": 419,
+              "highlight_end": 419,
+              "lines": [
+                "    // 0x3d2df4: ldur            x16, [fp, #-0x10]",
+                "    // 0x3d2df8: str             x16, [SP]",
+                "    // 0x3d2dfc: r4 = const [0x1, 0x2, 0x2, 0x2, null]",
+                "    //     0x3d2dfc: ldr             x4, [PP, #0x40]  ; [pp+0x40] List(5) [0x1, 0x2, 0x2, 0x2, Null]",
+                "    // 0x3d2e00: r0 = push()",
+                "    //     0x3d2e00: bl              #0x372f6c  ; [package:flutter/src/widgets/navigator.dart] NavigatorState::push",
+                "    // 0x3d2e04: r0 = Null",
+                "    //     0x3d2e04: mov             x0, NULL",
+                "    // 0x3d2e08: LeaveFrame"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">// 0x3d2df4: ldur            x16, [fp, #-0x10]</span>",
+                "    <span class=\"tok-cm\">// 0x3d2df8: str             x16, [SP]</span>",
+                "    <span class=\"tok-cm\">// 0x3d2dfc: r4 = const [0x1, 0x2, 0x2, 0x2, null]</span>",
+                "    <span class=\"tok-cm\">//     0x3d2dfc: ldr             x4, [PP, #0x40]  ; [pp+0x40] List(5) [0x1, 0x2, 0x2, 0x2, Null]</span>",
+                "    <span class=\"tok-cm\">// 0x3d2e00: r0 = push()</span>",
+                "    <span class=\"tok-cm\">//     0x3d2e00: bl              #0x372f6c  ; [package:flutter/src/widgets/navigator.dart] NavigatorState::push</span>",
+                "    <span class=\"tok-cm\">// 0x3d2e04: r0 = Null</span>",
+                "    <span class=\"tok-cm\">//     0x3d2e04: mov             x0, NULL</span>",
+                "    <span class=\"tok-cm\">// 0x3d2e08: LeaveFrame</span>"
+              ],
+              "module_terms": [
+                "loadclass"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-20",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-02",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Hardcoded administrative secret",
+            "severity": "Medium",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+            "cvss_score": 6.2,
+            "description": "The app contains a hardcoded secret string 'SuperSecretKey_9912' which is seeded into the local database as an 'Admin Secret'.",
+            "file": "asm/dvfa/notes_screen.dart",
+            "location": "asm/dvfa/notes_screen.dart:1043-1047",
+            "line": 1043,
+            "line_start": 1043,
+            "line_end": 1047,
+            "impact": "The secret can be recovered from the APK binary, potentially granting unauthorized administrative access or privileges.",
+            "code_snippet": "    // 0x3d3190: r16 = \"SuperSecretKey_9912\"\n    //     0x3d3190: add             x16, PP, #0x16, lsl #12  ; [pp+0x16070] \"SuperSecretKey_9912\"\n    //     0x3d3194: ldr             x16, [x16, #0x70]\n    // 0x3d3198: StoreField: r0->field_1b = r16\n    //     0x3d3198: stur            w16, [x0, #0x1b]",
+            "code_context": {
+              "start_line": 1039,
+              "end_line": 1051,
+              "highlight_start": 1043,
+              "highlight_end": 1047,
+              "lines": [
+                "    //     0x3d3184: add             x16, PP, #0x15, lsl #12  ; [pp+0x159f8] \"content\"",
+                "    //     0x3d3188: ldr             x16, [x16, #0x9f8]",
+                "    // 0x3d318c: ArrayStore: r0[0] = r16  ; List_4",
+                "    //     0x3d318c: stur            w16, [x0, #0x17]",
+                "    // 0x3d3190: r16 = \"SuperSecretKey_9912\"",
+                "    //     0x3d3190: add             x16, PP, #0x16, lsl #12  ; [pp+0x16070] \"SuperSecretKey_9912\"",
+                "    //     0x3d3194: ldr             x16, [x16, #0x70]",
+                "    // 0x3d3198: StoreField: r0->field_1b = r16",
+                "    //     0x3d3198: stur            w16, [x0, #0x1b]",
+                "    // 0x3d319c: r16 = \"is_hidden\"",
+                "    //     0x3d319c: add             x16, PP, #0x15, lsl #12  ; [pp+0x15a10] \"is_hidden\"",
+                "    //     0x3d31a0: ldr             x16, [x16, #0xa10]",
+                "    // 0x3d31a4: StoreField: r0->field_1f = r16"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x3d3184: add             x16, PP, #0x15, lsl #12  ; [pp+0x159f8] &quot;content&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x3d3188: ldr             x16, [x16, #0x9f8]</span>",
+                "    <span class=\"tok-cm\">// 0x3d318c: ArrayStore: r0[0] = r16  ; List_4</span>",
+                "    <span class=\"tok-cm\">//     0x3d318c: stur            w16, [x0, #0x17]</span>",
+                "    <span class=\"tok-cm\">// 0x3d3190: r16 = &quot;SuperSecretKey_9912&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x3d3190: add             x16, PP, #0x16, lsl #12  ; [pp+0x16070] &quot;SuperSecretKey_9912&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x3d3194: ldr             x16, [x16, #0x70]</span>",
+                "    <span class=\"tok-cm\">// 0x3d3198: StoreField: r0-&gt;field_1b = r16</span>",
+                "    <span class=\"tok-cm\">//     0x3d3198: stur            w16, [x0, #0x1b]</span>",
+                "    <span class=\"tok-cm\">// 0x3d319c: r16 = &quot;is_hidden&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x3d319c: add             x16, PP, #0x15, lsl #12  ; [pp+0x15a10] &quot;is_hidden&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x3d31a0: ldr             x16, [x16, #0xa10]</span>",
+                "    <span class=\"tok-cm\">// 0x3d31a4: StoreField: r0-&gt;field_1f = r16</span>"
+              ],
+              "module_terms": [
+                "ecb",
+                "rawquery",
+                "loadclass"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Remove hardcoded secrets from the source code and use a secure key management system.",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-01",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [
+                "The finding fails to establish whether this secret authenticates to a remote service or is merely used for local logic. Kept at Medium: the CVSS vector, scored for an attacker with local access and high privileges, still gives Medium."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "SQL statement built by string interpolation and run as a raw query",
+                  "file": "asm/dvfa/notes_screen.dart",
+                  "line": "756"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Insecure storage of sensitive data in SQLite",
+                  "file": "asm/dvfa/notes_screen.dart",
+                  "line": "835-851"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": "region-1-ObjectPool"
+          },
+          {
+            "title": "Input hash compared against a hardcoded hash",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "The app hashes a value - typically an entered PIN or password - and compares the result with a hex digest compiled into the app, so the check is decided on the device against a constant.",
+            "file": "asm/dvfa/login_screen.dart",
+            "location": "",
+            "line": 785,
+            "line_start": 785,
+            "line_end": 785,
+            "impact": "The digest ships with the app; a short PIN or password behind it is recovered by hashing every candidate offline, and the comparison is one hook from always passing.",
+            "code_snippet": "    // 0x39e090: r16 = \"03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4\"",
+            "code_context": {
+              "start_line": 781,
+              "end_line": 789,
+              "highlight_start": 785,
+              "highlight_end": 785,
+              "lines": [
+                "    // 0x39e084: ldur            x0, [fp, #-0x28]",
+                "    // 0x39e088: r1 = LoadClassIdInstr(r0)",
+                "    //     0x39e088: ldur            x1, [x0, #-1]",
+                "    //     0x39e08c: ubfx            x1, x1, #0xc, #0x14",
+                "    // 0x39e090: r16 = \"03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4\"",
+                "    //     0x39e090: add             x16, PP, #0xc, lsl #12  ; [pp+0xcc00] \"03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4\"",
+                "    //     0x39e094: ldr             x16, [x16, #0xc00]",
+                "    // 0x39e098: stp             x16, x0, [SP]",
+                "    // 0x39e09c: mov             x0, x1"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">// 0x39e084: ldur            x0, [fp, #-0x28]</span>",
+                "    <span class=\"tok-cm\">// 0x39e088: r1 = LoadClassIdInstr(r0)</span>",
+                "    <span class=\"tok-cm\">//     0x39e088: ldur            x1, [x0, #-1]</span>",
+                "    <span class=\"tok-cm\">//     0x39e08c: ubfx            x1, x1, #0xc, #0x14</span>",
+                "    <span class=\"tok-cm\">// 0x39e090: r16 = &quot;03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x39e090: add             x16, PP, #0xc, lsl #12  ; [pp+0xcc00] &quot;03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x39e094: ldr             x16, [x16, #0xc00]</span>",
+                "    <span class=\"tok-cm\">// 0x39e098: stp             x16, x0, [SP]</span>",
+                "    <span class=\"tok-cm\">// 0x39e09c: mov             x0, x1</span>"
+              ],
+              "module_terms": [
+                "loadclass",
+                "sharedpreferences",
+                "print("
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Verify credentials on a server, or derive a key from them with a slow KDF.",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "AUTH-04",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Sensitive value written to the log with print()",
+                  "file": "asm/dvfa/login_screen.dart",
+                  "line": "749"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Sensitive value 'pin' stored in plain SharedPreferences",
+                  "file": "asm/dvfa/login_screen.dart",
+                  "line": "818"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Insecure storage of sensitive data in SQLite",
+            "severity": "Medium",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+            "cvss_score": 6.2,
+            "description": "The app stores sensitive information, including the hardcoded 'Admin Secret', in an unencrypted SQLite database (`notes_database.db`).",
+            "file": "asm/dvfa/notes_screen.dart",
+            "location": "asm/dvfa/notes_screen.dart:835-851",
+            "line": 835,
+            "line_start": 835,
+            "line_end": 851,
+            "impact": "Because `allowBackup` is enabled in the Android manifest, this database can be extracted via `adb backup`, exposing sensitive keys and notes to anyone with physical access to the device.",
+            "code_snippet": "    // 0x3d2f84: r2 = \"notes_database.db\"\n    //     0x3d2f84: add             x2, PP, #0x16, lsl #12  ; [pp+0x16008] \"notes_database.db\"\n    //     0x3d2f88: ldr             x2, [x2, #8]\n    // 0x3d2f8c: r0 = join()\n    //     0x3d2f8c: bl              #0x3d9fe0  ; [package:path/path.dart] ::join\n    // 0x3d2f90: r1 = Function '<anonymous closure>':.\n    //     0x3d2f90: add             x1, PP, #0x16, lsl #12  ; [pp+0x16010] AnonymousClosure: (0x3da0a8), in [package:dvfa/notes_screen.dart] _NotesScreenState::_initDatabase (0x3d2f48)\n    //     0x3d2f94: ldr             x1, [x1, #0x10]\n    // 0x3d2f98: r2 = Null\n    //     0x3d2f98: mov             x2, NULL\n    // 0x3d2f9c: stur            x0, [fp, #-0x18]\n    // 0x3d2fa0: r0 = AllocateClosure()\n    //     0x3d2fa0: bl              #0x5236d4  ; AllocateClosureStub\n    // 0x3d2fa4: ldur            x1, [fp, #-0x18]\n    // 0x3d2fa8: mov             x2, x0\n    // 0x3d2fac: r0 = openDatabase()\n    //     0x3d2fac: bl              #0x3d3b4c  ; [package:sqflite_common/sqflite.dart] ::openDatabase",
+            "code_context": {
+              "start_line": 831,
+              "end_line": 855,
+              "highlight_start": 835,
+              "highlight_end": 851,
+              "lines": [
+                "    // 0x3d2f78: stur            x1, [fp, #-0x18]",
+                "    // 0x3d2f7c: r0 = Await()",
+                "    //     0x3d2f7c: bl              #0x23074c  ; AwaitStub",
+                "    // 0x3d2f80: mov             x1, x0",
+                "    // 0x3d2f84: r2 = \"notes_database.db\"",
+                "    //     0x3d2f84: add             x2, PP, #0x16, lsl #12  ; [pp+0x16008] \"notes_database.db\"",
+                "    //     0x3d2f88: ldr             x2, [x2, #8]",
+                "    // 0x3d2f8c: r0 = join()",
+                "    //     0x3d2f8c: bl              #0x3d9fe0  ; [package:path/path.dart] ::join",
+                "    // 0x3d2f90: r1 = Function '<anonymous closure>':.",
+                "    //     0x3d2f90: add             x1, PP, #0x16, lsl #12  ; [pp+0x16010] AnonymousClosure: (0x3da0a8), in [package:dvfa/notes_screen.dart] _NotesScreenState::_initDatabase (0x3d2f48)",
+                "    //     0x3d2f94: ldr             x1, [x1, #0x10]",
+                "    // 0x3d2f98: r2 = Null",
+                "    //     0x3d2f98: mov             x2, NULL",
+                "    // 0x3d2f9c: stur            x0, [fp, #-0x18]",
+                "    // 0x3d2fa0: r0 = AllocateClosure()",
+                "    //     0x3d2fa0: bl              #0x5236d4  ; AllocateClosureStub",
+                "    // 0x3d2fa4: ldur            x1, [fp, #-0x18]",
+                "    // 0x3d2fa8: mov             x2, x0",
+                "    // 0x3d2fac: r0 = openDatabase()",
+                "    //     0x3d2fac: bl              #0x3d3b4c  ; [package:sqflite_common/sqflite.dart] ::openDatabase",
+                "    // 0x3d2fb0: mov             x1, x0",
+                "    // 0x3d2fb4: stur            x1, [fp, #-0x18]",
+                "    // 0x3d2fb8: r0 = Await()",
+                "    //     0x3d2fb8: bl              #0x23074c  ; AwaitStub"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">// 0x3d2f78: stur            x1, [fp, #-0x18]</span>",
+                "    <span class=\"tok-cm\">// 0x3d2f7c: r0 = Await()</span>",
+                "    <span class=\"tok-cm\">//     0x3d2f7c: bl              #0x23074c  ; AwaitStub</span>",
+                "    <span class=\"tok-cm\">// 0x3d2f80: mov             x1, x0</span>",
+                "    <span class=\"tok-cm\">// 0x3d2f84: r2 = &quot;notes_database.db&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x3d2f84: add             x2, PP, #0x16, lsl #12  ; [pp+0x16008] &quot;notes_database.db&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x3d2f88: ldr             x2, [x2, #8]</span>",
+                "    <span class=\"tok-cm\">// 0x3d2f8c: r0 = join()</span>",
+                "    <span class=\"tok-cm\">//     0x3d2f8c: bl              #0x3d9fe0  ; [package:path/path.dart] ::join</span>",
+                "    <span class=\"tok-cm\">// 0x3d2f90: r1 = Function &#x27;&lt;anonymous closure&gt;&#x27;:.</span>",
+                "    <span class=\"tok-cm\">//     0x3d2f90: add             x1, PP, #0x16, lsl #12  ; [pp+0x16010] AnonymousClosure: (0x3da0a8), in [package:dvfa/notes_screen.dart] _NotesScreenState::_initDatabase (0x3d2f48)</span>",
+                "    <span class=\"tok-cm\">//     0x3d2f94: ldr             x1, [x1, #0x10]</span>",
+                "    <span class=\"tok-cm\">// 0x3d2f98: r2 = Null</span>",
+                "    <span class=\"tok-cm\">//     0x3d2f98: mov             x2, NULL</span>",
+                "    <span class=\"tok-cm\">// 0x3d2f9c: stur            x0, [fp, #-0x18]</span>",
+                "    <span class=\"tok-cm\">// 0x3d2fa0: r0 = AllocateClosure()</span>",
+                "    <span class=\"tok-cm\">//     0x3d2fa0: bl              #0x5236d4  ; AllocateClosureStub</span>",
+                "    <span class=\"tok-cm\">// 0x3d2fa4: ldur            x1, [fp, #-0x18]</span>",
+                "    <span class=\"tok-cm\">// 0x3d2fa8: mov             x2, x0</span>",
+                "    <span class=\"tok-cm\">// 0x3d2fac: r0 = openDatabase()</span>",
+                "    <span class=\"tok-cm\">//     0x3d2fac: bl              #0x3d3b4c  ; [package:sqflite_common/sqflite.dart] ::openDatabase</span>",
+                "    <span class=\"tok-cm\">// 0x3d2fb0: mov             x1, x0</span>",
+                "    <span class=\"tok-cm\">// 0x3d2fb4: stur            x1, [fp, #-0x18]</span>",
+                "    <span class=\"tok-cm\">// 0x3d2fb8: r0 = Await()</span>",
+                "    <span class=\"tok-cm\">//     0x3d2fb8: bl              #0x23074c  ; AwaitStub</span>"
+              ],
+              "module_terms": [
+                "ecb",
+                "rawquery",
+                "loadclass"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Use an encrypted database implementation like SQLCipher and disable `allowBackup` in the AndroidManifest.xml.",
+            "cwe": "CWE-311",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "STORAGE-03",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [
+              "chain-001"
+            ],
+            "related_findings": [
+              {
+                "reason": "confirmed chain: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "SQL statement built by string interpolation and run as a raw query",
+                  "file": "asm/dvfa/notes_screen.dart",
+                  "line": "756"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Hardcoded administrative secret",
+                  "file": "asm/dvfa/notes_screen.dart",
+                  "line": "1043-1047"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": "region-1-ObjectPool"
+          },
+          {
+            "title": "Sensitive value 'pin' stored in plain SharedPreferences",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "The app writes a value under the key 'pin' through SharedPreferences, which keeps it as plain text in the app's shared_prefs XML file. User credentials (account_id and pin) are stored unencrypted in SharedPreferences, making them accessible to anyone with root access or via an ADB backup.",
+            "file": "asm/dvfa/login_screen.dart",
+            "location": "",
+            "line": 818,
+            "line_start": 818,
+            "line_end": 818,
+            "impact": "Anyone with a backup of the app data, root on the device, or a debuggable build reads the value directly.",
+            "code_snippet": "    // 0x39e0f8: r0 = _setValue()",
+            "code_context": {
+              "start_line": 814,
+              "end_line": 822,
+              "highlight_start": 818,
+              "highlight_end": 818,
+              "lines": [
+                "    // 0x39e0ec: ldur            x3, [fp, #-0x18]",
+                "    // 0x39e0f0: r2 = \"pin\"",
+                "    //     0x39e0f0: add             x2, PP, #0xc, lsl #12  ; [pp+0xcc10] \"pin\"",
+                "    //     0x39e0f4: ldr             x2, [x2, #0xc10]",
+                "    // 0x39e0f8: r0 = _setValue()",
+                "    //     0x39e0f8: bl              #0x39e3a8  ; [package:shared_preferences/src/shared_preferences_legacy.dart] SharedPreferences::_setValue",
+                "    // 0x39e0fc: mov             x1, x0",
+                "    // 0x39e100: stur            x1, [fp, #-0x18]",
+                "    // 0x39e104: r0 = Await()"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">// 0x39e0ec: ldur            x3, [fp, #-0x18]</span>",
+                "    <span class=\"tok-cm\">// 0x39e0f0: r2 = &quot;pin&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x39e0f0: add             x2, PP, #0xc, lsl #12  ; [pp+0xcc10] &quot;pin&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x39e0f4: ldr             x2, [x2, #0xc10]</span>",
+                "    <span class=\"tok-cm\">// 0x39e0f8: r0 = _setValue()</span>",
+                "    <span class=\"tok-cm\">//     0x39e0f8: bl              #0x39e3a8  ; [package:shared_preferences/src/shared_preferences_legacy.dart] SharedPreferences::_setValue</span>",
+                "    <span class=\"tok-cm\">// 0x39e0fc: mov             x1, x0</span>",
+                "    <span class=\"tok-cm\">// 0x39e100: stur            x1, [fp, #-0x18]</span>",
+                "    <span class=\"tok-cm\">// 0x39e104: r0 = Await()</span>"
+              ],
+              "module_terms": [
+                "loadclass",
+                "sharedpreferences",
+                "print("
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Store credentials with flutter_secure_storage, backed by the Android Keystore.",
+            "cwe": "CWE-312",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "STORAGE-01",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [
+              "chain-001"
+            ],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "User credentials (account_id and pin) are stored unencrypted in SharedPrefere...",
+                  "file": "asm/dvfa/login_screen.dart",
+                  "line": 807
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "confirmed chain: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Sensitive value written to the log with print()",
+                  "file": "asm/dvfa/login_screen.dart",
+                  "line": "749"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Input hash compared against a hardcoded hash",
+                  "file": "asm/dvfa/login_screen.dart",
+                  "line": "785"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ],
+        "low": [
+          {
+            "title": "Hardcoded API key 'AKIA-MOCK-DEV-9982' in Developer Options screen",
+            "severity": "Low",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 4.0,
+            "description": "A hardcoded API key 'AKIA-MOCK-DEV-9982' (following the AWS access key pattern) is stored in the Developer Options screen.",
+            "file": "asm/dvfa/dev_menu_screen.dart",
+            "location": "asm/dvfa/dev_menu_screen.dart:279",
+            "line": 279,
+            "line_start": 279,
+            "line_end": 279,
+            "impact": "",
+            "code_snippet": "    // 0x438848: r16 = Instance_Card",
+            "code_context": {
+              "start_line": 275,
+              "end_line": 283,
+              "highlight_start": 279,
+              "highlight_end": 279,
+              "lines": [
+                "    //     0x43883c: add             x16, PP, #0xc, lsl #12  ; [pp+0xc7b0] Obj!SizedBox@5760d1",
+                "    //     0x438840: ldr             x16, [x16, #0x7b0]",
+                "    // 0x438844: StoreField: r0->field_13 = r16",
+                "    //     0x438844: stur            w16, [x0, #0x13]",
+                "    // 0x438848: r16 = Instance_Card",
+                "    //     0x438848: add             x16, PP, #0x13, lsl #12  ; [pp+0x139e0] Obj!Card@575c61",
+                "    //     0x43884c: ldr             x16, [x16, #0x9e0]",
+                "    // 0x438850: ArrayStore: r0[0] = r16  ; List_4",
+                "    //     0x438850: stur            w16, [x0, #0x17]"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x43883c: add             x16, PP, #0xc, lsl #12  ; [pp+0xc7b0] Obj!SizedBox@5760d1</span>",
+                "    <span class=\"tok-cm\">//     0x438840: ldr             x16, [x16, #0x7b0]</span>",
+                "    <span class=\"tok-cm\">// 0x438844: StoreField: r0-&gt;field_13 = r16</span>",
+                "    <span class=\"tok-cm\">//     0x438844: stur            w16, [x0, #0x13]</span>",
+                "    <span class=\"tok-cm\">// 0x438848: r16 = Instance_Card</span>",
+                "    <span class=\"tok-cm\">//     0x438848: add             x16, PP, #0x13, lsl #12  ; [pp+0x139e0] Obj!Card@575c61</span>",
+                "    <span class=\"tok-cm\">//     0x43884c: ldr             x16, [x16, #0x9e0]</span>",
+                "    <span class=\"tok-cm\">// 0x438850: ArrayStore: r0[0] = r16  ; List_4</span>",
+                "    <span class=\"tok-cm\">//     0x438850: stur            w16, [x0, #0x17]</span>"
+              ],
+              "module_terms": []
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-01",
+            "gate_result": {
+              "verdict": "DOWNGRADE",
+              "reasons": [
+                "The key contains the word 'MOCK', indicating it is a placeholder and not a live production credential."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Low",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "Medium",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Sensitive value written to the log with print()",
+            "severity": "Low",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "A print or debugPrint call logs a message mentioning auth, pin. print() reaches logcat in release builds. The application writes the user's Account ID and plaintext PIN to the system log (Logcat) during the login process, allowing any app with log access or a debugger to steal credentials.",
+            "file": "asm/dvfa/login_screen.dart",
+            "location": "",
+            "line": 749,
+            "line_start": 749,
+            "line_end": 749,
+            "impact": "Other tools with log access, crash reporters and bug reports capture the value.",
+            "code_snippet": "    // 0x39e028: r0 = print()",
+            "code_context": {
+              "start_line": 745,
+              "end_line": 753,
+              "highlight_start": 749,
+              "highlight_end": 749,
+              "lines": [
+                "    // 0x39e01c: str             x0, [SP]",
+                "    // 0x39e020: r0 = _interpolate()",
+                "    //     0x39e020: bl              #0x21dbbc  ; [dart:core] _StringBase::_interpolate",
+                "    // 0x39e024: mov             x1, x0",
+                "    // 0x39e028: r0 = print()",
+                "    //     0x39e028: bl              #0x24cdb4  ; [dart:core] ::print",
+                "    // 0x39e02c: ldur            x2, [fp, #-0x18]",
+                "    // 0x39e030: r1 = Instance_Utf8Encoder",
+                "    //     0x39e030: ldr             x1, [PP, #0xea0]  ; [pp+0xea0] Obj!Utf8Encoder@576421"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">// 0x39e01c: str             x0, [SP]</span>",
+                "    <span class=\"tok-cm\">// 0x39e020: r0 = _interpolate()</span>",
+                "    <span class=\"tok-cm\">//     0x39e020: bl              #0x21dbbc  ; [dart:core] _StringBase::_interpolate</span>",
+                "    <span class=\"tok-cm\">// 0x39e024: mov             x1, x0</span>",
+                "    <span class=\"tok-cm\">// 0x39e028: r0 = print()</span>",
+                "    <span class=\"tok-cm\">//     0x39e028: bl              #0x24cdb4  ; [dart:core] ::print</span>",
+                "    <span class=\"tok-cm\">// 0x39e02c: ldur            x2, [fp, #-0x18]</span>",
+                "    <span class=\"tok-cm\">// 0x39e030: r1 = Instance_Utf8Encoder</span>",
+                "    <span class=\"tok-cm\">//     0x39e030: ldr             x1, [PP, #0xea0]  ; [pp+0xea0] Obj!Utf8Encoder@576421</span>"
+              ],
+              "module_terms": [
+                "loadclass",
+                "sharedpreferences",
+                "print("
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Remove the call, or guard it with kDebugMode.",
+            "cwe": "CWE-532",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-02",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Low",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "The application writes the user's Account ID and plaintext PIN to the system...",
+                  "file": "asm/dvfa/login_screen.dart",
+                  "line": 749
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Input hash compared against a hardcoded hash",
+                  "file": "asm/dvfa/login_screen.dart",
+                  "line": "785"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Sensitive value 'pin' stored in plain SharedPreferences",
+                  "file": "asm/dvfa/login_screen.dart",
+                  "line": "818"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "SQL statement built by string interpolation and run as a raw query",
+            "severity": "Low",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "An SQL statement literal is joined with runtime values by string interpolation and passed to a raw query call, so a value containing a quote changes the statement. The application performs a raw SQL query using string interpolation of user-supplied search text (line 750), leading to a SQL injection vulnerability in the local notes database. The `_refreshNotes` function constructs a SQL query using string interpolation, concatenating user-controlled input into a `LIKE` clause without sanitization.",
+            "file": "asm/dvfa/notes_screen.dart",
+            "location": "",
+            "line": 756,
+            "line_start": 756,
+            "line_end": 756,
+            "impact": "A local attacker can use SQL injection payloads (e.g., using OR 1=1) to bypass the `is_hidden = 0` filter and retrieve all entries from the notes table, including hidden administrative secrets.",
+            "code_snippet": "    // 0x39ee2c: r0 = rawQuery()",
+            "code_context": {
+              "start_line": 752,
+              "end_line": 760,
+              "highlight_start": 756,
+              "highlight_end": 756,
+              "lines": [
+                "    // 0x39ee20: ldur            x1, [fp, #-0x30]",
+                "    // 0x39ee24: mov             x2, x0",
+                "    // 0x39ee28: r4 = const [0, 0x2, 0, 0x2, null]",
+                "    //     0x39ee28: ldr             x4, [PP, #0x250]  ; [pp+0x250] List(5) [0, 0x2, 0, 0x2, Null]",
+                "    // 0x39ee2c: r0 = rawQuery()",
+                "    //     0x39ee2c: bl              #0x39ee88  ; [dart:mixin_deduplication] _MixinApplication378&Object&SqfliteDatabaseMixin&SqfliteDatabaseWithOpenHelperMixin&SqfliteDatabaseExecutorMixin::rawQuery",
+                "    // 0x39ee30: mov             x1, x0",
+                "    // 0x39ee34: stur            x1, [fp, #-0x10]",
+                "    // 0x39ee38: r0 = Await()"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">// 0x39ee20: ldur            x1, [fp, #-0x30]</span>",
+                "    <span class=\"tok-cm\">// 0x39ee24: mov             x2, x0</span>",
+                "    <span class=\"tok-cm\">// 0x39ee28: r4 = const [0, 0x2, 0, 0x2, null]</span>",
+                "    <span class=\"tok-cm\">//     0x39ee28: ldr             x4, [PP, #0x250]  ; [pp+0x250] List(5) [0, 0x2, 0, 0x2, Null]</span>",
+                "    <span class=\"tok-cm\">// 0x39ee2c: r0 = rawQuery()</span>",
+                "    <span class=\"tok-cm\">//     0x39ee2c: bl              #0x39ee88  ; [dart:mixin_deduplication] _MixinApplication378&amp;Object&amp;SqfliteDatabaseMixin&amp;SqfliteDatabaseWithOpenHelperMixin&amp;SqfliteDatabaseExecutorMixin::rawQuery</span>",
+                "    <span class=\"tok-cm\">// 0x39ee30: mov             x1, x0</span>",
+                "    <span class=\"tok-cm\">// 0x39ee34: stur            x1, [fp, #-0x10]</span>",
+                "    <span class=\"tok-cm\">// 0x39ee38: r0 = Await()</span>"
+              ],
+              "module_terms": [
+                "ecb",
+                "rawquery",
+                "loadclass"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Pass values as arguments with ? placeholders instead of interpolating them.",
+            "cwe": "CWE-89",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "CODE-01",
+            "gate_result": {
+              "verdict": "DOWNGRADE",
+              "reasons": [
+                "Could not be confirmed from the available source: The snippet shows the call to rawQuery(), but the logic that constructs the query string (the alleged string interpolation) occurs before the provided lines."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Low",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at High",
+                "pattern": "same-location",
+                "with": {
+                  "title": "The application performs a raw SQL query using string interpolation of user-s...",
+                  "file": "asm/dvfa/notes_screen.dart",
+                  "line": 756
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Insecure storage of sensitive data in SQLite",
+                  "file": "asm/dvfa/notes_screen.dart",
+                  "line": "835-851"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Hardcoded administrative secret",
+                  "file": "asm/dvfa/notes_screen.dart",
+                  "line": "1043-1047"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ],
+        "info": [
+          {
+            "title": "Activity MainActivity receives deep links (dvfa)",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "Activity \"com.schmiemandev.dvfa.MainActivity\" accepts BROWSABLE VIEW links, so any web page, message or QR code can open it with a URL of its choosing. That is its purpose and no permission can guard it; whether it is a vulnerability depends on what its handler does with the link.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 33,
+            "line_start": 33,
+            "line_end": 33,
+            "impact": "An entry point every remote attacker can reach with one tap from the victim.",
+            "code_snippet": "            android:name=\"com.schmiemandev.dvfa.MainActivity\"",
+            "code_context": {
+              "start_line": 29,
+              "end_line": 37,
+              "highlight_start": 33,
+              "highlight_end": 33,
+              "lines": [
+                "        android:extractNativeLibs=\"false\"",
+                "        android:appComponentFactory=\"androidx.core.app.CoreComponentFactory\">",
+                "        <activity",
+                "            android:theme=\"@style/LaunchTheme\"",
+                "            android:name=\"com.schmiemandev.dvfa.MainActivity\"",
+                "            android:exported=\"true\"",
+                "            android:taskAffinity=\"\"",
+                "            android:launchMode=\"singleTop\"",
+                "            android:configChanges=\"fontScale|layoutDirection|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|keyboardHidden|keyboard|locale\""
+              ],
+              "lines_html": [
+                "        android:extractNativeLibs=&quot;false&quot;",
+                "        android:appComponentFactory=&quot;androidx.core.app.CoreComponentFactory&quot;&gt;",
+                "        &lt;activity",
+                "            <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/LaunchTheme&quot;</span>",
+                "            <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;com.schmiemandev.dvfa.MainActivity&quot;</span>",
+                "            <span class=\"tok-fn\">android:exported=</span><span class=\"tok-str\">&quot;true&quot;</span>",
+                "            <span class=\"tok-fn\">android:taskAffinity=</span><span class=\"tok-str\">&quot;&quot;</span>",
+                "            <span class=\"tok-fn\">android:launchMode=</span><span class=\"tok-str\">&quot;singleTop&quot;</span>",
+                "            <span class=\"tok-fn\">android:configChanges=</span><span class=\"tok-str\">&quot;fontScale|layoutDirection|density|smallestScreenSize|screenSize|uiMode|screenLayout|orientation|keyboardHidden|keyboard|locale&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Treat every value in the link as untrusted, and require the user to confirm before the link changes data or starts a payment.",
+            "cwe": "CWE-939",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-02",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "7"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No screenshot protection: FLAG_SECURE is never set",
+                  "file": "AndroidManifest.xml",
+                  "line": ""
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Application data is backup-enabled",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "android:allowBackup is absent, which defaults to true, so the app's data goes into cloud backups and device-to-device transfers. With targetSdkVersion 36, Android 12 and later leave it out of `adb backup`, so USB extraction needs a device older than Android 12.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 25,
+            "line_start": 25,
+            "line_end": 25,
+            "impact": "Locally stored credentials or PII travel with the user's cloud backup and to a new device, and are extractable over USB on devices older than Android 12.",
+            "code_snippet": "    <application",
+            "code_context": {
+              "start_line": 21,
+              "end_line": 29,
+              "highlight_start": 25,
+              "highlight_end": 25,
+              "lines": [
+                "    <permission",
+                "        android:name=\"com.schmiemandev.dvfa.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\"",
+                "        android:protectionLevel=\"signature\"/>",
+                "    <uses-permission android:name=\"com.schmiemandev.dvfa.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\"/>",
+                "    <application",
+                "        android:label=\"dvfa\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:name=\"android.app.Application\"",
+                "        android:extractNativeLibs=\"false\""
+              ],
+              "lines_html": [
+                "    &lt;permission",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;com.schmiemandev.dvfa.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION&quot;</span>",
+                "        <span class=\"tok-fn\">android:protectionLevel=</span><span class=\"tok-str\">&quot;signature&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;com.schmiemandev.dvfa.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;dvfa&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.app.Application&quot;</span>",
+                "        <span class=\"tok-fn\">android:extractNativeLibs=</span><span class=\"tok-str\">&quot;false&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Set android:allowBackup=\"false\", or exclude sensitive files with android:dataExtractionRules (android:fullBackupContent below Android 12).",
+            "cwe": "CWE-530",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "STORAGE-04",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Backup-extractable app data. Backup is a documented platform feature and on by default. What matters is what would be in the backup: name a credential in app storage and this becomes a real extraction path.",
+                "This is a platform default that only becomes a vulnerability when paired with sensitive data in storage, as seen in Insecure storage of sensitive data in SQLite.",
+                "Confirmed as part of chain-001: Backup-enabled app stores credentials in local storage."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-02",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [
+              "chain-001"
+            ],
+            "related_findings": [
+              {
+                "reason": "confirmed chain: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Insecure storage of sensitive data in SQLite",
+                  "file": "asm/dvfa/notes_screen.dart",
+                  "line": "835-851"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Hardcoded administrative secret",
+                  "file": "asm/dvfa/notes_screen.dart",
+                  "line": "1043-1047"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "confirmed chain: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Sensitive value 'pin' stored in plain SharedPreferences",
+                  "file": "asm/dvfa/login_screen.dart",
+                  "line": "818"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Hardcoded API key 'AKIA-MOCK-DEV-9982' in Developer Options screen",
+                  "file": "asm/dvfa/dev_menu_screen.dart",
+                  "line": 279
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "7"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "No network security config declared",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "The app declares neither android:networkSecurityConfig nor usesCleartextTraffic, so it relies on platform defaults and pins no domain. With targetSdkVersion 36 those defaults block cleartext HTTP and trust only system CAs.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 25,
+            "line_start": 25,
+            "line_end": 25,
+            "impact": "Without pinning, anyone who gets a CA trusted on the device can read and alter the app's TLS traffic.",
+            "code_snippet": "    <application",
+            "code_context": {
+              "start_line": 21,
+              "end_line": 29,
+              "highlight_start": 25,
+              "highlight_end": 25,
+              "lines": [
+                "    <permission",
+                "        android:name=\"com.schmiemandev.dvfa.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\"",
+                "        android:protectionLevel=\"signature\"/>",
+                "    <uses-permission android:name=\"com.schmiemandev.dvfa.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\"/>",
+                "    <application",
+                "        android:label=\"dvfa\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:name=\"android.app.Application\"",
+                "        android:extractNativeLibs=\"false\""
+              ],
+              "lines_html": [
+                "    &lt;permission",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;com.schmiemandev.dvfa.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION&quot;</span>",
+                "        <span class=\"tok-fn\">android:protectionLevel=</span><span class=\"tok-str\">&quot;signature&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;com.schmiemandev.dvfa.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;dvfa&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.app.Application&quot;</span>",
+                "        <span class=\"tok-fn\">android:extractNativeLibs=</span><span class=\"tok-str\">&quot;false&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Declare a network security config that disables cleartext and pins the domains that carry sensitive traffic.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-03",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "No certificate pinning. Pinning defends against an attacker who already controls a trusted CA or the device's trust store. Without one of those, TLS is still doing its job. It becomes a finding when paired with what the unpinned channel actually carries.",
+                "Lack of pinning is a configuration state that only provides gain if the attacker can already compromise a CA or the device trust store."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-01",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "7"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Activity MainActivity receives deep links (dvfa)",
+                  "file": "AndroidManifest.xml",
+                  "line": "33"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No screenshot protection: FLAG_SECURE is never set",
+                  "file": "AndroidManifest.xml",
+                  "line": ""
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "No screenshot protection: FLAG_SECURE is never set",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "Nothing in the app sets WindowManager.LayoutParams.FLAG_SECURE, so every screen can be screenshotted or recorded and appears in the recent-apps snapshot.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 0,
+            "line_start": 0,
+            "line_end": 0,
+            "impact": "Credentials, balances or personal data on screen end up in screenshots, screen recordings and the task-switcher preview.",
+            "code_snippet": "",
+            "code_context": null,
+            "exploitation": "",
+            "recommendation": "Set FLAG_SECURE on the windows of screens that show credentials or account data.",
+            "cwe": "CWE-200",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-12",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Screen contents not protected from capture. Without FLAG_SECURE, what a screen shows can end up in screenshots, screen recordings and the task-switcher preview. That matters on screens showing credentials, card numbers or balances; on its own it is a hardening note."
+              ],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-14",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "7"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Activity MainActivity receives deep links (dvfa)",
+                  "file": "AndroidManifest.xml",
+                  "line": "33"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "minSdkVersion 24 lets the app run on Android versions before 11, and its task affinity is its package name \"com.schmiemandev.dvfa\". There, another app can declare the same affinity, with allowTaskReparenting, and have its own activity shown in this app's task.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 7,
+            "line_start": 7,
+            "line_end": 7,
+            "impact": "On a device running Android 10 or lower, a malicious app can put a look-alike screen on top of this app's task, phishing credentials or keeping the real app from being shown.",
+            "code_snippet": "    package=\"com.schmiemandev.dvfa\"",
+            "code_context": {
+              "start_line": 3,
+              "end_line": 11,
+              "highlight_start": 7,
+              "highlight_end": 7,
+              "lines": [
+                "    android:versionCode=\"1\"",
+                "    android:versionName=\"1.0.0\"",
+                "    android:compileSdkVersion=\"36\"",
+                "    android:compileSdkVersionCodename=\"16\"",
+                "    package=\"com.schmiemandev.dvfa\"",
+                "    platformBuildVersionCode=\"36\"",
+                "    platformBuildVersionName=\"16\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"24\""
+              ],
+              "lines_html": [
+                "    android:versionCode=&quot;1&quot;",
+                "    android:versionName=&quot;1.0.0&quot;",
+                "    android:compileSdkVersion=&quot;36&quot;",
+                "    android:compileSdkVersionCodename=&quot;16&quot;",
+                "    package=&quot;com.schmiemandev.dvfa&quot;",
+                "    platformBuildVersionCode=&quot;36&quot;",
+                "    platformBuildVersionName=&quot;16&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;24&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise minSdkVersion to 30, where Android fixed this. Until then, android:taskAffinity=\"\" on the <application> mitigates the original attack, though not its runtime variant on unpatched Android 9 and lower.",
+            "cwe": "CWE-1021",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-09",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Activity MainActivity receives deep links (dvfa)",
+                  "file": "AndroidManifest.xml",
+                  "line": "33"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No screenshot protection: FLAG_SECURE is never set",
+                  "file": "AndroidManifest.xml",
+                  "line": ""
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ]
+      },
+      "refuted": [],
+      "refuted_count": 0
+    },
+    "analyzer_details": {
+      "framework": "Flutter",
+      "analysis_time": 202.31107997894287,
+      "files_analyzed": 28,
+      "decompilation_status": "Successful",
+      "error": null,
+      "agent_coverage": {
+        "regions": [
+          {
+            "key": "region-1-ObjectPool",
+            "nodes": 10,
+            "steps": 18,
+            "files_read": 10,
+            "stop_reason": "reported",
+            "findings": 4
+          }
+        ],
+        "complete": true,
+        "regions_incomplete": 0,
+        "regions_total": 1,
+        "degraded_reason": null,
+        "file_review": {
+          "files": 6,
+          "parts": 1,
+          "parts_skipped": 0,
+          "parts_failed": 0,
+          "findings": 8
+        }
+      },
+      "limitation": "",
+      "llm_usage": {
+        "provider": "ollama",
+        "calls": 24,
+        "failed": 0,
+        "wall_clock_s": 255.1,
+        "prompt_tokens": 832457,
+        "completion_tokens": 24721,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0,
+        "throttled_attempts": 0,
+        "transient_attempts": 0,
+        "failed_attempt_seconds": 0.0,
+        "retried_calls": 0,
+        "truncation_retries": 0,
+        "transient_retries": 0,
+        "throttle_retries": 0,
+        "slow_calls": 0,
+        "unparseable_responses": 0,
+        "blocked_seconds": 0.0,
+        "mode": "cloud",
+        "model": "gemma4:31b",
+        "unavailable": null,
+        "unreachable": null,
+        "keys_total": 9,
+        "keys_used": 7
+      }
+    },
+    "summary": {
+      "framework_detected": true,
+      "vulnerability_scan_complete": true,
+      "total_vulnerabilities": 17,
+      "critical_count": 0,
+      "high_count": 1,
+      "medium_count": 8,
+      "low_count": 3,
+      "refuted_count": 0,
+      "security_score": 37.9,
+      "weighted_finding_count": 56,
+      "security_grade": "F"
+    },
+    "analysis": {
+      "supported": true,
+      "success": true,
+      "files_analyzed": 28,
+      "analysis_time": 202.31107997894287,
+      "framework": "Flutter",
+      "decompilation_status": "Successful",
+      "unsupported_framework": false,
+      "error": null,
+      "limitation": ""
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "dynamic_session": {
+      "attempted": false,
+      "reason": "Dynamic verification is disabled in Settings."
+    }
+  }
+}

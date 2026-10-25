@@ -18,6 +18,8 @@ Implementation notes:
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from ...validation.taxonomy import describe
+
 SEVERITIES = ("Critical", "High", "Medium", "Low", "Informational")
 
 _SEVERITY_ALIASES = {
@@ -140,7 +142,7 @@ def to_scan_finding(finding: SastFinding) -> Dict[str, Any]:
         The finding as a dict.
 
     Implementation notes:
-        The title is written into both the title and the type field, because the two engines populate them differently and downstream code reads whichever it finds. A default CVSS vector is attached when the rule did not supply one, so every finding reaching validation can have its severity derived the same way.
+        The title is written into both the title and the type field, because the two engines populate them differently and downstream code reads whichever it finds. A CWE or OWASP category the rule left out is taken from its class in the catalogue, as an agent finding's is, so two findings of one class do not show different labels; a permissions note and a command-execution hit were published with no OWASP category at all. A default CVSS vector is attached when the rule did not supply one, so every finding reaching validation can have its severity derived the same way.
     """
     out: Dict[str, Any] = {
         "title": finding.title,
@@ -159,6 +161,10 @@ def to_scan_finding(finding: SastFinding) -> Dict[str, Any]:
         value = getattr(finding, key)
         if value:
             out[key] = value
+    entry = describe(finding.vuln_class) if finding.vuln_class else None
+    for key in ("cwe", "owasp_mobile") if entry is not None else ():
+        if getattr(entry, key) and key not in out:
+            out[key] = getattr(entry, key)
     out["cvss_vector"] = finding.cvss_vector or default_cvss_vector(finding.severity)
     if finding.evidence:
         out["code_snippet"] = finding.evidence

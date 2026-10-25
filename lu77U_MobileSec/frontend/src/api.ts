@@ -35,19 +35,21 @@ export interface ScanMeta {
   phase: string;
   error?: string | null;
   /** Why a paused scan is paused: "user" (Pause button), "interrupted"
-   * (server died mid-scan and reconciled it on the next boot), or
-   * "provider_quota" (a subscription-CLI-backed provider's rolling-window
-   * quota ran out mid-scan - see ai/cli_provider.py - and will retry
-   * automatically once `resume_after` passes). */
-  pause_reason?: "user" | "interrupted" | "provider_quota" | null;
+   * (server died mid-scan, or the scan was still queued, and it was
+   * reconciled on the next boot), "provider_quota" (every key's quota ran
+   * out mid-scan) or "provider_unreachable" (the provider's host could not
+   * be reached when the scan stopped using it). The last two retry
+   * automatically once `resume_after` passes. */
+  pause_reason?: "user" | "interrupted" | "provider_quota" | "provider_unreachable" | null;
   /** How many times auto-resume has already retried this scan after a
    * server-crash interruption. Separate from a quota pause's own counter
    * (`quota_resume_attempts`) - the two never share a budget. */
   resume_attempts?: number;
-  /** ISO timestamp: when a "provider_quota" pause is next eligible for
-   * automatic resume. Only set for that pause reason. */
+  /** ISO timestamp: when a "provider_quota" or "provider_unreachable" pause
+   * is next eligible for automatic resume. Only set for those reasons. */
   resume_after?: string | null;
-  /** How many times a "provider_quota" pause has already been auto-resumed. */
+  /** How many times an outage pause ("provider_quota" or
+   * "provider_unreachable") has already been auto-resumed. */
   quota_resume_attempts?: number;
   /** Whether a checkpoint exists to resume from. */
   resumable?: boolean;
@@ -131,6 +133,14 @@ export interface Vulnerability {
   source?: string;
   /** Which surface agent found it. */
   surface?: string;
+  /** What phase 2 established on a device: the finding's own evidence, or why it could not be shown. */
+  dynamic_verification?: DeviceVerdict | null;
+}
+
+export interface DeviceVerdict {
+  status: string;
+  evidence?: string;
+  reason?: string;
 }
 
 export interface FrameworkInfo {
@@ -201,6 +211,9 @@ export interface ScanResult {
     decompilation_status?: string;
     unsupported_framework?: boolean;
     error?: string | null;
+    /** Set when part of the app could only be read in reduced form, e.g. a
+     * Flutter build whose Dart code could not be disassembled. */
+    limitation?: string;
   };
   reports?: Record<"json" | "html" | "pdf", boolean>;
 }
@@ -210,6 +223,9 @@ export interface StoredApiKey {
   /** e.g. "3f49…avIX" - the full value is never included here; fetch it
    * explicitly with `api.revealCredential`. */
   masked: string;
+  /** What the key is for - e.g. the account it belongs to. Empty when the
+   * user gave none. Shown only on the settings page, never in scan output. */
+  label: string;
 }
 
 export interface ProviderSettings {
@@ -274,6 +290,7 @@ export interface AnalysisStatus {
   blutter_configured: boolean;
   hermes_decomp_configured: boolean;
   rn_decompiler_configured: boolean;
+  ghidra_configured: boolean;
   ready_for_analysis: boolean;
 }
 
@@ -303,6 +320,7 @@ export interface Settings {
   blutter_path: string;
   hermes_decomp_path: string;
   rn_decompiler_path: string;
+  ghidra_path: string;
   pdf_generation: boolean;
   /** Re-queue scans that were interrupted by a server crash/Ctrl+C, once the
    * server comes back and finds a checkpoint for them. */
@@ -381,14 +399,27 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
-  /** Adds one key to the provider's pool, or clears the whole pool when
-   * `api_key` is null. To drop a single key use `removeCredential`. */
-  setCredential: (provider: string, api_key: string | null) =>
+  /** Adds one key to the provider's pool, with an optional label, or clears
+   * the whole pool when `api_key` is null. Adding a key that is already
+   * stored, with a label, labels it. To drop a single key use
+   * `removeCredential`. */
+  setCredential: (provider: string, api_key: string | null, label?: string) =>
     http<{ ok: boolean; provider: string }>("/api/settings/credentials", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider, api_key }),
+      body: JSON.stringify({ provider, api_key, label: label ?? null }),
     }),
+  /** Sets, changes or clears (empty string) one stored key's label, by
+   * position - the key itself is never sent back. */
+  setCredentialLabel: (provider: string, index: number, label: string) =>
+    http<{ ok: boolean; provider: string; index: number }>(
+      `/api/settings/credentials/${provider}/${index}/label`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      },
+    ),
   removeCredential: (provider: string, index: number) =>
     http<{ ok: boolean; provider: string }>(
       `/api/settings/credentials/${provider}/${index}`,

@@ -19,14 +19,28 @@ Security considerations:
 """
 
 import hmac
+import re
 import shlex
-from typing import List
+import time
+from typing import List, Optional
 
 from ..analyzers.agent.tools import AgentTools
 from .adb_manager import ADBManager, _ANDROID_PACKAGE_RE
 from .frida_manager import FridaManager
 
 MAX_OUTPUT_CHARS = 4000
+MAX_SEQUENCE = 6
+MAX_SLEEP_SECONDS = 10
+_SEPARATORS = ("&&", ";")
+_UNSUPPORTED_SHELL = ("|", "||", ">", ">>", "<", "&", "(", ")")
+_CONTENT_VERBS = ("query", "read", "insert", "update", "delete", "call")
+_UI_NODE_RE = re.compile(r"<node\b([^>]*?)/?>")
+_UI_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
+_UI_BOUNDS_RE = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
+_UI_DUMP_PATH = "/data/local/tmp/lu77u_verify_ui.xml"
+_U2_SERVER_PATTERN = "com.wetest.uia2.Mai[n]"
+MAX_UI_NODES = 60
+_AUTHORITY_RE = re.compile(r"\[([^\]\s]+)\]:\s*\n\s*Provider\{\S+ ([\w.]+)/")
 
 def _leading_token_is(tokens: List[str], want: str) -> bool:
     """
@@ -44,6 +58,48 @@ def _leading_token_is(tokens: List[str], want: str) -> bool:
         The dispatcher below matches a model-supplied command verb against a fixed allowlist one keyword at a time; hmac.compare_digest replaces the plain equality check so that the query engine's timing-attack heuristic -- which flags any equality test reachable from model-controlled input -- has nothing left to flag, even though the compared value is a command keyword rather than a secret.
     """
     return bool(tokens) and hmac.compare_digest(tokens[0], want)
+
+def _split_sequence(command: str) -> List[str]:
+    """
+    Purpose:
+        Split a requested command at && and ; into the commands it runs in order.
+
+    Parameters:
+        command: The command as the model wrote it.
+
+    Returns:
+        Each command, re-quoted, at most MAX_SEQUENCE of them.
+
+    Raises:
+        ValueError: When it cannot be parsed, uses a pipe, redirection or background operator, or chains more than MAX_SEQUENCE commands.
+
+    Security considerations:
+        Splitting happens on parsed words, after shell-aware parsing, so a separator inside quotes stays part of its argument. Pipes and redirection are refused outright rather than passed on, so each part reaches the allowlist as one command, the only shape it judges.
+    """
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        words = list(lexer)
+    except ValueError as e:
+        raise ValueError(f"could not parse command: {e}")
+    if any(word in _UNSUPPORTED_SHELL for word in words):
+        raise ValueError("pipes, redirection and background jobs are not supported; chain commands with &&")
+    parts, current = [], []
+    for word in words:
+        if word in _SEPARATORS:
+            if current:
+                parts.append(current)
+            current = []
+        else:
+            current.append(word)
+    if current:
+        parts.append(current)
+    if not parts:
+        raise ValueError("empty command")
+    if len(parts) > MAX_SEQUENCE:
+        raise ValueError(f"at most {MAX_SEQUENCE} commands can be chained in one step")
+    return [shlex.join(p) for p in parts]
+
 
 def _truncate(text: str, limit: int) -> str:
     """
@@ -114,6 +170,8 @@ class VerifyTools:
         self.package = package
         self.verbose = verbose
         self.source_tools = AgentTools(source_root)
+        self._authorities: Optional[List[str]] = None
+        self._drop: Optional[str] = None
 
     def read_source(self, path: str, start_line=None) -> str:
         """
@@ -144,7 +202,7 @@ class VerifyTools:
             The output, or an error message explaining why it was refused.
 
         Implementation notes:
-            Refusals come back as text rather than exceptions, because the agent reads them and can then ask for something permitted. An exception would end the verification instead of redirecting it.
+            Refusals come back as text rather than exceptions, because the agent reads them and can then ask for something permitted. An exception would end the verification instead of redirecting it. Commands joined with && or ; run one after another, each held to the allowlist on its own, and the run stops at the first refusal: driving a screen takes `am start`, a pause, `input text` and `input tap` in order, and an agent that could not chain them spent a scan's step budget re-sending `am start ... '&&' input text ...`, whose && reached the device as a quoted argument.
 
         Security considerations:
             The refusal message names the permitted form, which is what lets the agent converge on an allowed command rather than retrying variants of a forbidden one.
@@ -153,11 +211,18 @@ class VerifyTools:
         if not command:
             return "ERROR: empty adb command"
         try:
-            handler = self._resolve_adb_command(command)
-            result = handler()
+            parts = _split_sequence(command)
         except ValueError as e:
             return f"ERROR: {e}"
-        return _truncate(result, MAX_OUTPUT_CHARS)
+        outputs = []
+        for part in parts:
+            try:
+                result = self._resolve_adb_command(part)()
+            except ValueError as e:
+                outputs.append(f"$ {part}\nERROR: {e}" if len(parts) > 1 else f"ERROR: {e}")
+                break
+            outputs.append(f"$ {part}\n{result}" if len(parts) > 1 else result)
+        return _truncate("\n".join(outputs), MAX_OUTPUT_CHARS)
 
     def _resolve_adb_command(self, command: str):
         """
@@ -212,9 +277,182 @@ class VerifyTools:
             return lambda: self._getprop(args)
         if hmac.compare_digest(verb, "pidof"):
             return lambda: self._pidof(args)
+        if hmac.compare_digest(verb, "content"):
+            return lambda: self._content(args)
+        if hmac.compare_digest(verb, "sleep"):
+            return lambda: self._sleep(args)
+        if hmac.compare_digest(verb, "uiautomator"):
+            return lambda: self._ui_dump(args)
         raise ValueError(
             f"command '{verb}' is not allowed. Allowed: logcat, run-as, dumpsys, "
-            "pm, am, input, screencap, getprop, pidof (all scoped to the target app).")
+            "pm, am, input, content, uiautomator dump, screencap, getprop, pidof, sleep "
+            "(all scoped to the target app).")
+
+    def _ui_dump(self, args: List[str]) -> str:
+        """
+        Purpose:
+            List the target app's on-screen elements with their text, id and the point to tap, so the agent can type into a field and press a button instead of guessing coordinates.
+
+        Parameters:
+            args: Tokens following the command: nothing, or "dump".
+
+        Returns:
+            One line per element of the app's own window that has text, an id, a description or can be clicked or typed into; a note when the app has nothing on screen.
+
+        Raises:
+            ValueError: When given anything but "dump".
+
+        Implementation notes:
+            Without it, a DIVA run typed a payload and tapped (540, 1200), then (500, 1000), never hitting the button that runs the query, and spent its steps retrying. A uiautomator2 server left running by an earlier scan's UI exploration holds the device's one UI-automation connection and makes the dump hang, so it is stopped first; that kills only that helper. The pattern is written `Mai[n]` because pkill -f matches whole command lines, and the shell running this very command contains the server's name: written plainly, pkill killed its own shell and every dump came back empty. The dump is read with a regular expression rather than an XML parser, because it comes from the device and so is untrusted input: attributes are only matched and copied, never resolved.
+
+        Security considerations:
+            The command is fixed, and only elements whose package is the app under test are returned, so another app or the system UI on screen is not described.
+        """
+        if args not in ([], ["dump"]):
+            raise ValueError("uiautomator only supports 'uiautomator dump'")
+        raw = self._shell(f"pkill -f '{_U2_SERVER_PATTERN}'; uiautomator dump {_UI_DUMP_PATH} >/dev/null "
+                          f"&& cat {_UI_DUMP_PATH}", timeout=25)
+        lines = []
+        for node in _UI_NODE_RE.finditer(raw):
+            attrs = dict(_UI_ATTR_RE.findall(node.group(1)))
+            if attrs.get("package") != self.package:
+                continue
+            text, rid, desc = attrs.get("text", ""), attrs.get("resource-id", ""), attrs.get("content-desc", "")
+            clickable = attrs.get("clickable") == "true"
+            editable = attrs.get("class", "").endswith("EditText")
+            if not (text or rid or desc or clickable or editable):
+                continue
+            bounds = _UI_BOUNDS_RE.fullmatch(attrs.get("bounds", ""))
+            centre = (f" tap=({(int(bounds.group(1)) + int(bounds.group(3))) // 2},"
+                      f"{(int(bounds.group(2)) + int(bounds.group(4))) // 2})") if bounds else ""
+            kind = attrs.get("class", "").rsplit(".", 1)[-1]
+            marks = "".join((" editable" if editable else "", " clickable" if clickable else ""))
+            lines.append(f"{kind} id={rid.rsplit('/', 1)[-1] or '-'} text={text[:60]!r}"
+                         f"{f' desc={desc[:40]!r}' if desc else ''}{centre}{marks}")
+            if len(lines) >= MAX_UI_NODES:
+                break
+        if not lines:
+            return "(the app under test has no elements on screen; is it in the foreground?)"
+        return "\n".join(lines)
+
+    def _content(self, args: List[str]) -> str:
+        """
+        Purpose:
+            Query or call one of the app's own content providers, which is how a provider finding is confirmed.
+
+        Parameters:
+            args: Tokens following the command.
+
+        Returns:
+            The command output.
+
+        Raises:
+            ValueError: When the subcommand is not permitted, no --uri is given, or its authority is not one of the app's providers.
+
+        Security considerations:
+            The authority in --uri must be one the app under test declares, read from `dumpsys package` for that package, so the command cannot reach another app's provider. Writes are permitted, as `am broadcast` is, because confirming a write-side flaw takes one and they land only in the app under test on a test device. The command runs as the shell user, which reaches a provider much as another installed app does, so what it returns is what such an app would get.
+        """
+        if not args or args[0] not in _CONTENT_VERBS:
+            raise ValueError("content supports: " + ", ".join(_CONTENT_VERBS))
+        uri = next((args[i + 1] for i, a in enumerate(args[:-1]) if a == "--uri"), "")
+        if not uri.startswith("content://"):
+            raise ValueError("content needs '--uri content://<authority>/<path>'")
+        authority = uri[len("content://"):].split("/", 1)[0]
+        own = self._provider_authorities()
+        if authority not in own:
+            raise ValueError(
+                f"content must target one of the app's own providers: {', '.join(own) or 'none found'}")
+        quoted = " ".join(shlex.quote(a) for a in args)
+        return self._as_other_app(f"content {quoted}")
+
+    def _as_other_app(self, cmd: str) -> str:
+        """
+        Purpose:
+            Run an attacker-side command - sending an Intent, querying a provider - as an unprivileged user, the way another installed app would.
+
+        Parameters:
+            cmd: The command, already built from validated, quoted parts.
+
+        Returns:
+            The output, with a warning appended when the command had to run as root.
+
+        Implementation notes:
+            On many emulators and userdebug images adb's shell is root, and root passes every check another app fails: it can send a protected broadcast, start an unexported component and skip a signature permission. A Ghera fixed app whose receiver acts only on DEVICE_STORAGE_LOW was "triggered" that way, a false positive confirmed instead of refuted. So when the shell is root, the command runs as the shell user, uid 2000, which Android refuses those things just as it refuses an app. su takes the command one of two ways (AOSP's `su 2000 cmd`, Magisk's `su 2000 -c cmd`); which one works is found once and kept.
+        """
+        drop = self._privilege_drop()
+        if drop == "aosp":
+            return self._shell(f"su 2000 {cmd}")
+        if drop == "magisk":
+            return self._shell(f"su 2000 -c {shlex.quote(cmd)}")
+        out = self._shell(cmd)
+        if drop == "root":
+            out += ("\n(ran as root: this device's adb shell is root and su could not drop to an "
+                    "unprivileged user, so another app may not get this result)")
+        return out
+
+    def _privilege_drop(self) -> str:
+        """
+        Purpose:
+            Find out whether attacker-side commands need to drop root, and how.
+
+        Returns:
+            "none" when adb's shell is not root, "aosp" or "magisk" for the su form that reaches uid 2000, or "root" when it cannot be dropped.
+
+        Side effects:
+            Up to three device calls the first time; cached after.
+        """
+        if self._drop is None:
+            if self._shell("id -u").strip() != "0":
+                self._drop = "none"
+            elif "uid=2000" in self._shell("su 2000 id"):
+                self._drop = "aosp"
+            elif "uid=2000" in self._shell("su 2000 -c id"):
+                self._drop = "magisk"
+            else:
+                self._drop = "root"
+        return self._drop
+
+    def _provider_authorities(self) -> List[str]:
+        """
+        Purpose:
+            List the content provider authorities the app under test declares, as the device reports them.
+
+        Returns:
+            The authorities; empty when the package declares none or the device could not be asked.
+
+        Implementation notes:
+            Read once from `dumpsys package` and cached, so a run of provider queries costs one extra device call.
+        """
+        if self._authorities is None:
+            out = self._shell(f"dumpsys package {self.package}")
+            found = []
+            for match in _AUTHORITY_RE.finditer(out):
+                if match.group(2) == self.package:
+                    found.extend(a for a in match.group(1).split(";") if a)
+            self._authorities = sorted(set(found))
+        return self._authorities
+
+    def _sleep(self, args: List[str]) -> str:
+        """
+        Purpose:
+            Pause between the steps of a sequence, so an activity started by one step is on screen before the next types into it.
+
+        Parameters:
+            args: Tokens following the command: one whole number of seconds.
+
+        Returns:
+            A note of the pause.
+
+        Raises:
+            ValueError: When the argument is not a whole number from 1 to MAX_SLEEP_SECONDS.
+
+        Implementation notes:
+            Waits here rather than on the device, so nothing is sent.
+        """
+        if len(args) != 1 or not args[0].isdigit() or not 1 <= int(args[0]) <= MAX_SLEEP_SECONDS:
+            raise ValueError(f"sleep takes one whole number of seconds from 1 to {MAX_SLEEP_SECONDS}")
+        time.sleep(int(args[0]))
+        return f"slept {args[0]}s"
 
     def _shell(self, cmd: str, timeout: int = 20) -> str:
         """
@@ -385,7 +623,7 @@ class VerifyTools:
                 f"am {verb} must target the app under test - include "
                 f"'-n {self.package}/<Component>' or '-p {self.package}'")
         quoted = " ".join(shlex.quote(a) for a in rest)
-        return self._shell(f"am {verb} {quoted}")
+        return self._as_other_app(f"am {verb} {quoted}")
 
     def _input(self, args: List[str]) -> str:
         """
@@ -459,13 +697,14 @@ class VerifyTools:
             raise ValueError("getprop requires exactly one property name")
         return self._shell(f"getprop {shlex.quote(args[0])}")
 
-    def frida_script(self, script: str) -> str:
+    def frida_script(self, script: str, trigger: str = "") -> str:
         """
         Purpose:
-            Run an instrumentation script in the app under test and return what it reported.
+            Run an instrumentation script in the app under test, optionally make the app run the hooked code while it is loaded, and return what both reported.
 
         Parameters:
             script: The script source.
+            trigger: A device command, held to the same allowlist as an adb action, run once the script is loaded; empty for none.
 
         Returns:
             The script's output, or an error message.
@@ -474,13 +713,14 @@ class VerifyTools:
             Injects and runs code inside the running app.
 
         Implementation notes:
-            Errors come back as text rather than exceptions, so a failing script lets the agent adjust and retry rather than ending the verification.
+            Errors come back as text rather than exceptions, so a failing script lets the agent adjust and retry rather than ending the verification. The trigger goes through adb_command, so it can do nothing an adb action could not.
 
         Security considerations:
             The script is written by the model and runs inside the app's process with its privileges. It is scoped to the app under test by the manager, and its output is bounded. This is the broadest capability on the tool surface -- a script can do anything the app can -- and it is accepted because runtime observation is the only way to confirm several classes of finding.
         """
         if not script or not script.strip():
             return "ERROR: empty frida script"
-        ok, output = self.frida.run_script(self.adb, self.device, self.package, script)
+        after_load = (lambda: self.adb_command(trigger)) if trigger and trigger.strip() else None
+        ok, output = self.frida.run_script(self.adb, self.device, self.package, script, after_load=after_load)
         prefix = "" if ok else "ERROR: "
         return _truncate(prefix + output, MAX_OUTPUT_CHARS)

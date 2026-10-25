@@ -1,0 +1,1241 @@
+{
+  "meta": {
+    "id": "56692b0c35b9",
+    "kind": "static",
+    "filename": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Web/UnsafeIntentURLImpl-InformationExposure-Lean/secure.apk",
+    "status": "completed",
+    "created_at": "2026-10-23T09:39:17.062326+00:00",
+    "started_at": "2026-10-23T09:39:17.066149+00:00",
+    "finished_at": "2026-10-23T09:41:15.111680+00:00",
+    "duration": 118.05,
+    "progress": 100,
+    "phase": "done",
+    "error": null,
+    "pause_reason": null,
+    "resume_attempts": 0,
+    "summary": {
+      "primary_framework": "Java",
+      "total_vulnerabilities": 9,
+      "critical": 0,
+      "high": 1,
+      "medium": 1,
+      "low": 1,
+      "security_score": 74.5,
+      "package_name": "edu.ksu.cs.benign",
+      "app_name": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Web/UnsafeIntentURLImpl-InformationExposure-Lean/secure.apk",
+      "analysis_supported": true
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "boot_id": "28bfcc14bd3747a8b903d85680ec7f36",
+    "owner_pid": 15131
+  },
+  "result": {
+    "metadata": {
+      "tool": "lu77U-MobileSec",
+      "version": "0.1.5",
+      "timestamp": "2026-10-23T15:11:15.099054",
+      "target": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Web/UnsafeIntentURLImpl-InformationExposure-Lean/secure.apk",
+      "analysis_date": "2026-10-23 15:11:15"
+    },
+    "framework_detection": {
+      "detected": true,
+      "primary_framework": "Java",
+      "confidence": 0.8,
+      "confidence_level": "High",
+      "frameworks": [
+        {
+          "name": "Java",
+          "confidence": 0.8,
+          "confidence_level": "High",
+          "indicators_found": [
+            "DEX files: 1 found"
+          ]
+        }
+      ]
+    },
+    "application_info": {
+      "package_name": "edu.ksu.cs.benign",
+      "app_name": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Web/UnsafeIntentURLImpl-InformationExposure-Lean/secure.apk",
+      "version_name": "1.0",
+      "version_code": "1",
+      "min_sdk": "22",
+      "target_sdk": "27",
+      "file_size": 964676,
+      "file_size_mb": 0.92,
+      "permissions": [
+        "android.permission.INTERNET"
+      ],
+      "activities": [
+        "edu.ksu.cs.benign.MainActivity",
+        "edu.ksu.cs.benign.DisplayActivity"
+      ],
+      "services": [],
+      "receivers": [],
+      "providers": []
+    },
+    "vulnerability_analysis": {
+      "analyzed": true,
+      "total_vulnerabilities": 9,
+      "by_severity": {
+        "critical": 0,
+        "high": 1,
+        "medium": 1,
+        "low": 1,
+        "info": 6
+      },
+      "vulnerabilities": {
+        "critical": [],
+        "high": [
+          {
+            "title": "intent:// URL launched without clearing its component and selector",
+            "severity": "High",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+            "cvss_score": 8.2,
+            "description": "Intent.parseUri() turns a URL into an Intent that is then started, and this file does not call both setComponent(null) and setSelector(null) on it. The app implements an Intent redirection vulnerability in its WebView client. It parses URLs starting with 'intent://' using Intent.parseUri() and calls startActivity() on the resulting Intent. While there is a check for a specific action and package on line 18, the 'else' block on line 22 still proceeds to start the parsed Intent regardless of whether it matched the allowlist, allowing a remote attacker to launch any activity on the device by tricking the user into visiting a malicious URL.",
+            "file": "sources/edu/ksu/cs/benign/MyWebViewClient.java",
+            "location": "",
+            "line": 17,
+            "line_start": 17,
+            "line_end": 17,
+            "impact": "A web page or link that reaches this code names any activity in the app - exported or not - with extras of its choosing, the classic WebView-to-private-component jump.",
+            "code_snippet": "            android.content.Intent intent = android.content.Intent.parseUri(url, 1);",
+            "code_context": {
+              "start_line": 13,
+              "end_line": 21,
+              "highlight_start": 17,
+              "highlight_end": 17,
+              "lines": [
+                "            return true;",
+                "        }",
+                "        try {",
+                "            android.util.Log.d(TAG, \"intent in url\");",
+                "            android.content.Intent intent = android.content.Intent.parseUri(url, 1);",
+                "            if (intent != null && intent.getAction().equals(\"edu.ksu.cs.benign.intent.action.DISP\") && intent.getPackage().equals(\"edu.ksu.cs.benign\")) {",
+                "                intent.putExtra(\"info\", \"Sensitive information\");",
+                "                android.util.Log.d(TAG, \"intent action = \" + intent.getAction());",
+                "                webView.getContext().startActivity(intent);"
+              ],
+              "lines_html": [
+                "            <span class=\"tok-kw\">return</span> <span class=\"tok-kw\">true</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span>",
+                "        <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>",
+                "            android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Log</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">d</span><span class=\"tok-op\">(</span>TAG<span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">intent in url</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            android<span class=\"tok-op\">.</span><span class=\"tok-fn\">content</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Intent</span> intent <span class=\"tok-op\">=</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">content</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Intent</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">parseUri</span><span class=\"tok-op\">(</span>url<span class=\"tok-op\">,</span> <span class=\"tok-num\">1</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>intent <span class=\"tok-op\">!</span><span class=\"tok-op\">=</span> <span class=\"tok-kw\">null</span> <span class=\"tok-op\">&amp;</span><span class=\"tok-op\">&amp;</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getAction</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">equals</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">edu.ksu.cs.benign.intent.action.DISP</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">&amp;</span><span class=\"tok-op\">&amp;</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getPackage</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">equals</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">edu.ksu.cs.benign</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "                intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">putExtra</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">info</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Sensitive information</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Log</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">d</span><span class=\"tok-op\">(</span>TAG<span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">intent action = </span><span class=\"tok-str\">&quot;</span> <span class=\"tok-op\">+</span> intent<span class=\"tok-op\">.</span><span class=\"tok-fn\">getAction</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                webView<span class=\"tok-op\">.</span><span class=\"tok-fn\">getContext</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">startActivity</span><span class=\"tok-op\">(</span>intent<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>"
+              ],
+              "hop_terms": [
+                "des",
+                "log.d",
+                "android.util.log",
+                "printstacktrace"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "After parseUri(), call setComponent(null), setSelector(null) and addCategory(BROWSABLE), or launch only intents whose target is on an allowlist.",
+            "cwe": "CWE-940",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-03",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "High",
+              "final_severity": "High",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Critical",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Intent Redirection via Unvalidated intent:// URI",
+                  "file": "sources/edu/ksu/cs/benign/MyWebViewClient.java",
+                  "line": "17,24"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "The app implements an Intent redirection vulnerability in its WebView client.",
+                  "file": "sources/edu/ksu/cs/benign/MyWebViewClient.java",
+                  "line": 24
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "unconfirmed chain candidate: Deep link loads an attacker URL into an authenticated WebView",
+                "pattern": "CHAIN-02",
+                "with": {
+                  "title": "WebView loads a URL typed into the app, with no scheme check",
+                  "file": "sources/edu/ksu/cs/benign/MainActivity.java",
+                  "line": "24"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ],
+        "medium": [
+          {
+            "title": "WebView loads a URL typed into the app, with no scheme check",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "A WebView loads the text of an input field as a URL without checking its scheme, so file:// and javascript: URLs are loaded as readily as web pages. The app enables JavaScript in the WebView and loads URLs directly from user input without scheme validation.",
+            "file": "sources/edu/ksu/cs/benign/MainActivity.java",
+            "location": "",
+            "line": 24,
+            "line_start": 24,
+            "line_end": 24,
+            "impact": "Allows the loading of arbitrary content, including potential cross-site scripting (XSS) or loading of malicious sites that can execute scripts in the app's context.",
+            "code_snippet": "                webView.loadUrl(url.getText().toString());",
+            "code_context": {
+              "start_line": 20,
+              "end_line": 28,
+              "highlight_start": 24,
+              "highlight_end": 24,
+              "lines": [
+                "        load.setOnClickListener(new android.view.View.OnClickListener() { // from class: edu.ksu.cs.benign.MainActivity.1",
+                "            @Override // android.view.View.OnClickListener",
+                "            public void onClick(android.view.View v) {",
+                "                android.util.Log.d(\"Benign\", url.getText().toString());",
+                "                webView.loadUrl(url.getText().toString());",
+                "            }",
+                "        });",
+                "    }",
+                "}"
+              ],
+              "lines_html": [
+                "        load<span class=\"tok-op\">.</span><span class=\"tok-fn\">setOnClickListener</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">new</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">view</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">View</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">OnClickListener</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span> <span class=\"tok-cm\">// from class: edu.ksu.cs.benign.MainActivity.1</span>",
+                "            <span class=\"tok-fn\">@Override</span> <span class=\"tok-cm\">// android.view.View.OnClickListener</span>",
+                "            <span class=\"tok-kw\">public</span> <span class=\"tok-kw\">void</span> <span class=\"tok-fn\">onClick</span><span class=\"tok-op\">(</span>android<span class=\"tok-op\">.</span><span class=\"tok-fn\">view</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">View</span> v<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "                android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Log</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">d</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Benign</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">,</span> url<span class=\"tok-op\">.</span><span class=\"tok-fn\">getText</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">toString</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                webView<span class=\"tok-op\">.</span><span class=\"tok-fn\">loadUrl</span><span class=\"tok-op\">(</span>url<span class=\"tok-op\">.</span><span class=\"tok-fn\">getText</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">toString</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-op\">}</span>",
+                "        <span class=\"tok-op\">}</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "    <span class=\"tok-op\">}</span>",
+                "<span class=\"tok-op\">}</span>"
+              ],
+              "hop_terms": [
+                "loadurl",
+                "log.d",
+                "android.util.log"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Accept only https:// URLs on an allowlist of hosts, and disable file access on the WebView.",
+            "cwe": "CWE-20",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-06",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Insecure WebView Configuration",
+                  "file": "sources/edu/ksu/cs/benign/MainActivity.java",
+                  "line": "18,24"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same code line, reported by static-analyzer at Low",
+                "pattern": "same-location",
+                "with": {
+                  "title": "WebView has JavaScript enabled",
+                  "file": "sources/edu/ksu/cs/benign/MainActivity.java",
+                  "line": "18"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "unconfirmed chain candidate: Deep link loads an attacker URL into an authenticated WebView",
+                "pattern": "CHAIN-02",
+                "with": {
+                  "title": "intent:// URL launched without clearing its component and selector",
+                  "file": "sources/edu/ksu/cs/benign/MyWebViewClient.java",
+                  "line": "17"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "unconfirmed chain candidate: Deep link loads an attacker URL into an authenticated WebView",
+                "pattern": "CHAIN-02",
+                "with": {
+                  "title": "Exported activity DisplayActivity has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "23"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ],
+        "low": [
+          {
+            "title": "Exported activity DisplayActivity has no permission protection",
+            "severity": "Low",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "Activity \"edu.ksu.cs.benign.DisplayActivity\" is reachable by any app on the device (Has an intent-filter and no explicit android:exported (implicitly exported)) and declares no permission. It handles DISP. Deep-link schemes: benign. DisplayActivity is exported and accessible to any third-party app without requiring a permission.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 23,
+            "line_start": 23,
+            "line_end": 23,
+            "impact": "Another app can launch this activity and potentially leak data or manipulate its UI, although the impact here is limited to displaying error messages provided in the intent.",
+            "code_snippet": "        <activity android:name=\"edu.ksu.cs.benign.DisplayActivity\">",
+            "code_context": {
+              "start_line": 19,
+              "end_line": 27,
+              "highlight_start": 23,
+              "highlight_end": 23,
+              "lines": [
+                "                <action android:name=\"android.intent.action.MAIN\"/>",
+                "                <category android:name=\"android.intent.category.LAUNCHER\"/>",
+                "            </intent-filter>",
+                "        </activity>",
+                "        <activity android:name=\"edu.ksu.cs.benign.DisplayActivity\">",
+                "            <intent-filter android:priority=\"1\">",
+                "                <action android:name=\"edu.ksu.cs.benign.intent.action.DISP\"/>",
+                "                <category android:name=\"android.intent.category.DEFAULT\"/>",
+                "                <category android:name=\"android.intent.category.BROWSABLE\"/>"
+              ],
+              "lines_html": [
+                "                &lt;action <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.intent.action.MAIN&quot;</span>/&gt;",
+                "                &lt;category <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.intent.category.LAUNCHER&quot;</span>/&gt;",
+                "            &lt;/intent-filter&gt;",
+                "        &lt;/activity&gt;",
+                "        &lt;activity <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.DisplayActivity&quot;</span>&gt;",
+                "            &lt;intent-filter <span class=\"tok-fn\">android:priority=</span><span class=\"tok-str\">&quot;1&quot;</span>&gt;",
+                "                &lt;action <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.intent.action.DISP&quot;</span>/&gt;",
+                "                &lt;category <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.intent.category.DEFAULT&quot;</span>/&gt;",
+                "                &lt;category <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.intent.category.BROWSABLE&quot;</span>/&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Set android:exported=\"false\" if it is internal, or guard it with a signature-level permission and validate all input.",
+            "cwe": "CWE-926",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-02",
+            "gate_result": {
+              "verdict": "DOWNGRADE",
+              "reasons": [
+                "The described impact is limited to displaying attacker-provided error messages, which does not justify a Medium severity."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Low",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Unprotected Exported Activity",
+                  "file": "AndroidManifest.xml",
+                  "line": "23"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "unconfirmed chain candidate: Deep link loads an attacker URL into an authenticated WebView",
+                "pattern": "CHAIN-02",
+                "with": {
+                  "title": "WebView loads a URL typed into the app, with no scheme check",
+                  "file": "sources/edu/ksu/cs/benign/MainActivity.java",
+                  "line": "24"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ],
+        "info": [
+          {
+            "title": "Application is debuggable in this build",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "cvss_score": 9.8,
+            "description": "android:debuggable=\"true\" lets any user with adb attach a debugger to the process, read and modify memory, and inspect application data. The application is marked as android:debuggable=\"true\" in the manifest.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 14,
+            "line_start": 14,
+            "line_end": 14,
+            "impact": "Allows an attacker with local access to attach a debugger, inspect memory, and extract sensitive data from the app process.",
+            "code_snippet": "        android:debuggable=\"true\"",
+            "code_context": {
+              "start_line": 10,
+              "end_line": 18,
+              "highlight_start": 14,
+              "highlight_end": 14,
+              "lines": [
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:debuggable=\"true\"",
+                "        android:allowBackup=\"false\"",
+                "        android:supportsRtl=\"true\">",
+                "        <activity android:name=\"edu.ksu.cs.benign.MainActivity\">",
+                "            <intent-filter>"
+              ],
+              "lines_html": [
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:debuggable=</span><span class=\"tok-str\">&quot;true&quot;</span>",
+                "        <span class=\"tok-fn\">android:allowBackup=</span><span class=\"tok-str\">&quot;false&quot;</span>",
+                "        <span class=\"tok-fn\">android:supportsRtl=</span><span class=\"tok-str\">&quot;true&quot;</span>&gt;",
+                "        &lt;activity <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.MainActivity&quot;</span>&gt;",
+                "            &lt;intent-filter&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Remove android:debuggable or set it to \"false\" for release builds.",
+            "cwe": "CWE-489",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Debuggable release build. A debuggable build is a release-pipeline defect rather than an exploitable flaw - attaching a debugger already requires ADB access to the device. Worth fixing, not worth a severity."
+              ],
+              "warnings": [],
+              "original_severity": "Critical",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-03",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at High",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Application Debuggable in Release Build",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "10"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Missing screenshot protection",
+            "severity": "Informational",
+            "cvss_vector": "AV:P/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.4,
+            "description": "The app does not set FLAG_SECURE on its activities.",
+            "file": "AndroidManifest.xml",
+            "location": "AndroidManifest.xml",
+            "line": 0,
+            "line_start": 0,
+            "line_end": 0,
+            "impact": "Sensitive information displayed on the screen can be captured via screenshots or screen recording apps.",
+            "code_snippet": "",
+            "code_context": null,
+            "exploitation": "",
+            "recommendation": "Call getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE) in the onCreate() of sensitive activities.",
+            "cwe": "CWE-200",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-12",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Screen contents not protected from capture. Without FLAG_SECURE, what a screen shows can end up in screenshots, screen recordings and the task-switcher preview. That matters on screens showing credentials, card numbers or balances; on its own it is a hardening note."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-14",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "10"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": "region-1-MainActivity"
+          },
+          {
+            "title": "No network security config declared",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "The app declares neither android:networkSecurityConfig nor usesCleartextTraffic, so it relies on platform defaults and pins no domain. With targetSdkVersion 27 those defaults still permit cleartext HTTP (see the cleartext finding).",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 10,
+            "line_start": 10,
+            "line_end": 10,
+            "impact": "Without pinning, anyone who gets a CA trusted on the device can read and alter the app's TLS traffic.",
+            "code_snippet": "    <application",
+            "code_context": {
+              "start_line": 6,
+              "end_line": 14,
+              "highlight_start": 10,
+              "highlight_end": 10,
+              "lines": [
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <uses-permission android:name=\"android.permission.INTERNET\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:debuggable=\"true\""
+              ],
+              "lines_html": [
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.INTERNET&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:debuggable=</span><span class=\"tok-str\">&quot;true&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Declare a network security config that disables cleartext and pins the domains that carry sensitive traffic.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-03",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "No certificate pinning. Pinning defends against an attacker who already controls a trusted CA or the device's trust store. Without one of those, TLS is still doing its job. It becomes a finding when paired with what the unpinned channel actually carries.",
+                "The absence of pinning is a hardening note that only becomes a vulnerability when paired with a finding showing sensitive data on the channel."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-01",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported activity DisplayActivity has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "23"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "targetSdkVersion 27 allows implicit component export",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "On targetSdk 27, any component with an intent-filter is exported unless it says otherwise.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "",
+            "code_snippet": "        android:targetSdkVersion=\"27\"/>",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 12,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <uses-permission android:name=\"android.permission.INTERNET\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\""
+              ],
+              "lines_html": [
+                "    android:versionName=&quot;1.0&quot;",
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.INTERNET&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise targetSdkVersion to 31+ and declare android:exported explicitly on every filtered component.",
+            "cwe": "CWE-926",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-02",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Legacy platform behaviour from SDK levels. An SDK level is a statement about which platform defaults apply, not a defect. It is context for the findings that depend on those defaults - pair it with one of them.",
+                "This is documented platform behavior for the target SDK; it provides the context for findings like Exported activity DisplayActivity has no permission protection."
+              ],
+              "warnings": [
+                "Implicit export only applies below targetSdk 31; confirm the app's targetSdkVersion before treating this as exploitable."
+              ],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-11",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "10"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported activity DisplayActivity has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "23"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "targetSdkVersion 27 permits cleartext traffic by default",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+            "cvss_score": 8.2,
+            "description": "targetSdk 27 predates API 28, where cleartext HTTP became opt-in. The app targets SDK 27 and lacks a network security configuration, permitting cleartext HTTP traffic by default.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "Sensitive data transmitted over HTTP can be intercepted via Man-in-the-Middle (MITM) attacks.",
+            "code_snippet": "        android:targetSdkVersion=\"27\"/>",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 12,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <uses-permission android:name=\"android.permission.INTERNET\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\""
+              ],
+              "lines_html": [
+                "    android:versionName=&quot;1.0&quot;",
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.INTERNET&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise targetSdkVersion to 28 or above.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-02",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Cleartext permitted by configuration. The flag permits HTTP; it does not show that anything is sent over it. Name a request that actually goes out in cleartext, and what it carries, and this is a genuine finding.",
+                "This is a platform default for the target SDK; it requires a finding showing a request that actually transmits sensitive data over HTTP."
+              ],
+              "warnings": [
+                "Cleartext is blocked by default from targetSdk 28; confirm the declared target and any network security config."
+              ],
+              "original_severity": "High",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-05",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Permissive Cleartext Traffic Configuration",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "10"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "minSdkVersion 22 lets the app run on Android versions before 11, and its task affinity is its package name \"edu.ksu.cs.benign\". There, another app can declare the same affinity, with allowTaskReparenting, and have its own activity shown in this app's task. The app targets SDK 27 and does not specify android:taskAffinity, making it susceptible to task hijacking (StrandHogg) on Android 10 and lower.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 5,
+            "line_start": 5,
+            "line_end": 5,
+            "impact": "A malicious app can place its own activity on top of the app's task, potentially phishing user credentials.",
+            "code_snippet": "    package=\"edu.ksu.cs.benign\">",
+            "code_context": {
+              "start_line": 1,
+              "end_line": 9,
+              "highlight_start": 5,
+              "highlight_end": 5,
+              "lines": [
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+                "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"",
+                "    android:versionCode=\"1\"",
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <uses-permission android:name=\"android.permission.INTERNET\"/>"
+              ],
+              "lines_html": [
+                "<span class=\"tok-cm\">&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;</span>",
+                "&lt;manifest <span class=\"tok-fn\">xmlns:android=</span><span class=\"tok-str\">&quot;http://schemas.android.com/apk/res/android&quot;</span>",
+                "    <span class=\"tok-fn\">android:versionCode=</span><span class=\"tok-str\">&quot;1&quot;</span>",
+                "    <span class=\"tok-fn\">android:versionName=</span><span class=\"tok-str\">&quot;1.0&quot;</span>",
+                "    <span class=\"tok-fn\">package=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign&quot;</span>&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.permission.INTERNET&quot;</span>/&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise minSdkVersion to 30, where Android fixed this. Until then, android:taskAffinity=\"\" on the <application> mitigates the original attack, though not its runtime variant on unpatched Android 9 and lower.",
+            "cwe": "CWE-1021",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-09",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Task Hijacking Susceptibility",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "10"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "14"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ]
+      },
+      "refuted": [],
+      "refuted_count": 0
+    },
+    "analyzer_details": {
+      "framework": "Java/Kotlin",
+      "analysis_time": 58.29811120033264,
+      "files_analyzed": 282,
+      "decompilation_status": "Successful",
+      "error": null,
+      "agent_coverage": {
+        "regions": [
+          {
+            "key": "region-1-MainActivity",
+            "nodes": 3,
+            "steps": 3,
+            "files_read": 3,
+            "stop_reason": "reported",
+            "findings": 7
+          }
+        ],
+        "complete": true,
+        "regions_incomplete": 0,
+        "regions_total": 1,
+        "degraded_reason": null,
+        "leads": {
+          "total": 10,
+          "routed": 10,
+          "unowned": 7,
+          "per_region": {
+            "region-1-MainActivity": 10
+          }
+        },
+        "scope": {
+          "packages": 27,
+          "rounds": 1,
+          "seeded_app_packages": 1,
+          "seeded_vendor_packages": 0,
+          "app_classes": 4,
+          "vendor_classes": 0,
+          "framework_classes": 618,
+          "undecided_classes": 0,
+          "undecided_packages": [],
+          "app_packages": [
+            "edu/ksu/cs/benign"
+          ],
+          "synthetic_classes_skipped": 0,
+          "source_checked": 3,
+          "source_missing": 0,
+          "source_repaired": 0
+        },
+        "file_review": {
+          "files": 3,
+          "parts": 1,
+          "parts_skipped": 0,
+          "parts_failed": 0,
+          "findings": 2
+        }
+      },
+      "limitation": "",
+      "llm_usage": {
+        "provider": "ollama",
+        "calls": 8,
+        "failed": 0,
+        "wall_clock_s": 111.5,
+        "prompt_tokens": 105871,
+        "completion_tokens": 13973,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0,
+        "throttled_attempts": 0,
+        "transient_attempts": 0,
+        "failed_attempt_seconds": 0.0,
+        "retried_calls": 0,
+        "truncation_retries": 0,
+        "transient_retries": 0,
+        "throttle_retries": 0,
+        "slow_calls": 0,
+        "unparseable_responses": 0,
+        "blocked_seconds": 0.0,
+        "mode": "cloud",
+        "model": "gemma4:31b",
+        "unavailable": null,
+        "unreachable": null,
+        "keys_total": 10,
+        "keys_used": 8
+      }
+    },
+    "summary": {
+      "framework_detected": true,
+      "vulnerability_scan_complete": true,
+      "total_vulnerabilities": 9,
+      "critical_count": 0,
+      "high_count": 1,
+      "medium_count": 1,
+      "low_count": 1,
+      "refuted_count": 0,
+      "security_score": 74.5,
+      "weighted_finding_count": 17,
+      "security_grade": "C"
+    },
+    "analysis": {
+      "supported": true,
+      "success": true,
+      "files_analyzed": 282,
+      "analysis_time": 58.29811120033264,
+      "framework": "Java/Kotlin",
+      "decompilation_status": "Successful",
+      "unsupported_framework": false,
+      "error": null,
+      "limitation": ""
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "dynamic_session": {
+      "attempted": false,
+      "reason": "Dynamic verification is disabled in Settings."
+    }
+  }
+}

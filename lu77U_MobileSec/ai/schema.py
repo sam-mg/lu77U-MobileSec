@@ -100,6 +100,28 @@ def parse_line_span(value) -> Optional[Tuple[int, int]]:
     a, b = int(nums[0]), int(nums[1])
     return (a, b) if a <= b else (b, a)
 
+def _unfence(text: str) -> str:
+    """
+    Purpose:
+        Take a JSON document out of the markdown code fence a model wrapped it in.
+
+    Parameters:
+        text: The model's response text.
+
+    Returns:
+        The fenced body when the text is one fenced block, otherwise the text unchanged.
+
+    Implementation notes:
+        String operations rather than a regular expression, so a long unterminated fence in untrusted model output costs linear time.
+    """
+    stripped = text.strip()
+    newline = stripped.find("\n")
+    if not stripped.startswith("```") or newline < 0:
+        return text
+    body = stripped[newline + 1:].rstrip()
+    return body[:-3] if body.endswith("```") else body
+
+
 def coerce_to_vuln_list(payload):
     """
     Purpose:
@@ -115,11 +137,11 @@ def coerce_to_vuln_list(payload):
         O(n) in payload size when a parse is needed.
 
     Implementation notes:
-        Four wrapper keys are recognised -- vulnerabilities, results, findings, issues -- because models choose a plausible container name of their own and rejecting all but one would discard valid responses over a naming preference. A dict with no recognised wrapper is treated as a single finding rather than as an error, which covers the common case of exactly one issue returned unwrapped. A string that will not parse is returned as-is instead of raising, leaving the more tolerant recovery stages in the response parser free to try.
+        Four wrapper keys are recognised -- vulnerabilities, results, findings, issues -- because models choose a plausible container name of their own and rejecting all but one would discard valid responses over a naming preference. A dict keyed by the ids the prompt gave ("0": {...}, "1": {...}) is the list written as an object, and becomes that list with each key as its item's id unless the item names one. Any other dict with no recognised wrapper is treated as a single finding rather than as an error, which covers the common case of exactly one issue returned unwrapped. A response wrapped in a markdown code fence is unwrapped before parsing: a fenced answer once came back unparsed from every pass that reads through here, and a scan published no exploit chains although the model had confirmed four, kept every title the review pass had rewritten as a cut-off sentence, and lost its review verdicts. A string that will not parse is returned as-is instead of raising, leaving the more tolerant recovery stages in the response parser free to try.
     """
     if isinstance(payload, str):
         try:
-            payload = _loads_richest(payload)
+            payload = _loads_richest(_unfence(payload))
         except Exception:
             return payload
     if isinstance(payload, dict):
@@ -127,6 +149,8 @@ def coerce_to_vuln_list(payload):
             value = payload.get(key)
             if isinstance(value, list):
                 return value
+        if payload and all(str(k).isdigit() and isinstance(v, dict) for k, v in payload.items()):
+            return [dict({"id": int(k)}, **v) for k, v in payload.items()]
         return [payload]
     return payload
 

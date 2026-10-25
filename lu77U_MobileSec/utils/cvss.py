@@ -6,7 +6,7 @@ Purpose:
     Implement CVSS v3.1 base scoring locally, so that a severity printed in a report is derived from the vector beside it rather than taken on trust from whatever produced the finding.
 
 Responsibilities:
-    Parse a CVSS vector string, compute the base score, and map a score to a severity band.
+    Parse a CVSS vector string, compute the base score, map a score to a severity band, and complete a partial vector on request.
 
 Dependencies:
     re only -- no third-party CVSS library and no network lookup.
@@ -81,6 +81,39 @@ def parse_vector(vector: str) -> Optional[Dict[str, str]]:
     if not all(m in metrics for m in _REQUIRED_METRICS):
         return None
     return metrics
+
+_COMPLETION_DEFAULTS = (("AC", "L"), ("PR", "N"), ("UI", "N"), ("S", "U"), ("C", "N"), ("I", "N"), ("A", "N"))
+
+
+def complete_vector(vector: str) -> Optional[str]:
+    """
+    Purpose:
+        Turn a vector with base metrics left out into a full one, when what it does state is enough to score.
+
+    Parameters:
+        vector: A CVSS v3.x vector string, possibly partial.
+
+    Returns:
+        A full eight-metric vector, or None when the input names no attack vector or no impact at all.
+
+    Implementation notes:
+        Models routinely drop a metric they consider obvious - most often AC - and a vector that fails to parse used to throw away the attack vector and impacts the model did state, leaving a word-based guess in their place. Completion keeps every stated metric and fills the rest with the worst-case exploitability value (AC:L, PR:N, UI:N, S:U: the model named no barrier) and no impact for an unstated C, I or A. It is only attempted when AV and at least one non-None impact are present, since without those there is nothing to score. Kept separate from parse_vector, which still refuses partial input, so the guess is made only where a caller asks for it.
+    """
+    if not vector or not isinstance(vector, str):
+        return None
+    text = re.sub(r"^CVSS:3\.[01]/", "", vector.strip(), flags=re.IGNORECASE)
+    metrics: Dict[str, str] = {}
+    for part in text.split("/"):
+        key, _, value = part.partition(":")
+        key, value = key.strip().upper(), value.strip().upper()
+        if key in _METRIC_VALUES and value in _METRIC_VALUES[key]:
+            metrics[key] = value
+    if "AV" not in metrics or not any(metrics.get(m) in ("L", "H") for m in ("C", "I", "A")):
+        return None
+    for key, default in _COMPLETION_DEFAULTS:
+        metrics.setdefault(key, default)
+    return "/".join(f"{key}:{metrics[key]}" for key in _REQUIRED_METRICS)
+
 
 def calculate_base_score(vector: str) -> Optional[float]:
     """

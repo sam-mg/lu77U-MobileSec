@@ -22,7 +22,7 @@ import json
 import re
 from typing import Dict, List, Optional
 from .verbose import plural, verbose_print
-from .cvss import severity_from_vector
+from .cvss import complete_vector, severity_from_vector
 from .string_utils import truncate_text
 from ..config.constants import RESPONSE_PARSER_PATTERNS
 from ..ai.schema import (
@@ -30,6 +30,56 @@ from ..ai.schema import (
     _IMPACT_MAX, _EXPLOITATION_MAX)
 from ..validation.taxonomy import describe as _describe_vuln_class
 from .json_utils import loads_richest
+
+_KEPT_LENGTH_FACTOR = 3
+
+
+def fit_field(text: str, limit: int) -> str:
+    """
+    Purpose:
+        Bound a model-written text field without cutting it off mid-sentence.
+
+    Parameters:
+        text: The field as the model wrote it.
+        limit: The length the schema asks the model for.
+
+    Returns:
+        The text unchanged when it is within _KEPT_LENGTH_FACTOR times the limit; otherwise cut at the last sentence end in that bound, or at the last word with an ellipsis when no sentence ends in its second half.
+
+    Implementation notes:
+        The schema's limit tells the model how long to write, and models overrun it by a few words. Cutting at the limit itself published descriptions that stopped mid-word ("... to read hidd...") and impacts that stopped mid-path ("... the app's pri...") on a third of one benchmark scan's findings, although the model had written the whole sentence. The bound here only stops a runaway field.
+    """
+    text = (text or "").strip()
+    bound = limit * _KEPT_LENGTH_FACTOR
+    if len(text) <= bound:
+        return text
+    head = text[:bound]
+    end = max(head.rfind(". "), head.rfind("! "), head.rfind("? "))
+    if end >= bound // 2:
+        return head[:end + 1]
+    return head.rsplit(" ", 1)[0].rstrip(",;:- ") + "\u2026"
+
+
+_BARE_OFFSET_RE = re.compile(r"(?:libapp\.so )?offset (0x[0-9a-fA-F]{1,16})")
+
+
+def hook_point(text: str) -> str:
+    """
+    Purpose:
+        Say what a bare libapp.so offset in an exploitation field is for.
+
+    Parameters:
+        text: The exploitation field as the model wrote it.
+
+    Returns:
+        "Frida hook point: libapp.so offset 0x..." when the field is only an offset, otherwise the text unchanged.
+
+    Implementation notes:
+        The Flutter prompt asks for the offset of the function to hook, and a model that writes only "libapp.so offset 0x373a60" leaves a report reader with a number under the heading Exploitation and no idea what it is.
+    """
+    match = _BARE_OFFSET_RE.fullmatch((text or "").strip())
+    return f"Frida hook point: libapp.so offset {match.group(1)}" if match else text
+
 
 def _derive_title_from_description(description: str) -> str:
     """
@@ -371,7 +421,7 @@ class ResponseParser:
             severity is exactly one of Critical, High, Medium, Low or Informational. Text fields are within the schema bounds. Keys outside the allowlist are absent.
 
         Implementation notes:
-            Type and location are each resolved from several aliases, because models vary the key names for the same concept across responses and sometimes within one. The line span is parsed from line, then location, then line_number, in that order of decreasing reliability. location_display is built to read naturally in all four cases -- file and line, line only, file only, or neither. Severity resolution runs in two passes. First the word is matched by substring, so "HIGH severity" and "high" both land on High; then, if a CVSS vector is present and parses, the computed severity overrides the word entirely. The vector is authoritative because a model will assert a severity that its own vector contradicts. An unparseable vector is dropped from the output rather than kept, so a report never shows a vector that did not produce the severity beside it. An unrecognised severity word falls back to Medium rather than to the lowest band: an unreadable severity is an unknown risk, and defaulting downward would hide it. CWE and OWASP identifiers are filled from the taxonomy only when the model did not supply them, so a model that knows better is not overridden. Code snippets have escaped quotes unescaped, and snippets containing markup have their whitespace collapsed so that XML and HTML fragments do not span dozens of report lines. Unknown keys are dropped against _NORMALIZE_KNOWN_KEYS and the loss is traced, so a model inventing a field is visible rather than silently ignored.
+            Type and location are each resolved from several aliases, because models vary the key names for the same concept across responses and sometimes within one. The line span is parsed from line, then location, then line_number, in that order of decreasing reliability. location_display is built to read naturally in all four cases -- file and line, line only, file only, or neither. Severity resolution runs in two passes. First the word is matched by substring, so "HIGH severity" and "high" both land on High; then, if a CVSS vector is present and parses, the computed severity overrides the word entirely. The vector is authoritative because a model will assert a severity that its own vector contradicts. A vector with base metrics left out is completed first (complete_vector) when it states an attack vector and an impact, so a dropped AC no longer throws away what the model did score. An unparseable vector is dropped from the output rather than kept, so a report never shows a vector that did not produce the severity beside it. An unrecognised severity word falls back to Medium rather than to the lowest band: an unreadable severity is an unknown risk, and defaulting downward would hide it. CWE and OWASP identifiers are filled from the taxonomy only when the model did not supply them, so a model that knows better is not overridden. Code snippets have escaped quotes unescaped, and snippets containing markup have their whitespace collapsed so that XML and HTML fragments do not span dozens of report lines. Unknown keys are dropped against _NORMALIZE_KNOWN_KEYS and the loss is traced, so a model inventing a field is visible rather than silently ignored.
 
         Security considerations:
             Every value here originates in model output describing an untrusted APK. Length capping bounds the cost of a hostile or degenerate response, and the key allowlist means no unexpected field can reach the report renderer. The values themselves are still untrusted text and must be escaped by whatever renders them.
@@ -450,15 +500,14 @@ class ResponseParser:
                     normalized['owasp_mobile'] = entry.owasp_mobile
 
         normalized['title'] = truncate_text(normalized['title'], _TITLE_MAX)
-        normalized['description'] = truncate_text(normalized['description'], _DESCRIPTION_MAX)
+        normalized['description'] = fit_field(normalized['description'], _DESCRIPTION_MAX)
         if normalized.get('recommendation'):
-            normalized['recommendation'] = truncate_text(
-                normalized['recommendation'], _RECOMMENDATION_MAX)
+            normalized['recommendation'] = fit_field(normalized['recommendation'], _RECOMMENDATION_MAX)
         if normalized.get('impact'):
-            normalized['impact'] = truncate_text(normalized['impact'], _IMPACT_MAX)
+            normalized['impact'] = fit_field(normalized['impact'], _IMPACT_MAX)
         if normalized.get('exploitation'):
-            normalized['exploitation'] = truncate_text(
-                normalized['exploitation'], _EXPLOITATION_MAX)
+            normalized['exploitation'] = hook_point(
+                fit_field(normalized['exploitation'], _EXPLOITATION_MAX))
 
         dropped_keys = set(vulnerability) - _NORMALIZE_KNOWN_KEYS
         if dropped_keys:
@@ -489,6 +538,11 @@ class ResponseParser:
             normalized['severity'] = 'Medium'
 
         cvss_vector = normalized.get('cvss_vector')
+        if cvss_vector and severity_from_vector(cvss_vector)[0] is None:
+            completed = complete_vector(cvss_vector)
+            if completed:
+                verbose_print(f"Completed partial CVSS vector {cvss_vector!r} to {completed!r}", self.verbose)
+                cvss_vector = normalized['cvss_vector'] = completed
         if cvss_vector:
             computed_severity, computed_score = severity_from_vector(cvss_vector)
             if computed_severity is not None:

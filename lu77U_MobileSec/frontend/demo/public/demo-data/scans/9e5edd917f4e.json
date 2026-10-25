@@ -1,0 +1,1405 @@
+{
+  "meta": {
+    "id": "9e5edd917f4e",
+    "kind": "static",
+    "filename": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Crypto/BlockCipher-ECB-InformationExposure-Lean/benign.apk",
+    "status": "completed",
+    "created_at": "2026-10-23T13:25:06.935428+00:00",
+    "started_at": "2026-10-23T13:25:06.938302+00:00",
+    "finished_at": "2026-10-23T13:29:04.785301+00:00",
+    "duration": 237.85,
+    "progress": 100,
+    "phase": "done",
+    "error": null,
+    "pause_reason": null,
+    "resume_attempts": 0,
+    "summary": {
+      "primary_framework": "Java",
+      "total_vulnerabilities": 12,
+      "critical": 0,
+      "high": 3,
+      "medium": 3,
+      "low": 0,
+      "security_score": 45.9,
+      "package_name": "edu.ksu.cs.benign",
+      "app_name": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Crypto/BlockCipher-ECB-InformationExposure-Lean/benign.apk",
+      "analysis_supported": true
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "boot_id": "b4258a7422df459d9bafb6ffdae2623e",
+    "owner_pid": 52445
+  },
+  "result": {
+    "metadata": {
+      "tool": "lu77U-MobileSec",
+      "version": "0.1.5",
+      "timestamp": "2026-10-23T18:59:04.775148",
+      "target": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Crypto/BlockCipher-ECB-InformationExposure-Lean/benign.apk",
+      "analysis_date": "2026-10-23 18:59:04"
+    },
+    "framework_detection": {
+      "detected": true,
+      "primary_framework": "Java",
+      "confidence": 0.8,
+      "confidence_level": "High",
+      "frameworks": [
+        {
+          "name": "Java",
+          "confidence": 0.8,
+          "confidence_level": "High",
+          "indicators_found": [
+            "DEX files: 1 found"
+          ]
+        }
+      ]
+    },
+    "application_info": {
+      "package_name": "edu.ksu.cs.benign",
+      "app_name": "bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks/Crypto/BlockCipher-ECB-InformationExposure-Lean/benign.apk",
+      "version_name": "1.0",
+      "version_code": "1",
+      "min_sdk": "22",
+      "target_sdk": "27",
+      "file_size": 971340,
+      "file_size_mb": 0.93,
+      "permissions": [],
+      "activities": [
+        "edu.ksu.cs.benign.NewPasswordActivity",
+        "edu.ksu.cs.benign.ResetPasswordActivity"
+      ],
+      "services": [],
+      "receivers": [],
+      "providers": []
+    },
+    "vulnerability_analysis": {
+      "analyzed": true,
+      "total_vulnerabilities": 12,
+      "by_severity": {
+        "critical": 0,
+        "high": 3,
+        "medium": 3,
+        "low": 0,
+        "info": 6
+      },
+      "vulnerabilities": {
+        "critical": [],
+        "high": [
+          {
+            "title": "Hardcoded AES encryption key",
+            "severity": "High",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+            "cvss_score": 7.7,
+            "description": "The app stores a hardcoded AES key '0123456789!@#$%^' in the string resources, which is used to encrypt and decrypt password reset tokens.",
+            "file": "resources/res/values/strings.xml",
+            "location": "resources/res/values/strings.xml:34",
+            "line": 34,
+            "line_start": 34,
+            "line_end": 34,
+            "impact": "An attacker can recover this key from the APK to decrypt existing tokens or forge a valid token for any user (e.g., 'anniemaes@gmail.com') to bypass authentication and reset passwords.",
+            "code_snippet": "    <string name=\"secret_key\">0123456789!@#$%^</string>",
+            "code_context": {
+              "start_line": 30,
+              "end_line": 36,
+              "highlight_start": 34,
+              "highlight_end": 34,
+              "lines": [
+                "    <string name=\"abc_shareactionprovider_share_with_application\">Share with %s</string>",
+                "    <string name=\"abc_toolbar_collapse_description\">Collapse</string>",
+                "    <string name=\"app_name\">Benign</string>",
+                "    <string name=\"search_menu_title\">Search</string>",
+                "    <string name=\"secret_key\">0123456789!@#$%^</string>",
+                "    <string name=\"status_bar_notification_info_overflow\">999+</string>",
+                "</resources>"
+              ],
+              "lines_html": [
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;abc_shareactionprovider_share_with_application&quot;</span>&gt;Share with %s&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;abc_toolbar_collapse_description&quot;</span>&gt;Collapse&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;app_name&quot;</span>&gt;Benign&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;search_menu_title&quot;</span>&gt;Search&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;secret_key&quot;</span>&gt;0123456789!@#$%^&lt;/string&gt;",
+                "    &lt;string <span class=\"tok-fn\">name=</span><span class=\"tok-str\">&quot;status_bar_notification_info_overflow&quot;</span>&gt;999+&lt;/string&gt;",
+                "&lt;/resources&gt;"
+              ],
+              "hop_terms": [
+                "aes",
+                "secretkeyspec",
+                "cipher.getinstance",
+                "javax.crypto",
+                "cipher"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Use the Android Keystore system to generate and store encryption keys securely.",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-01",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "High",
+              "final_severity": "High",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [
+              "chain-001"
+            ],
+            "related_findings": [
+              {
+                "reason": "confirmed chain: Weak cryptography protects data that is locally extractable",
+                "pattern": "CHAIN-10",
+                "with": {
+                  "title": "AES/ECB/PKCS5Padding encryption in NewPasswordActivity",
+                  "file": "sources/edu/ksu/cs/benign/NewPasswordActivity.java",
+                  "line": 16
+                },
+                "confirmed": true
+              }
+            ],
+            "source": "agent",
+            "surface": "region-1-NewPasswordActivity"
+          },
+          {
+            "title": "Hardcoded encryption key R.string.secret_key in strings.xml",
+            "severity": "High",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+            "cvss_score": 9.1,
+            "description": "The app uses a hardcoded encryption key stored in strings.xml (R.string.secret_key) to encrypt and decrypt password reset tokens. An attacker can extract this key from the APK and forge valid tokens for any user account.",
+            "file": "sources/edu/ksu/cs/benign/NewPasswordActivity.java",
+            "location": "sources/edu/ksu/cs/benign/NewPasswordActivity.java:17",
+            "line": 17,
+            "line_start": 17,
+            "line_end": 17,
+            "impact": "",
+            "code_snippet": "            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(getResources().getString(edu.ksu.cs.benign.R.string.secret_key).getBytes(), \"AES\");",
+            "code_context": {
+              "start_line": 13,
+              "end_line": 21,
+              "highlight_start": 17,
+              "highlight_end": 17,
+              "lines": [
+                "        java.lang.String token = getIntent().getStringExtra(\"token\");",
+                "        byte[] decodeToken = android.util.Base64.decode(token, 0);",
+                "        try {",
+                "            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(\"AES\");",
+                "            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(getResources().getString(edu.ksu.cs.benign.R.string.secret_key).getBytes(), \"AES\");",
+                "            try {",
+                "                cipher.init(2, secretKeySpec);",
+                "                try {",
+                "                    java.lang.String email = new java.lang.String(cipher.doFinal(decodeToken), \"UTF-8\");"
+              ],
+              "lines_html": [
+                "        java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> token <span class=\"tok-op\">=</span> getIntent<span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getStringExtra</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">token</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-kw\">byte</span><span class=\"tok-op\">[</span><span class=\"tok-op\">]</span> decodeToken <span class=\"tok-op\">=</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Base64</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">decode</span><span class=\"tok-op\">(</span>token<span class=\"tok-op\">,</span> <span class=\"tok-num\">0</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>",
+                "            javax<span class=\"tok-op\">.</span><span class=\"tok-fn\">crypto</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Cipher</span> cipher <span class=\"tok-op\">=</span> javax<span class=\"tok-op\">.</span><span class=\"tok-fn\">crypto</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Cipher</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getInstance</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">AES</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            javax<span class=\"tok-op\">.</span><span class=\"tok-fn\">crypto</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">spec</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">SecretKeySpec</span> secretKeySpec <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> javax<span class=\"tok-op\">.</span><span class=\"tok-fn\">crypto</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">spec</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">SecretKeySpec</span><span class=\"tok-op\">(</span>getResources<span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getString</span><span class=\"tok-op\">(</span>edu<span class=\"tok-op\">.</span><span class=\"tok-fn\">ksu</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">cs</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">benign</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">R</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">string</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">secret_key</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getBytes</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">AES</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>",
+                "                cipher<span class=\"tok-op\">.</span><span class=\"tok-fn\">init</span><span class=\"tok-op\">(</span><span class=\"tok-num\">2</span><span class=\"tok-op\">,</span> secretKeySpec<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>",
+                "                    java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> email <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span><span class=\"tok-op\">(</span>cipher<span class=\"tok-op\">.</span><span class=\"tok-fn\">doFinal</span><span class=\"tok-op\">(</span>decodeToken<span class=\"tok-op\">)</span><span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">UTF-8</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>"
+              ],
+              "hop_terms": [
+                "aes",
+                "secretkeyspec",
+                "cipher.getinstance",
+                "javax.crypto",
+                "cipher",
+                "java.security",
+                "printstacktrace",
+                "R.string"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-321",
+            "owasp_mobile": "M10: Insufficient Cryptography",
+            "dynamic_verification": null,
+            "vuln_class": "CRYPTO-02",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [
+                "The AI region behind this finding read only 2 files before stopping - too shallow to support a Critical.",
+                "Hardcoded key or IV reaches at most CVSS 7.5 (High); the vector given scores this finding above anything the class does."
+              ],
+              "warnings": [],
+              "original_severity": "Critical",
+              "final_severity": "High",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "AES/ECB/PKCS5Padding encryption in NewPasswordActivity",
+                  "file": "sources/edu/ksu/cs/benign/NewPasswordActivity.java",
+                  "line": 16
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Weak cryptography protects data that is locally extractable",
+            "severity": "High",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+            "cvss_score": 7.7,
+            "description": "Two findings in this app combine into a single exploitable path: \"AES/ECB/PKCS5Padding encryption in NewPasswordActivity\" and \"Hardcoded AES encryption key\".\n\nAttack path:\n1. Attacker extracts hardcoded key from strings.xml\n2. Attacker obtains encrypted data from local storage\n3. Attacker applies the key and ECB mode as implemented in NewPasswordActivity to decrypt the data",
+            "file": "sources/edu/ksu/cs/benign/NewPasswordActivity.java",
+            "location": "",
+            "line": 0,
+            "line_start": 0,
+            "line_end": 0,
+            "impact": "The encryption on the stored data is reversible - a hardcoded key in the app, or a mode that leaks structure - and the ciphertext is reachable without root. The encryption buys nothing.",
+            "code_snippet": "",
+            "code_context": null,
+            "exploitation": "",
+            "recommendation": "Use AES-GCM with a key generated in and held by the Android Keystore. A key compiled into the APK is public.",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "CHAIN-10",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "High",
+              "final_severity": "High",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": {
+              "id": "chain-001",
+              "pattern": "CHAIN-10",
+              "priority": false,
+              "components": [
+                "AES/ECB/PKCS5Padding encryption in NewPasswordActivity",
+                "Hardcoded AES encryption key"
+              ],
+              "flow": [
+                "Attacker extracts hardcoded key from strings.xml",
+                "Attacker obtains encrypted data from local storage",
+                "Attacker applies the key and ECB mode as implemented in NewPasswordActivity to decrypt the data"
+              ]
+            },
+            "chained_into": [],
+            "related_findings": [],
+            "source": "chain-builder",
+            "surface": ""
+          }
+        ],
+        "medium": [
+          {
+            "title": "AES/ECB/PKCS5Padding encryption in NewPasswordActivity",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+            "cvss_score": 6.5,
+            "description": "The app uses 'AES' as the transformation string for the Cipher, which defaults to AES/ECB/PKCS5Padding on Android. ECB mode is insecure as it does not provide semantic security (identical plaintext blocks result in identical ciphertext blocks).",
+            "file": "sources/edu/ksu/cs/benign/NewPasswordActivity.java",
+            "location": "sources/edu/ksu/cs/benign/NewPasswordActivity.java:16",
+            "line": 16,
+            "line_start": 16,
+            "line_end": 16,
+            "impact": "",
+            "code_snippet": "            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(\"AES\");",
+            "code_context": {
+              "start_line": 12,
+              "end_line": 20,
+              "highlight_start": 16,
+              "highlight_end": 16,
+              "lines": [
+                "        super.onResume();",
+                "        java.lang.String token = getIntent().getStringExtra(\"token\");",
+                "        byte[] decodeToken = android.util.Base64.decode(token, 0);",
+                "        try {",
+                "            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(\"AES\");",
+                "            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(getResources().getString(edu.ksu.cs.benign.R.string.secret_key).getBytes(), \"AES\");",
+                "            try {",
+                "                cipher.init(2, secretKeySpec);",
+                "                try {"
+              ],
+              "lines_html": [
+                "        <span class=\"tok-kw\">super</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">onResume</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> token <span class=\"tok-op\">=</span> getIntent<span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getStringExtra</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">token</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-kw\">byte</span><span class=\"tok-op\">[</span><span class=\"tok-op\">]</span> decodeToken <span class=\"tok-op\">=</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Base64</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">decode</span><span class=\"tok-op\">(</span>token<span class=\"tok-op\">,</span> <span class=\"tok-num\">0</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>",
+                "            javax<span class=\"tok-op\">.</span><span class=\"tok-fn\">crypto</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Cipher</span> cipher <span class=\"tok-op\">=</span> javax<span class=\"tok-op\">.</span><span class=\"tok-fn\">crypto</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Cipher</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getInstance</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">AES</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            javax<span class=\"tok-op\">.</span><span class=\"tok-fn\">crypto</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">spec</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">SecretKeySpec</span> secretKeySpec <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> javax<span class=\"tok-op\">.</span><span class=\"tok-fn\">crypto</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">spec</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">SecretKeySpec</span><span class=\"tok-op\">(</span>getResources<span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getString</span><span class=\"tok-op\">(</span>edu<span class=\"tok-op\">.</span><span class=\"tok-fn\">ksu</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">cs</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">benign</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">R</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">string</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">secret_key</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getBytes</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">AES</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>",
+                "                cipher<span class=\"tok-op\">.</span><span class=\"tok-fn\">init</span><span class=\"tok-op\">(</span><span class=\"tok-num\">2</span><span class=\"tok-op\">,</span> secretKeySpec<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>"
+              ],
+              "hop_terms": [
+                "aes",
+                "secretkeyspec",
+                "cipher.getinstance",
+                "javax.crypto",
+                "cipher",
+                "java.security",
+                "printstacktrace"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-327",
+            "owasp_mobile": "M10: Insufficient Cryptography",
+            "dynamic_verification": null,
+            "vuln_class": "CRYPTO-01",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [
+              "chain-001"
+            ],
+            "related_findings": [
+              {
+                "reason": "confirmed chain: Weak cryptography protects data that is locally extractable",
+                "pattern": "CHAIN-10",
+                "with": {
+                  "title": "Hardcoded AES encryption key",
+                  "file": "resources/res/values/strings.xml",
+                  "line": "34"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Hardcoded encryption key R.string.secret_key in strings.xml",
+                  "file": "sources/edu/ksu/cs/benign/NewPasswordActivity.java",
+                  "line": 17
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Exported activity NewPasswordActivity has no permission protection",
+            "severity": "Medium",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "Activity \"edu.ksu.cs.benign.NewPasswordActivity\" is reachable by any app on the device (Has an intent-filter and no explicit android:exported (implicitly exported)) and declares no permission. It handles NEWPASS. The NewPasswordActivity is exported and contains an intent-filter for 'edu.ksu.cs.benign.NEWPASS'. It allows access to the password reset screen if a valid 'token' extra is provided. Because the token is encrypted with a hardcoded key, any malicious app on the device can forge a token for 'anniemaes@gmail.com' and launch this activity to reset the password.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 22,
+            "line_start": 22,
+            "line_end": 22,
+            "impact": "Any installed app can invoke this component and whatever it does with the data it is handed.",
+            "code_snippet": "        <activity android:name=\"edu.ksu.cs.benign.NewPasswordActivity\">",
+            "code_context": {
+              "start_line": 18,
+              "end_line": 26,
+              "highlight_start": 22,
+              "highlight_end": 22,
+              "lines": [
+                "                <action android:name=\"android.intent.action.MAIN\"/>",
+                "                <category android:name=\"android.intent.category.LAUNCHER\"/>",
+                "            </intent-filter>",
+                "        </activity>",
+                "        <activity android:name=\"edu.ksu.cs.benign.NewPasswordActivity\">",
+                "            <intent-filter>",
+                "                <action android:name=\"edu.ksu.cs.benign.NEWPASS\"/>",
+                "                <category android:name=\"android.intent.category.DEFAULT\"/>",
+                "            </intent-filter>"
+              ],
+              "lines_html": [
+                "                &lt;action <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.intent.action.MAIN&quot;</span>/&gt;",
+                "                &lt;category <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.intent.category.LAUNCHER&quot;</span>/&gt;",
+                "            &lt;/intent-filter&gt;",
+                "        &lt;/activity&gt;",
+                "        &lt;activity <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.NewPasswordActivity&quot;</span>&gt;",
+                "            &lt;intent-filter&gt;",
+                "                &lt;action <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.NEWPASS&quot;</span>/&gt;",
+                "                &lt;category <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.intent.category.DEFAULT&quot;</span>/&gt;",
+                "            &lt;/intent-filter&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Set android:exported=\"false\" if it is internal, or guard it with a signature-level permission and validate all input.",
+            "cwe": "CWE-926",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-01",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at High",
+                "pattern": "same-location",
+                "with": {
+                  "title": "The NewPasswordActivity is exported and contains an intent-filter for 'edu.ks...",
+                  "file": "AndroidManifest.xml",
+                  "line": 22
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Password reset token in system logs in ResetPasswordActivity",
+            "severity": "Medium",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 4.0,
+            "description": "The password reset token is written to the system log using Log.d, which can be read by other apps on some Android versions or via ADB, potentially leaking sensitive tokens.",
+            "file": "sources/edu/ksu/cs/benign/ResetPasswordActivity.java",
+            "location": "sources/edu/ksu/cs/benign/ResetPasswordActivity.java:22",
+            "line": 22,
+            "line_start": 22,
+            "line_end": 22,
+            "impact": "",
+            "code_snippet": "                android.util.Log.d(\"Benign/ResetPwdActivity\", \"Token = \" + token);",
+            "code_context": {
+              "start_line": 18,
+              "end_line": 26,
+              "highlight_start": 22,
+              "highlight_end": 22,
+              "lines": [
+                "        getTokenW.setOnClickListener(new android.view.View.OnClickListener() { // from class: edu.ksu.cs.benign.ResetPasswordActivity.1",
+                "            @Override // android.view.View.OnClickListener",
+                "            public void onClick(android.view.View v) {",
+                "                java.lang.String token = edu.ksu.cs.benign.ResetPasswordActivity.this.getToken(phoneW.getText().toString());",
+                "                android.util.Log.d(\"Benign/ResetPwdActivity\", \"Token = \" + token);",
+                "                if (token != null) {",
+                "                    tokenW.setText(token);",
+                "                    edu.ksu.cs.benign.ResetPasswordActivity.this.sendTokenAsEmail(phoneW.getText().toString(), token);",
+                "                }"
+              ],
+              "lines_html": [
+                "        getTokenW<span class=\"tok-op\">.</span><span class=\"tok-fn\">setOnClickListener</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">new</span> android<span class=\"tok-op\">.</span><span class=\"tok-fn\">view</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">View</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">OnClickListener</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span> <span class=\"tok-cm\">// from class: edu.ksu.cs.benign.ResetPasswordActivity.1</span>",
+                "            <span class=\"tok-fn\">@Override</span> <span class=\"tok-cm\">// android.view.View.OnClickListener</span>",
+                "            <span class=\"tok-kw\">public</span> <span class=\"tok-kw\">void</span> <span class=\"tok-fn\">onClick</span><span class=\"tok-op\">(</span>android<span class=\"tok-op\">.</span><span class=\"tok-fn\">view</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">View</span> v<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "                java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> token <span class=\"tok-op\">=</span> edu<span class=\"tok-op\">.</span><span class=\"tok-fn\">ksu</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">cs</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">benign</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">ResetPasswordActivity</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">this</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getToken</span><span class=\"tok-op\">(</span>phoneW<span class=\"tok-op\">.</span><span class=\"tok-fn\">getText</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">toString</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                android<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Log</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">d</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Benign/ResetPwdActivity</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">,</span> <span class=\"tok-str\">&quot;</span><span class=\"tok-str\">Token = </span><span class=\"tok-str\">&quot;</span> <span class=\"tok-op\">+</span> token<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>token <span class=\"tok-op\">!</span><span class=\"tok-op\">=</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "                    tokenW<span class=\"tok-op\">.</span><span class=\"tok-fn\">setText</span><span class=\"tok-op\">(</span>token<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                    edu<span class=\"tok-op\">.</span><span class=\"tok-fn\">ksu</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">cs</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">benign</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">ResetPasswordActivity</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">this</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">sendTokenAsEmail</span><span class=\"tok-op\">(</span>phoneW<span class=\"tok-op\">.</span><span class=\"tok-fn\">getText</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">toString</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">,</span> token<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "                <span class=\"tok-op\">}</span>"
+              ],
+              "hop_terms": [
+                "log.d",
+                "android.util.log"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-532",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-02",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Medium",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "agent",
+            "surface": ""
+          }
+        ],
+        "low": [],
+        "info": [
+          {
+            "title": "Application is debuggable in this build",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "cvss_score": 9.8,
+            "description": "android:debuggable=\"true\" lets any user with adb attach a debugger to the process, read and modify memory, and inspect application data. The android:debuggable attribute is set to true in the manifest.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 13,
+            "line_start": 13,
+            "line_end": 13,
+            "impact": "Allows attackers to attach a debugger and access app private data via run-as.",
+            "code_snippet": "        android:debuggable=\"true\"",
+            "code_context": {
+              "start_line": 9,
+              "end_line": 17,
+              "highlight_start": 13,
+              "highlight_end": 13,
+              "lines": [
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:debuggable=\"true\"",
+                "        android:allowBackup=\"false\"",
+                "        android:supportsRtl=\"true\">",
+                "        <activity android:name=\"edu.ksu.cs.benign.ResetPasswordActivity\">",
+                "            <intent-filter>"
+              ],
+              "lines_html": [
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:debuggable=</span><span class=\"tok-str\">&quot;true&quot;</span>",
+                "        <span class=\"tok-fn\">android:allowBackup=</span><span class=\"tok-str\">&quot;false&quot;</span>",
+                "        <span class=\"tok-fn\">android:supportsRtl=</span><span class=\"tok-str\">&quot;true&quot;</span>&gt;",
+                "        &lt;activity <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign.ResetPasswordActivity&quot;</span>&gt;",
+                "            &lt;intent-filter&gt;"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Remove android:debuggable or set it to \"false\" for release builds.",
+            "cwe": "CWE-489",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Debuggable release build. A debuggable build is a release-pipeline defect rather than an exploitable flaw - attaching a debugger already requires ADB access to the device. Worth fixing, not worth a severity."
+              ],
+              "warnings": [],
+              "original_severity": "Critical",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-03",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same code line, reported by agent at Medium",
+                "pattern": "same-location",
+                "with": {
+                  "title": "Debuggable Release Build",
+                  "file": "AndroidManifest.xml",
+                  "line": "13"
+                },
+                "confirmed": true
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "No network security config declared",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "The app declares neither android:networkSecurityConfig nor usesCleartextTraffic, so it relies on platform defaults and pins no domain. With targetSdkVersion 27 those defaults still permit cleartext HTTP (see the cleartext finding).",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 9,
+            "line_start": 9,
+            "line_end": 9,
+            "impact": "Without pinning, anyone who gets a CA trusted on the device can read and alter the app's TLS traffic.",
+            "code_snippet": "    <application",
+            "code_context": {
+              "start_line": 5,
+              "end_line": 13,
+              "highlight_start": 9,
+              "highlight_end": 9,
+              "lines": [
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:debuggable=\"true\""
+              ],
+              "lines_html": [
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:debuggable=</span><span class=\"tok-str\">&quot;true&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Declare a network security config that disables cleartext and pins the domains that carry sensitive traffic.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-03",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "No certificate pinning. Pinning defends against an attacker who already controls a trusted CA or the device's trust store. Without one of those, TLS is still doing its job. It becomes a finding when paired with what the unpinned channel actually carries."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-01",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "13"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported activity NewPasswordActivity has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "22"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Sensitive screens not protected from capture",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 3.3,
+            "description": "The app does not use FLAG_SECURE on activities that display sensitive information such as user emails or reset tokens.",
+            "file": "AndroidManifest.xml",
+            "location": "AndroidManifest.xml",
+            "line": 0,
+            "line_start": 0,
+            "line_end": 0,
+            "impact": "Sensitive data can be leaked via screenshots or screen recording apps.",
+            "code_snippet": "",
+            "code_context": null,
+            "exploitation": "",
+            "recommendation": "Set FLAG_SECURE in onCreate() for sensitive activities.",
+            "cwe": "CWE-200",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-12",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Screen contents not protected from capture. Without FLAG_SECURE, what a screen shows can end up in screenshots, screen recordings and the task-switcher preview. That matters on screens showing credentials, card numbers or balances; on its own it is a hardening note."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-14",
+              "mechanically_refuted": false,
+              "severity_cap": "High",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "13"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": "region-1-NewPasswordActivity"
+          },
+          {
+            "title": "targetSdkVersion 27 allows implicit component export",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "On targetSdk 27, any component with an intent-filter is exported unless it says otherwise.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "",
+            "code_snippet": "        android:targetSdkVersion=\"27\"/>",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 12,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\""
+              ],
+              "lines_html": [
+                "    android:versionName=&quot;1.0&quot;",
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise targetSdkVersion to 31+ and declare android:exported explicitly on every filtered component.",
+            "cwe": "CWE-926",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-02",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Legacy platform behaviour from SDK levels. An SDK level is a statement about which platform defaults apply, not a defect. It is context for the findings that depend on those defaults - pair it with one of them."
+              ],
+              "warnings": [
+                "Implicit export only applies below targetSdk 31; confirm the app's targetSdkVersion before treating this as exploitable."
+              ],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-11",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "13"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported activity NewPasswordActivity has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "22"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "targetSdkVersion 27 permits cleartext traffic by default",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+            "cvss_score": 8.2,
+            "description": "targetSdk 27 predates API 28, where cleartext HTTP became opt-in.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 8,
+            "line_start": 8,
+            "line_end": 8,
+            "impact": "",
+            "code_snippet": "        android:targetSdkVersion=\"27\"/>",
+            "code_context": {
+              "start_line": 4,
+              "end_line": 12,
+              "highlight_start": 8,
+              "highlight_end": 8,
+              "lines": [
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <application",
+                "        android:theme=\"@style/AppTheme\"",
+                "        android:label=\"@string/app_name\"",
+                "        android:icon=\"@mipmap/ic_launcher\""
+              ],
+              "lines_html": [
+                "    android:versionName=&quot;1.0&quot;",
+                "    package=&quot;edu.ksu.cs.benign&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:theme=</span><span class=\"tok-str\">&quot;@style/AppTheme&quot;</span>",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;@string/app_name&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise targetSdkVersion to 28 or above.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-02",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Cleartext permitted by configuration. The flag permits HTTP; it does not show that anything is sent over it. Name a request that actually goes out in cleartext, and what it carries, and this is a genuine finding."
+              ],
+              "warnings": [
+                "Cleartext is blocked by default from targetSdk 28; confirm the declared target and any network security config."
+              ],
+              "original_severity": "High",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-05",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "5"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "13"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported activity NewPasswordActivity has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "22"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "minSdkVersion 22 lets the app run on Android versions before 11, and its task affinity is its package name \"edu.ksu.cs.benign\". There, another app can declare the same affinity, with allowTaskReparenting, and have its own activity shown in this app's task.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 5,
+            "line_start": 5,
+            "line_end": 5,
+            "impact": "On a device running Android 10 or lower, a malicious app can put a look-alike screen on top of this app's task, phishing credentials or keeping the real app from being shown.",
+            "code_snippet": "    package=\"edu.ksu.cs.benign\">",
+            "code_context": {
+              "start_line": 1,
+              "end_line": 9,
+              "highlight_start": 5,
+              "highlight_end": 5,
+              "lines": [
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+                "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"",
+                "    android:versionCode=\"1\"",
+                "    android:versionName=\"1.0\"",
+                "    package=\"edu.ksu.cs.benign\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"22\"",
+                "        android:targetSdkVersion=\"27\"/>",
+                "    <application"
+              ],
+              "lines_html": [
+                "<span class=\"tok-cm\">&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;</span>",
+                "&lt;manifest <span class=\"tok-fn\">xmlns:android=</span><span class=\"tok-str\">&quot;http://schemas.android.com/apk/res/android&quot;</span>",
+                "    <span class=\"tok-fn\">android:versionCode=</span><span class=\"tok-str\">&quot;1&quot;</span>",
+                "    <span class=\"tok-fn\">android:versionName=</span><span class=\"tok-str\">&quot;1.0&quot;</span>",
+                "    <span class=\"tok-fn\">package=</span><span class=\"tok-str\">&quot;edu.ksu.cs.benign&quot;</span>&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;22&quot;</span>",
+                "        <span class=\"tok-fn\">android:targetSdkVersion=</span><span class=\"tok-str\">&quot;27&quot;</span>/&gt;",
+                "    &lt;application"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise minSdkVersion to 30, where Android fixed this. Until then, android:taskAffinity=\"\" on the <application> mitigates the original attack, though not its runtime variant on unpatched Android 9 and lower.",
+            "cwe": "CWE-1021",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-09",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 permits cleartext traffic by default",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "targetSdkVersion 27 allows implicit component export",
+                  "file": "AndroidManifest.xml",
+                  "line": "8"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "9"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application is debuggable in this build",
+                  "file": "AndroidManifest.xml",
+                  "line": "13"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Exported activity NewPasswordActivity has no permission protection",
+                  "file": "AndroidManifest.xml",
+                  "line": "22"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ]
+      },
+      "refuted": [],
+      "refuted_count": 0
+    },
+    "analyzer_details": {
+      "framework": "Java/Kotlin",
+      "analysis_time": 176.8486189842224,
+      "files_analyzed": 281,
+      "decompilation_status": "Successful",
+      "error": null,
+      "agent_coverage": {
+        "regions": [
+          {
+            "key": "region-1-NewPasswordActivity",
+            "nodes": 2,
+            "steps": 5,
+            "files_read": 3,
+            "stop_reason": "reported",
+            "findings": 6
+          }
+        ],
+        "complete": true,
+        "regions_incomplete": 0,
+        "regions_total": 1,
+        "degraded_reason": null,
+        "leads": {
+          "total": 7,
+          "routed": 7,
+          "unowned": 7,
+          "per_region": {
+            "region-1-NewPasswordActivity": 7
+          }
+        },
+        "scope": {
+          "packages": 27,
+          "rounds": 1,
+          "seeded_app_packages": 1,
+          "seeded_vendor_packages": 0,
+          "app_classes": 4,
+          "vendor_classes": 0,
+          "framework_classes": 618,
+          "undecided_classes": 0,
+          "undecided_packages": [],
+          "app_packages": [
+            "edu/ksu/cs/benign"
+          ],
+          "synthetic_classes_skipped": 0,
+          "source_checked": 2,
+          "source_missing": 0,
+          "source_repaired": 0
+        },
+        "file_review": {
+          "files": 2,
+          "parts": 1,
+          "parts_skipped": 0,
+          "parts_failed": 0,
+          "findings": 5
+        }
+      },
+      "limitation": "",
+      "llm_usage": {
+        "provider": "ollama",
+        "calls": 17,
+        "failed": 7,
+        "wall_clock_s": 217.5,
+        "prompt_tokens": 151428,
+        "completion_tokens": 19504,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0,
+        "throttled_attempts": 0,
+        "transient_attempts": 0,
+        "failed_attempt_seconds": 0.0,
+        "retried_calls": 0,
+        "truncation_retries": 0,
+        "transient_retries": 0,
+        "throttle_retries": 0,
+        "slow_calls": 0,
+        "unparseable_responses": 0,
+        "blocked_seconds": 0.0,
+        "mode": "cloud",
+        "model": "gemma4:31b",
+        "unavailable": null,
+        "unreachable": null,
+        "keys_total": 10,
+        "keys_used": 8
+      }
+    },
+    "summary": {
+      "framework_detected": true,
+      "vulnerability_scan_complete": true,
+      "total_vulnerabilities": 12,
+      "critical_count": 0,
+      "high_count": 3,
+      "medium_count": 3,
+      "low_count": 0,
+      "refuted_count": 0,
+      "security_score": 45.9,
+      "weighted_finding_count": 45,
+      "security_grade": "D"
+    },
+    "analysis": {
+      "supported": true,
+      "success": true,
+      "files_analyzed": 281,
+      "analysis_time": 176.8486189842224,
+      "framework": "Java/Kotlin",
+      "decompilation_status": "Successful",
+      "unsupported_framework": false,
+      "error": null,
+      "limitation": ""
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "dynamic_session": {
+      "attempted": false,
+      "reason": "Dynamic verification is disabled in Settings."
+    }
+  }
+}

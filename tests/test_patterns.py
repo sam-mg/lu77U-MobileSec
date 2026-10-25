@@ -43,7 +43,7 @@ class TestTypedClassification:
         ("-----BEGIN RSA PRIVATE KEY-----", "RSA Private Key", "Critical"),
         ("eyJhbGciOi.eyJzdWIiOi.SflKxwRJSM", "JWT", "High"),
         ("xoxb-1234567890-abcdefghijkl", "Slack Token", "High"),
-        ("192.168.1.50", "Private Network Address", "Low"),
+        ("192.168.1.50", "Private Network Address", "Informational"),
     ])
     def test_known_credential_shapes(self, value, expected, severity):
         """
@@ -169,6 +169,20 @@ class TestFindSecrets:
         """
         text = "AKIAIOSFODNN7EXAMPLE AKIAIOSFODNN7EXAMPLE"
         assert len([f for f in find_secrets(text) if f["name"] == "AWS Access Key ID"]) == 1
+
+    def test_password_label_in_code_is_not_a_password(self):
+        """
+        Purpose:
+            Pin that a label ending in "password: " followed by code is not read as a hardcoded password, while a real assignment still is.
+
+        Implementation notes:
+            androidx's accessibility toString appends "; password: " and then a call; the old value class ran from the closing quote across the code to the next line's quote, and an obfuscated build put the library outside every path filter, so a real scan reported it as a High hardcoded password.
+        """
+        code = ('        sb.append("; password: ");\n'
+                "        sb.append(accessibilityNodeInfo.isPassword());\n"
+                '        sb.append("; scrollable: " + accessibilityNodeInfo.isScrollable());\n')
+        assert not [h for h in find_secrets(code) if h["name"] == "Hardcoded Password"]
+        assert [h["name"] for h in find_secrets('String password = "Winter2026!x";')] == ["Hardcoded Password"]
 
     def test_empty_input(self):
         """

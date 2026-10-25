@@ -1,0 +1,543 @@
+{
+ "source": "https://bitbucket.org/secure-it-i/android-app-vulnerability-benchmarks",
+ "revision": "ea1dbe23",
+ "benchmarks": {
+  "Crypto/BlockCipher-ECB-InformationExposure-Lean": {
+   "issue": "A block cipher in ECB mode encrypts sensitive data.",
+   "classes": [
+    "CRYPTO-01"
+   ],
+   "pattern": "ECB"
+  },
+  "Crypto/BlockCipher-NonRandomIV-InformationExposure-Lean": {
+   "issue": "CBC encryption uses a constant, non-random IV.",
+   "classes": [
+    "CRYPTO-02",
+    "CRYPTO-03",
+    "CRYPTO-01"
+   ],
+   "pattern": "\\bIV\\b|initiali[sz]ation vector|IvParameterSpec"
+  },
+  "Crypto/ConstantKey-ForgeryAttack-Lean": {
+   "issue": "The encryption key is a constant in the app, so tokens can be forged.",
+   "classes": [
+    "CRYPTO-02",
+    "SECRET-01"
+   ],
+   "pattern": "key"
+  },
+  "Crypto/ExposedCredentials-InformationExposure-Lean": {
+   "issue": "A key is stored with KeyStore.setEntry and a null ProtectionParameter in a keystore file other apps can read.",
+   "classes": [
+    "CRYPTO-01",
+    "CRYPTO-02",
+    "STORAGE-01",
+    "STORAGE-02",
+    "SECRET-01"
+   ],
+   "pattern": "setEntry|ProtectionParameter|keystore|key ?store"
+  },
+  "Crypto/PBE-ConstantSalt-InformationExposure-Lean": {
+   "issue": "Password-based encryption uses a constant salt.",
+   "classes": [
+    "CRYPTO-01",
+    "CRYPTO-02",
+    "CRYPTO-03"
+   ],
+   "pattern": "salt",
+   "fields": [
+    "title"
+   ]
+  },
+  "ICC/DynamicRegBroadcastReceiver-UnrestrictedAccess-Lean": {
+   "issue": "A receiver registered at runtime with no permission accepts broadcasts from any app.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-07",
+    "PLATFORM-02",
+    "PLATFORM-03"
+   ],
+   "pattern": "registerReceiver|dynamic|receiver"
+  },
+  "ICC/EmptyPendingIntent-PrivEscalation-Lean": {
+   "issue": "A PendingIntent wrapping an empty base Intent is handed to other apps.",
+   "classes": [
+    "PLATFORM-08",
+    "PLATFORM-03"
+   ],
+   "pattern": "PendingIntent"
+  },
+  "ICC/FragmentInjection-PrivEscalation-Lean": {
+   "issue": "An exported activity loads a fragment named in the incoming Intent by reflection.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-02",
+    "PLATFORM-03",
+    "CODE-02"
+   ],
+   "pattern": "fragment"
+  },
+  "ICC/HighPriority-ActivityHijack-Lean": {
+   "issue": "A sensitive activity is reached by an implicit Intent, so a higher-priority filter in another app can take it.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-02",
+    "PLATFORM-03",
+    "PLATFORM-07"
+   ],
+   "pattern": "priority|implicit|hijack|imageEditor"
+  },
+  "ICC/ImplicitPendingIntent-IntentHijack-Lean": {
+   "issue": "A PendingIntent wraps an implicit base Intent that another app can intercept.",
+   "classes": [
+    "PLATFORM-08",
+    "PLATFORM-03"
+   ],
+   "pattern": "PendingIntent"
+  },
+  "ICC/InadequatePathPermission-InformationExposure-Lean": {
+   "issue": "An exported content provider relies on path-permission, which does not protect the data.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-11"
+   ],
+   "pattern": "path-?permission|pathPrefix|provider"
+  },
+  "ICC/IncorrectHandlingImplicitIntent-UnauthorizedAccess-Lean": {
+   "issue": "An activity reachable by implicit Intent returns sensitive data to any caller.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-02",
+    "PLATFORM-03"
+   ],
+   "pattern": "SensitiveActivity|SENS_ACTIVITY|implicit"
+  },
+  "ICC/NoValidityCheckOnBroadcastMsg-UnintendedInvocation-Lean": {
+   "issue": "A receiver for a system broadcast is exported and acts on any sender's Intent without checking it.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-02",
+    "PLATFORM-07"
+   ],
+   "pattern": "receiver|STORAGE_LOW|broadcast"
+  },
+  "ICC/OrderedBroadcast-DataInjection-Lean": {
+   "issue": "The app trusts the result data of an ordered broadcast that a higher-priority receiver can rewrite.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-02",
+    "PLATFORM-07"
+   ],
+   "pattern": "ordered|priority|sendOrderedBroadcast|abortBroadcast|setResult"
+  },
+  "ICC/StickyBroadcast-DataInjection-Lean": {
+   "issue": "The app sends sticky broadcasts that any app can read or replace.",
+   "classes": [
+    "PLATFORM-07",
+    "PLATFORM-01",
+    "PLATFORM-02"
+   ],
+   "pattern": "sticky"
+  },
+  "ICC/TaskAffinity-ActivityHijack-Lean": {
+   "issue": "Activities started in a new task can be hijacked through taskAffinity.",
+   "classes": [
+    "PLATFORM-09"
+   ],
+   "pattern": "task|affinity|launchMode|NEW_TASK"
+  },
+  "ICC/TaskAffinity-LauncherActivity-PhishingAttack-Lean": {
+   "issue": "The launcher activity can be phished through a malicious app's taskAffinity.",
+   "classes": [
+    "PLATFORM-09"
+   ],
+   "pattern": "task|affinity|launchMode"
+  },
+  "ICC/TaskAffinity-PhishingAttack-Lean": {
+   "issue": "Activities started in a new task can be phished through taskAffinity.",
+   "classes": [
+    "PLATFORM-09"
+   ],
+   "pattern": "task|affinity|launchMode|NEW_TASK"
+  },
+  "ICC/TaskAffinityAndReparenting-PhishingAndDoSAttack-Lean": {
+   "issue": "allowTaskReparenting with a shared taskAffinity enables phishing and denial of service.",
+   "classes": [
+    "PLATFORM-09"
+   ],
+   "pattern": "task|affinity|reparent"
+  },
+  "ICC/UnhandledException-DOS-Lean": {
+   "issue": "An exported component crashes on a null or malformed extra, so any app can stop it.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-02",
+    "PLATFORM-07"
+   ],
+   "pattern": "exception|crash|denial|\\bDoS\\b|null"
+  },
+  "ICC/UnprotectedBroadcastRecv-PrivEscalation-Lean": {
+   "issue": "An exported receiver performs a privileged action for any sender.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-02",
+    "PLATFORM-07"
+   ],
+   "pattern": "receiver|broadcast"
+  },
+  "ICC/WeakChecksOnDynamicInvocation-DataInjection-Lean": {
+   "issue": "A content provider's call() writes data with only the read permission checked.",
+   "classes": [
+    "PLATFORM-01",
+    "PLATFORM-02",
+    "CODE-04",
+    "AUTH-03"
+   ],
+   "pattern": "call\\(|\\bcall\\b|provider"
+  },
+  "Networking/CheckValidity-InformationExposure-Lean": {
+   "issue": "A custom TrustManager does not check the certificate's validity period.",
+   "classes": [
+    "NETWORK-01"
+   ],
+   "pattern": "checkValidity|certificate|TrustManager|expired"
+  },
+  "Networking/IncorrectHostNameVerification-MITM-Lean": {
+   "issue": "A HostnameVerifier accepts any host name.",
+   "classes": [
+    "NETWORK-01"
+   ],
+   "pattern": "host ?name|HostnameVerifier"
+  },
+  "Networking/InsecureSSLSocket-MITM-Lean": {
+   "issue": "SSLCertificateSocketFactory.getSocket(InetAddress, ...) is used, which skips host name verification.",
+   "classes": [
+    "NETWORK-01"
+   ],
+   "pattern": "SSLCertificateSocketFactory|getSocket|host ?name"
+  },
+  "Networking/InsecureSSLSocketFactory-MITM-Lean": {
+   "issue": "SSLCertificateSocketFactory.getInsecure() disables certificate checks.",
+   "classes": [
+    "NETWORK-01"
+   ],
+   "pattern": "getInsecure|SSLCertificateSocketFactory"
+  },
+  "Networking/InvalidCertificateAuthority-MITM-Lean": {
+   "issue": "A TrustManager trusts any certificate authority.",
+   "classes": [
+    "NETWORK-01"
+   ],
+   "pattern": "TrustManager|certificate authorit|\\bCA\\b|checkServerTrusted"
+  },
+  "Networking/OpenSocket-InformationLeak-Lean": {
+   "issue": "A service listens on an open port and sends sensitive data to whoever connects.",
+   "classes": [
+    "NETWORK-01",
+    "NETWORK-02",
+    "PLATFORM-01",
+    "BACKEND-01",
+    "STORAGE-02"
+   ],
+   "pattern": "ServerSocket|open port|socket|listen"
+  },
+  "Networking/UnEncryptedSocketComm-MITM-Lean": {
+   "issue": "The app talks to its server over a plain TCP socket.",
+   "classes": [
+    "NETWORK-02",
+    "NETWORK-01"
+   ],
+   "pattern": "socket|TCP",
+   "fields": [
+    "title"
+   ]
+  },
+  "Networking/UnpinnedCertificates-MITM-Lean": {
+   "issue": "The app does not pin its server's certificate.",
+   "classes": [
+    "NETWORK-03"
+   ],
+   "pattern": "pin",
+   "fields": [
+    "title"
+   ]
+  },
+  "NonAPI/MergeManifest-UnintendedBehavior-Lean": {
+   "issue": "A library's manifest merges an exported service into the app.",
+   "classes": [
+    "PLATFORM-01",
+    "SUPPLY-01"
+   ],
+   "pattern": "service|unlock|keyguard|LogUtil|wake"
+  },
+  "NonAPI/OutdatedLibrary-DirectoryTraversal-Lean": {
+   "issue": "An outdated library with a known directory traversal flaw is bundled.",
+   "classes": [
+    "SUPPLY-01",
+    "CODE-04"
+   ],
+   "pattern": "zip|traversal|outdated|library|version"
+  },
+  "Permission/UnnecesaryPerms-PrivEscalation-Lean": {
+   "issue": "The app requests a permission it does not use, which an exported library service can exercise for others.",
+   "classes": [
+    "BUILD-03",
+    "PLATFORM-01"
+   ],
+   "pattern": "WAKE_LOCK|unnecessar|unused|not (?:need|use)|excess"
+  },
+  "Permission/WeakPermission-UnauthorizedAccess-Lean": {
+   "issue": "An exported component is guarded by a normal-level permission any app can hold.",
+   "classes": [
+    "PLATFORM-01"
+   ],
+   "pattern": "normal|protectionLevel|weak permission|permission"
+  },
+  "Storage/ExternalStorage-DataInjection-Lean": {
+   "issue": "The app reads and trusts a file on external storage that other apps can write.",
+   "classes": [
+    "STORAGE-02",
+    "CODE-04",
+    "CODE-02",
+    "PLATFORM-02"
+   ],
+   "pattern": "external"
+  },
+  "Storage/ExternalStorage-InformationLeak-Lean": {
+   "issue": "The app writes sensitive data to external storage.",
+   "classes": [
+    "STORAGE-02",
+    "STORAGE-01"
+   ],
+   "pattern": "external"
+  },
+  "Storage/InternalStorage-DirectoryTraversal-Lean": {
+   "issue": "A file name taken from an Intent is written to internal storage without path sanitization.",
+   "classes": [
+    "CODE-04",
+    "PLATFORM-11"
+   ],
+   "pattern": "travers|\\.\\./|path"
+  },
+  "Storage/InternalToExternalStorage-InformationLeak-Lean": {
+   "issue": "An exported service copies any named internal file to external storage.",
+   "classes": [
+    "STORAGE-02",
+    "PLATFORM-01",
+    "CODE-04"
+   ],
+   "pattern": "external|DownloadService|copy|download"
+  },
+  "Storage/SQLite-execSQL-Lean": {
+   "issue": "SQLiteDatabase.execSQL() runs a query built from input.",
+   "classes": [
+    "CODE-01"
+   ],
+   "pattern": "SQL"
+  },
+  "Storage/SQLlite-RawQuery-SQLInjection-Lean": {
+   "issue": "SQLiteDatabase.rawQuery() runs a query built from input.",
+   "classes": [
+    "CODE-01"
+   ],
+   "pattern": "SQL|rawQuery"
+  },
+  "Storage/SQLlite-SQLInjection-Lean": {
+   "issue": "Selection clauses are built from input instead of selectionArgs.",
+   "classes": [
+    "CODE-01"
+   ],
+   "pattern": "SQL|selection"
+  },
+  "System/CheckCallingOrSelfPermission-PrivilegeEscalation-Lean": {
+   "issue": "Access control uses checkCallingOrSelfPermission, which passes when the app itself holds the permission.",
+   "classes": [
+    "AUTH-03",
+    "PLATFORM-01"
+   ],
+   "pattern": "checkCallingOrSelfPermission|OrSelf"
+  },
+  "System/CheckPermission-PrivilegeEscalation-Lean": {
+   "issue": "Access control uses checkPermission with the app's own pid and uid.",
+   "classes": [
+    "AUTH-03",
+    "PLATFORM-01"
+   ],
+   "pattern": "checkPermission|getCallingPid|own pid|own uid|myPid"
+  },
+  "System/ClipboardUse-InformationExposure-Lean": {
+   "issue": "Sensitive data is copied to the clipboard, which other apps can read.",
+   "classes": [
+    "STORAGE-01",
+    "STORAGE-02",
+    "SECRET-02",
+    "PLATFORM-01",
+    "AUTH-01"
+   ],
+   "pattern": "clipboard|ClipboardManager|setPrimaryClip"
+  },
+  "System/DynamicCodeLoading-CodeInjection-Lean": {
+   "issue": "Code is loaded dynamically from a location other apps can write, without an integrity check.",
+   "classes": [
+    "CODE-02",
+    "STORAGE-02"
+   ],
+   "pattern": "DexClassLoader|PathClassLoader|dynamic(ally)? (code|load)|\\.dex|\\.jar|\\.apk"
+  },
+  "System/EnforceCallingOrSelfPermission-PrivilegeEscalation-Lean": {
+   "issue": "Access control uses enforceCallingOrSelfPermission, which passes when the app itself holds the permission.",
+   "classes": [
+    "AUTH-03",
+    "PLATFORM-01"
+   ],
+   "pattern": "enforceCallingOrSelfPermission|OrSelf"
+  },
+  "System/EnforcePermission-PrivilegeEscalation-Lean": {
+   "issue": "Access control uses enforcePermission with the app's own pid and uid.",
+   "classes": [
+    "AUTH-03",
+    "PLATFORM-01"
+   ],
+   "pattern": "enforcePermission|getCallingPid|own pid|own uid|myPid"
+  },
+  "System/UniqueIDs-IdentityLeak-Lean": {
+   "issue": "A device identifier is used to identify the app instance and is exposed.",
+   "classes": [
+    "SECRET-03",
+    "STORAGE-01",
+    "STORAGE-02",
+    "SECRET-02",
+    "NETWORK-04",
+    "PLATFORM-01",
+    "AUTH-01"
+   ],
+   "pattern": "IMEI|getDeviceId|device ?id|identifier|ANDROID_ID|serial"
+  },
+  "Web/HttpConnection-MITM-Lean": {
+   "issue": "The app connects to its server over plain HTTP.",
+   "classes": [
+    "NETWORK-02"
+   ],
+   "pattern": "http://|HttpURLConnection|plain HTTP|over HTTP|HTTP connection|unencrypted HTTP|cleartext HTTP",
+   "fields": [
+    "title"
+   ]
+  },
+  "Web/JavaScriptExecution-CodeInjection-Lean": {
+   "issue": "A WebView with JavaScript enabled loads content that can inject script.",
+   "classes": [
+    "PLATFORM-06",
+    "PLATFORM-04",
+    "PLATFORM-05",
+    "PLATFORM-02"
+   ],
+   "pattern": "javascript"
+  },
+  "Web/UnsafeIntentURLImpl-InformationExposure-Lean": {
+   "issue": "An intent:// URL from web content is parsed and started without restricting it.",
+   "classes": [
+    "PLATFORM-02",
+    "PLATFORM-03"
+   ],
+   "pattern": "intent:|parseUri|intent scheme|intent URI|URI_INTENT"
+  },
+  "Web/WebView-CookieOverwrite-Lean": {
+   "issue": "A WebView lets a visited site overwrite the app's cookies.",
+   "classes": [
+    "PLATFORM-06",
+    "PLATFORM-05",
+    "AUTH-01",
+    "PLATFORM-02"
+   ],
+   "pattern": "cookie"
+  },
+  "Web/WebView-NoUserPermission-InformationExposure-Lean": {
+   "issue": "A JavaScript bridge returns the device location to any page without asking the user.",
+   "classes": [
+    "PLATFORM-04",
+    "PLATFORM-06",
+    "PLATFORM-02"
+   ],
+   "pattern": "location|latitude|GPS|geolocation|addJavascriptInterface"
+  },
+  "Web/WebViewAllowContentAccess-UnauthorizedFileAccess-Lean": {
+   "issue": "A WebView allows content:// access to JavaScript from unverified pages.",
+   "classes": [
+    "PLATFORM-05",
+    "PLATFORM-06"
+   ],
+   "pattern": "content ?access|AllowContentAccess|content://",
+   "fields": [
+    "title"
+   ]
+  },
+  "Web/WebViewAllowFileAccess-UnauthorizedFileAccess-Lean": {
+   "issue": "A WebView allows file:// access to JavaScript from unverified pages.",
+   "classes": [
+    "PLATFORM-05",
+    "PLATFORM-06"
+   ],
+   "pattern": "from file|FileAccessFromFileURLs|UniversalAccess|universal access",
+   "fields": [
+    "title",
+    "code_snippet"
+   ]
+  },
+  "Web/WebViewIgnoreSSLWarning-MITM-Lean": {
+   "issue": "onReceivedSslError calls proceed(), ignoring TLS errors.",
+   "classes": [
+    "NETWORK-01",
+    "PLATFORM-06"
+   ],
+   "pattern": "onReceivedSslError|proceed|SSL error|ssl"
+  },
+  "Web/WebViewInterceptRequest-MITM-Lean": {
+   "issue": "shouldInterceptRequest loads resources without validating them.",
+   "classes": [
+    "PLATFORM-06",
+    "NETWORK-01",
+    "NETWORK-02",
+    "PLATFORM-02"
+   ],
+   "pattern": "shouldInterceptRequest|intercept",
+   "fields": [
+    "title"
+   ]
+  },
+  "Web/WebViewLoadDataWithBaseUrl-UnauthorizedFileAccess-Lean": {
+   "issue": "loadDataWithBaseURL uses a file:// base URL with JavaScript from unverified sources.",
+   "classes": [
+    "PLATFORM-05",
+    "PLATFORM-06",
+    "PLATFORM-02"
+   ],
+   "pattern": "loadDataWithBaseU|base ?URL|UniversalAccess|universal access",
+   "fields": [
+    "title",
+    "code_snippet"
+   ]
+  },
+  "Web/WebViewOverrideUrl-MITM-Lean": {
+   "issue": "shouldOverrideUrlLoading does not validate the pages a WebView navigates to.",
+   "classes": [
+    "PLATFORM-06",
+    "PLATFORM-02",
+    "NETWORK-02"
+   ],
+   "pattern": "shouldOverrideUrlLoading|navigat",
+   "fields": [
+    "title"
+   ]
+  },
+  "Web/WebViewProceed-UnauthorizedAccess-Lean": {
+   "issue": "HttpAuthHandler.proceed sends stored credentials to any host that asks.",
+   "classes": [
+    "PLATFORM-06",
+    "AUTH-01",
+    "SECRET-01",
+    "NETWORK-01"
+   ],
+   "pattern": "HttpAuthHandler|onReceivedHttpAuthRequest|http auth"
+  }
+ }
+}

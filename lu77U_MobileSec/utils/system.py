@@ -6,18 +6,41 @@ Purpose:
     Report the interpreter and platform the tool is running on, for the startup compatibility gate and for the environment block embedded in every report.
 
 Responsibilities:
-    Read version and platform facts, and state the minimum supported Python.
+    Read version and platform facts, state the minimum supported Python, and locate the command-line tools installed alongside the running interpreter.
 
 Dependencies:
-    sys, platform, .verbose.
+    sys, platform, shutil, .verbose.
 
 Security considerations:
     Platform details are embedded in generated reports. They describe the analyst's machine, not the APK, so a report shared outside the team discloses the analyst's OS build and architecture.
 """
 
+import shutil
 import sys
 import platform
+from pathlib import Path
+from typing import Optional
 from .verbose import verbose_print
+
+
+def find_tool(name: str) -> Optional[str]:
+    """
+    Purpose:
+        Locate a command-line tool on PATH or, failing that, beside the interpreter running this tool.
+
+    Parameters:
+        name: The executable's name, without a platform suffix.
+
+    Returns:
+        The full path to run, or None when the tool is in neither place.
+
+    Implementation notes:
+        A pip-installed tool such as frida-ps or mitmdump lands in the same bin (or Scripts) directory as the interpreter that installed it, and that directory is on PATH only while the virtual environment is activated. Running the venv's own python or entry point by its full path, as a service manager or a script does, leaves it off PATH, so the scan reported "frida-tools not available on PATH" with frida-ps installed right there and every hook-based check fell back to adb. sys.executable is used as given, not resolved: in a virtual environment it is a symlink whose target is the base interpreter's directory, which does not hold the venv's tools.
+    """
+    found = shutil.which(name)
+    if found:
+        return found
+    return shutil.which(name, path=str(Path(sys.executable).parent))
 
 def get_python_version(verbose: bool = False):
     """

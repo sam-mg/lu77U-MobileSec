@@ -32,7 +32,7 @@ from typing import Any, Dict, List, Optional, Set
 from . import checkpoint as ckpt
 from . import store
 from .events import current_scan_id
-from .services.analysis_service import AnalysisService, quota_exhausted
+from .services.analysis_service import AnalysisService, provider_outage
 from ..config import user_settings
 from ..utils.cancellation import ScanCancelled
 from ..utils.verbose import plural, verbose_print
@@ -46,6 +46,10 @@ _MAX_AUTO_RESUME = 2
 _MAX_QUOTA_AUTO_RESUME = 20
 
 _QUOTA_DEFAULT_RESUME_HOURS = 5
+
+_UNREACHABLE_RESUME_MINUTES = 10
+
+_OUTAGE_PAUSES = ("provider_quota", "provider_unreachable")
 
 _BOOT_ID = uuid.uuid4().hex
 
@@ -418,8 +422,12 @@ class JobManager:
             resume: Continue from the checkpoint rather than starting fresh.
 
         Side effects:
-            Submits the scan to the worker pool.
+            Records this server as the scan's owner and submits it to the worker pool.
+
+        Implementation notes:
+            Ownership is recorded at queue time, not only when the scan starts: a second server on the same machine - the preflight's clean-install check starts one - reconciles orphans at startup, and a queued scan with no owner recorded looked abandoned to it and was failed while this server was about to run it.
         """
+        self._finish_meta(scan_id, dict(boot_id=_BOOT_ID, owner_pid=os.getpid()))
         self._executor.submit(self._run, scan_id, str(apk_path), resume)
 
     def _get_cancel_event(self, scan_id: str) -> threading.Event:
@@ -550,7 +558,7 @@ class JobManager:
             Rewrites the metadata of interrupted scans.
 
         Implementation notes:
-            Ownership is established before anything is touched: a scan recorded against a different boot identity and a process that is still alive belongs to another running server and is left alone. Without that check, two servers on one machine would each reclaim the other's scans. An orphan with a checkpoint becomes paused and resumable, since its work can be continued. One without becomes failed, because there is nothing to resume from -- and leaving it marked running would show a scan that will never progress.
+            Ownership is established before anything is touched: a scan recorded against a different boot identity and a process that is still alive belongs to another running server and is left alone. Without that check, two servers on one machine would each reclaim the other's scans. An orphan with a checkpoint becomes paused and resumable, since its work can be continued; so does one that was still queued, since it never started and its APK is still in its folder, so nothing is lost by running it later. A running orphan without a checkpoint becomes failed, because there is nothing to resume from -- and leaving it marked running would show a scan that will never progress.
         """
         for meta in store.list_meta():
             if meta.get("status") not in _ACTIVE_STATUSES:
@@ -566,12 +574,12 @@ class JobManager:
                     f"Scan {scan_id} is owned by a live server (pid {owner}); leaving it",
                     self.verbose)
                 continue
-            if ckpt.has_checkpoint(scan_id):
+            if ckpt.has_checkpoint(scan_id) or meta.get("status") == "queued":
                 self._finish_meta(scan_id, dict(
                     status="paused", pause_reason="interrupted",
                     phase=meta.get("phase") or "interrupted",
                     error=None, finished_at=None, resumable=True))
-                verbose_print(f"Scan {scan_id}: interrupted, checkpoint found - marked paused",
+                verbose_print(f"Scan {scan_id}: interrupted before finishing - marked paused",
                               self.verbose)
             else:
                 self._finish_meta(scan_id, dict(
@@ -606,19 +614,19 @@ class JobManager:
     def resume_expired_quota_pauses(self) -> None:
         """
         Purpose:
-            Restart scans paused for a provider quota, once the quota window has passed.
+            Restart scans paused for a provider outage - an exhausted quota or an unreachable provider - once their retry time has passed.
 
         Side effects:
             Queues eligible scans.
 
         Implementation notes:
-            A quota pause records when it is worth retrying, and this skips anything still inside that window rather than retrying blindly into the same limit. Attempts are separately counted and capped, so a genuinely exhausted allowance does not produce an endless resume loop. The separate counter matters: a quota pause is a different failure from an interruption and deserves its own budget.
+            A quota pause records when it is worth retrying, and this skips anything still inside that window rather than retrying blindly into the same limit. Attempts are separately counted and capped, so a genuinely exhausted allowance does not produce an endless resume loop. The separate counter matters: an outage pause is a different failure from an interruption and deserves its own budget. Both outage reasons share it, since both are the provider's state rather than the scan's.
         """
         if not user_settings.get_auto_resume():
             return
         now = _now_iso()
         for meta in store.list_meta():
-            if meta.get("status") != "paused" or meta.get("pause_reason") != "provider_quota":
+            if meta.get("status") != "paused" or meta.get("pause_reason") not in _OUTAGE_PAUSES:
                 continue
             resume_after = meta.get("resume_after")
             if resume_after and str(resume_after) > now:
@@ -626,7 +634,7 @@ class JobManager:
             attempts = int(meta.get("quota_resume_attempts", 0) or 0)
             if attempts >= _MAX_QUOTA_AUTO_RESUME:
                 verbose_print(
-                    f"Scan {meta.get('id')}: quota-paused {attempts}x already - "
+                    f"Scan {meta.get('id')}: outage-paused {attempts}x already - "
                     "leaving paused for the user", self.verbose)
                 continue
             scan_id = meta["id"]
@@ -776,14 +784,15 @@ class JobManager:
             Runs the full analysis, writes results and reports, and updates metadata throughout.
 
         Implementation notes:
-            Ownership -- this server's boot identity and process id -- is recorded when the scan starts, which is what lets a later restart tell its own orphans from another server's live scans. The outcomes are distinguished deliberately: cancellation keeps partial findings, a pause keeps the checkpoint, a quota failure pauses with a retry time rather than failing, and anything else fails with the error recorded. Collapsing these would lose either the work or the ability to resume.
+            Ownership -- this server's boot identity and process id -- is recorded when the scan starts, which is what lets a later restart tell its own orphans from another server's live scans. A scan whose status is no longer queued by the time a worker slot frees is not run: something else decided its fate meanwhile (a stop, a delete, another server's reconciliation), and running it anyway once produced a scan that ran while marked failed. Starting clears any earlier error, so a scan that finishes is not left carrying a stale failure message. The outcomes are distinguished deliberately: cancellation keeps partial findings, a pause keeps the checkpoint, a quota failure or an unreachable provider pauses with a retry time rather than failing (a resumed scan run while the machine was offline was once recorded as completed with no findings and its checkpoint deleted), and anything else fails with the error recorded. Collapsing these would lose either the work or the ability to resume.
 
         Security considerations:
             The scan context is bound for the duration, so log lines emitted anywhere in the analysis are attributed to this scan and reach only its subscribers.
         """
         cancel_event = self._get_cancel_event(scan_id)
         pause_event = self._get_pause_event(scan_id)
-        if cancel_event.is_set() or store.load_meta(scan_id) is None:
+        meta = store.load_meta(scan_id)
+        if cancel_event.is_set() or meta is None or meta.get("status") != "queued":
             with self._lock:
                 self._cancel_events.pop(scan_id, None)
                 self._pause_events.pop(scan_id, None)
@@ -796,7 +805,7 @@ class JobManager:
             self.emit_log(scan_id, "Resuming from checkpoint - earlier AI work is kept")
         self._finish_meta(scan_id, dict(
             status="running", started_at=_now_iso(), phase="starting", progress=3,
-            pause_reason=None, boot_id=_BOOT_ID, owner_pid=os.getpid()))
+            pause_reason=None, error=None, boot_id=_BOOT_ID, owner_pid=os.getpid()))
         self._publish(scan_id, {"type": "status", "status": "running"})
 
         def stopping() -> bool:
@@ -840,19 +849,21 @@ class JobManager:
                                       is_cancelled=stopping, checkpoint=checkpoint)
             result = service.run(apk_path)
 
-            if quota_exhausted(result):
+            outage = provider_outage(result)
+            if outage:
                 if store.load_meta(scan_id) is not None:
                     store.save_result(scan_id, result)
-                resume_after = (
-                    datetime.now(timezone.utc)
-                    + timedelta(hours=_QUOTA_DEFAULT_RESUME_HOURS)).isoformat()
-                self._finish_meta(scan_id, dict(
-                    pause_reason="provider_quota", resume_after=resume_after))
-                self.emit_log(
-                    scan_id,
+                wait = (timedelta(hours=_QUOTA_DEFAULT_RESUME_HOURS) if outage == "provider_quota"
+                        else timedelta(minutes=_UNREACHABLE_RESUME_MINUTES))
+                resume_after = (datetime.now(timezone.utc) + wait).isoformat()
+                self._finish_meta(scan_id, dict(pause_reason=outage, resume_after=resume_after))
+                self.emit_log(scan_id, (
                     "Paused - the AI provider's subscription quota ran out. "
                     f"Retries automatically after about {_QUOTA_DEFAULT_RESUME_HOURS}h, "
-                    "or resume any time.")
+                    "or resume any time.") if outage == "provider_quota" else (
+                    "Paused - the AI provider could not be reached (no network, or the host is "
+                    f"down). Retries automatically after about {_UNREACHABLE_RESUME_MINUTES} "
+                    "minutes, or resume any time."))
                 self._handle_paused(scan_id, started)
                 return
             checkpoint.clear()

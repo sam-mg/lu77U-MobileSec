@@ -25,6 +25,7 @@ from datetime import datetime
 from typing import Optional, Dict, List, Any
 from lu77U_MobileSec.detection.results import DetectionResult
 from ..utils.verbose import verbose_print
+from ..utils.cvss import severity_from_score
 from ..utils.scoring import calculate_security_score
 from ..config.settings import APP_NAME, APP_VERSION
 from ..config.branding import FAVICON_LINK_TAG
@@ -127,7 +128,7 @@ class ComprehensiveHTMLBuilder:
             The report HTML.
 
         Implementation notes:
-            Sections are ordered for a reader working top to bottom: the header and its score, then any coverage caveats, then the statistics, the index, and finally the findings in full. The caveats come before the numbers deliberately -- a reader should know the analysis was incomplete before they read a count.
+            Sections are ordered for a reader working top to bottom: the header and its score, then any coverage caveats, then the statistics, the index, and finally the findings in full. The caveats come before the numbers deliberately -- a reader should know the analysis was incomplete before they read a count. A failed analysis gets its own notice in place of the statistics, which would otherwise announce that nothing was found and a score of 100 for an app nobody read.
         """
         is_unsupported = bool(analyzer_results and analyzer_results.get('unsupported_framework', False))
         all_vulnerabilities = self._extract_vulnerabilities(vulnerability_results, is_unsupported)
@@ -144,10 +145,16 @@ class ComprehensiveHTMLBuilder:
 
         html += self._build_coverage_notice(analyzer_results)
         html += self._build_scope_notice(analyzer_results)
+        html += self._build_limitation_notice(analyzer_results)
 
+        analysis_failed = bool(analyzer_results) and not is_unsupported and (
+            analyzer_results.get('decompilation_status') == 'Failed')
         if is_unsupported:
             html += self._build_unsupported_notice(analyzer_results)
             verbose_print("Unsupported-framework notice built", self.verbose)
+        elif analysis_failed:
+            html += self._build_failed_notice(analyzer_results)
+            verbose_print("Failed-analysis notice built", self.verbose)
         else:
             html += self._build_statistics_section(vulnerabilities)
             verbose_print("Statistics section built", self.verbose)
@@ -815,6 +822,54 @@ class ComprehensiveHTMLBuilder:
             </div>
         </div>"""
 
+    def _build_limitation_notice(self, analyzer_results: Optional[Dict]) -> str:
+        """
+        Purpose:
+            Warn the reader when part of the app could only be read in reduced form.
+
+        Parameters:
+            analyzer_results: Per-analyzer detail, carrying the limitation.
+
+        Returns:
+            The notice HTML, empty when there is no limitation.
+
+        Implementation notes:
+            A Flutter build Blutter cannot disassemble is analysed from its strings, platform layer and native libraries; the findings are real, but the Dart program logic was never read, so their absence there says nothing about it.
+        """
+        limitation = str((analyzer_results or {}).get('limitation') or '').strip()
+        if not limitation:
+            return ''
+        return f"""
+        <div class="section">
+            <div class="callout coverage">
+                <span class="callout-label">Reduced coverage</span>
+                <p>{_html.escape(limitation)}</p>
+            </div>
+        </div>"""
+
+    def _build_failed_notice(self, analyzer_results: Dict) -> str:
+        """
+        Purpose:
+            Explain that the analysis of a supported framework did not run.
+
+        Parameters:
+            analyzer_results: Per-analyzer detail, carrying the reason.
+
+        Returns:
+            The notice HTML.
+        """
+        reason = str(analyzer_results.get('error') or 'The analyzer gave no reason.')
+        return f"""
+        <div class="section">
+            <h2>Vulnerability Analysis</h2>
+            <div class="notice-card">
+                <h3>The analysis did not run</h3>
+                <p>{_html.escape(reason)}</p>
+                <p>No findings are listed because the app's code was not analysed, not because
+                    it is free of issues.</p>
+            </div>
+        </div>"""
+
     def _build_unsupported_notice(self, analyzer_results: Dict) -> str:
         """
         Purpose:
@@ -827,9 +882,11 @@ class ComprehensiveHTMLBuilder:
             The notice HTML.
 
         Implementation notes:
-            Without this, a report on an unsupported framework shows no findings and reads as a clean bill of health, which is the most misleading output this tool could produce.
+            Without this, a report on an unsupported framework shows no findings and reads as a clean bill of health, which is the most misleading output this tool could produce. A supported framework whose decompiler is not configured is routed here too, by the same flag, and gets the failure notice with its reason instead: telling the reader its analysis is "under development" would be false.
         """
         framework_name = analyzer_results.get('framework', 'this framework')
+        if analyzer_results.get('decompilation_status') == 'Tool Not Configured':
+            return self._build_failed_notice(analyzer_results)
         return f"""
         <div class="section">
             <h2>Vulnerability Analysis</h2>
@@ -1176,6 +1233,9 @@ class ComprehensiveHTMLBuilder:
         Returns:
             The finding HTML.
 
+        Implementation notes:
+            The CVSS pill is the base score of the vector the finding was reported with. Validation can lower the severity below that score's band -- a class ceiling, a development-host cap, a demotion to Informational -- so when the two disagree the pill says the score is the reported one; a bare "CVSS 9.1" beside a Low badge read as a contradiction.
+
         Security considerations:
             Every field is escaped. This is where the largest amount of attacker-influenced text -- titles, paths, descriptions and code -- enters the document.
         """
@@ -1191,9 +1251,14 @@ class ComprehensiveHTMLBuilder:
 
         cvss_score = vuln.get('cvss_score')
         cvss_vector = vuln.get('cvss_vector')
-        cvss_pill_html = (
-            f'<span class="cvss-pill">CVSS {cvss_score:.1f}</span>' if cvss_score is not None else ''
-        )
+        if cvss_score is None:
+            cvss_pill_html = ''
+        elif _normalize_severity(severity_from_score(cvss_score)) != severity:
+            cvss_pill_html = (
+                f'<span class="cvss-pill" title="The base score of the vector as reported; '
+                f'validation set the severity to {_e(severity)}">CVSS {cvss_score:.1f} as reported</span>')
+        else:
+            cvss_pill_html = f'<span class="cvss-pill">CVSS {cvss_score:.1f}</span>'
         cvss_vector_html = (
             f'<div class="cvss-vector">{_e(cvss_vector)}</div>' if cvss_vector else ''
         )
@@ -1391,7 +1456,7 @@ class ComprehensiveHTMLBuilder:
             A pair of HTML fragments for the verification parts of the item.
 
         Implementation notes:
-            A runtime verdict is shown distinctly from the static verdict, because a finding confirmed on a real device is a materially stronger claim and a reader should be able to see which is which. Findings marked not verified carry their reason, so an unverified finding reads as unexamined rather than as disproved.
+            A runtime verdict is shown distinctly from the static verdict, because a finding confirmed on a real device is a materially stronger claim and a reader should be able to see which is which. Findings marked not verified carry their reason, so an unverified finding reads as unexamined rather than as disproved; a refuted one shows what the device did that disproved it.
         """
         dv = vuln.get('dynamic_verification')
         if not isinstance(dv, dict) or not dv.get('status'):
@@ -1404,6 +1469,16 @@ class ComprehensiveHTMLBuilder:
             callout = (
                 f'<div class="callout dyn-verified">'
                 f'<span class="callout-label">Dynamic Verification - Verified</span>{evidence}</div>'
+                if evidence else ''
+            )
+            return pill, callout
+
+        if status == 'refuted':
+            pill = '<span class="dyn-pill unverified">Dynamic Refuted</span>'
+            evidence = _e(dv.get('evidence', ''))
+            callout = (
+                f'<div class="callout dyn-unverified">'
+                f'<span class="callout-label">Dynamic Verification - Refuted on the device</span>{evidence}</div>'
                 if evidence else ''
             )
             return pill, callout

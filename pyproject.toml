@@ -1,42 +1,51 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "lu77U-MobileSec"
 version = "0.1.5"
-description = "The Only Mobile Security Tool Which You Need"
+description = "Android APK security analysis in a local web dashboard: decompilers, deterministic scanners and AI agents, graded findings with exploit chains, and optional verification on a device"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "Sam MG Harish", email = "sammgharish@gmail.com"},
 ]
 maintainers = [
     {name = "Sam MG Harish", email = "sammgharish@gmail.com"},
 ]
-keywords = ["mobile", "security", "cli", "tool", "automation"]
+keywords = [
+    "android", "apk", "mobile-security", "application-security", "static-analysis",
+    "dynamic-analysis", "sast", "vulnerability-scanner", "penetration-testing", "llm",
+    "ai-agents", "frida", "flutter", "react-native", "owasp-masvs",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
     "Intended Audience :: Developers",
-    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Information Technology",
     "Topic :: Security",
-    "Topic :: System :: Systems Administration",
-    "Topic :: Utilities",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    "Operating System :: OS Independent",
-    "Environment :: Console",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
     "Natural Language :: English",
 ]
 dependencies = [
     "colorama>=0.4.6",
     "androguard>=4.1.3",
     "loguru>=0.7.3",
-    "weasyprint>=66.0",
-    "Pillow>=11.3.0",
+    "weasyprint>=66.0; sys_platform != 'win32'",
+    "Pillow>=11.3.0; sys_platform != 'win32'",
     "ollama>=0.6.0",
     "keyring>=24.0.0",
     "platformdirs>=4.0.0",
@@ -70,6 +79,11 @@ filterwarnings = [
 
 [project.urls]
 Homepage = "https://github.com/sam-mg/lu77U-MobileSec"
+Documentation = "https://github.com/sam-mg/lu77U-MobileSec/wiki"
+Repository = "https://github.com/sam-mg/lu77U-MobileSec"
+Issues = "https://github.com/sam-mg/lu77U-MobileSec/issues"
+Demo = "https://sam-mg.github.io/lu77U-MobileSec/"
+Funding = "https://github.com/sponsors/sam-mg"
 
 [project.scripts]
 "lu77U-MobileSec" = "lu77U_MobileSec.cli.main:main"
@@ -79,5 +93,5 @@ where = ["."]
 include = ["lu77U_MobileSec*"]
 
 [tool.setuptools.package-data]
-"lu77U_MobileSec" = ["skills/*.md", "rules/semgrep/*/*.yml", "rules/semgrep/*/*.yaml"]
+"lu77U_MobileSec" = ["skills/*.md", "rules/semgrep/*/*.yml", "rules/semgrep/*/*.yaml", "decompiler/ghidra_scripts/*.java"]
 "lu77U_MobileSec.web" = ["static/**/*", "static/*"]

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ShieldCheck } from "lucide-react";
-import type { Chain, CodeContext, GateResult, ScanResult, Severity, Vulnerability } from "../api";
+import type { Chain, CodeContext, DeviceVerdict, GateResult, ScanResult, Severity, Vulnerability } from "../api";
 import { SEVERITIES, SEVERITY_META, normalizeSeverity } from "../lib/format";
 import { SeverityBadge, EmptyState } from "./ui";
 
@@ -137,7 +137,7 @@ function VulnCard({ sev, v }: { sev: Severity; v: Vulnerability }) {
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
         <SeverityBadge severity={sev} />
         {v.chain && <span className="shrink-0 rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300">Chain</span>}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-200">{v.title || "Untitled finding"}</span>
+        <span className="min-w-0 flex-1 break-words text-sm font-medium text-slate-200">{v.title || "Untitled finding"}</span>
         <div className="hidden shrink-0 items-center gap-2 text-[11px] text-slate-500 sm:flex">
           {v.vuln_class && <span className="rounded bg-ink-800 px-1.5 py-0.5">{v.vuln_class}</span>}
           {v.cwe && <span className="rounded bg-ink-800 px-1.5 py-0.5">{v.cwe}</span>}
@@ -148,13 +148,14 @@ function VulnCard({ sev, v }: { sev: Severity; v: Vulnerability }) {
       {open && (
         <div className="space-y-4 border-t border-ink-800 px-4 py-4 text-sm">
           {(v.file || v.location) && (
-            <div className="font-mono text-xs text-slate-400">
+            <div className="break-all font-mono text-xs text-slate-400">
               {v.file}
-              {v.location ? <span className="text-slate-600"> · {v.location}</span> : null}
+              {v.file && v.line_start ? `:${v.line_start}` : null}
+              {v.location && !(v.file && v.location.includes(v.file)) ? <span className="text-slate-600"> · {v.location}</span> : null}
             </div>
           )}
           {v.chain && <ChainBlock chain={v.chain} />}
-          {v.description && <Field label="Description">{v.description}</Field>}
+          {v.description && <Field label="Description">{v.chain ? withoutAttackPath(v.description) : v.description}</Field>}
           {v.code_context?.lines?.length ? (
             <div>
               <div className="label">Code</div>
@@ -178,9 +179,38 @@ function VulnCard({ sev, v }: { sev: Severity; v: Vulnerability }) {
               <p className="text-slate-300">{v.recommendation}</p>
             </div>
           )}
+          {v.dynamic_verification && <DeviceBlock verdict={v.dynamic_verification} />}
           {v.gate_result && <GateBlock gate={v.gate_result} chainedInto={v.chained_into} />}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A chain's description ends with its numbered attack path, which ChainBlock already lists step by step, so the card shows only the part before it.
+ */
+function withoutAttackPath(description: string): string {
+  const cut = description.indexOf("\n\nAttack path:");
+  return cut >= 0 ? description.slice(0, cut) : description;
+}
+
+/**
+ * What the device session established for this finding. Verified evidence is shown as proof, and refuting evidence as what disproved it (the finding has been lowered to Informational for it); a finding that could not be shown on the device says why, quietly, since that is about the test setup rather than the app.
+ */
+function DeviceBlock({ verdict }: { verdict: DeviceVerdict }) {
+  const verified = verdict.status === "verified";
+  const refuted = verdict.status === "refuted";
+  const text = verified || refuted ? verdict.evidence : verdict.reason;
+  if (!text) return null;
+  const tone = verified ? "bg-sky-500/5 ring-sky-500/15" : refuted ? "bg-amber-500/5 ring-amber-500/15" : "bg-ink-950/60 ring-ink-800";
+  const labelTone = verified ? "!text-sky-400" : refuted ? "!text-amber-400" : "!text-slate-500";
+  return (
+    <div className={`rounded-lg p-3 ring-1 ring-inset ${tone}`}>
+      <div className={`label ${labelTone}`}>
+        {verified ? "Verified on a device" : refuted ? "Refuted on a device" : "Not verified on a device"}
+      </div>
+      <p className={`whitespace-pre-line text-xs leading-relaxed ${verified || refuted ? "text-slate-300" : "text-slate-500"}`}>{text}</p>
     </div>
   );
 }
@@ -298,7 +328,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <div>
       <div className="label">{label}</div>
-      <p className="leading-relaxed text-slate-300">{children}</p>
+      <p className="whitespace-pre-line leading-relaxed text-slate-300">{children}</p>
     </div>
   );
 }

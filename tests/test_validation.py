@@ -97,6 +97,9 @@ class TestWeakClasses:
         ("targetSdkVersion 27 permits cleartext traffic by default", "WEAK-05"),
         ("App has no root detection", "WEAK-04"),
         ("Missing obfuscation on release build", "WEAK-10"),
+        ("targetSdkVersion 23 trusts user-installed CA certificates", "WEAK-13"),
+        ("App trusts user-installed CA certificates", "WEAK-13"),
+        ("User CA certificates trusted for 2 domains", "WEAK-13"),
     ])
     def test_real_finding_titles_match_their_rule(self, title, rule_id):
         """
@@ -138,6 +141,36 @@ class TestWeakClasses:
         rule = classify_weak({"title": "something else entirely",
                                    "vuln_class": "STORAGE-04"})
         assert rule is not None and rule.id == "WEAK-02"
+
+    def test_user_ca_trust_is_a_chain_step_not_a_tls_bypass(self):
+        """
+        Purpose:
+            Pin that trusting the user CA store is its own class, held as a chain step, and never read as the trust-all bypass NETWORK-01 means.
+
+        Implementation notes:
+            Filed as NETWORK-01, a targetSdk 23 default produced a standalone Medium and an auto-confirmed Critical chain claiming an "active TLS bypass" in an app with no network code at all.
+        """
+        rule = classify_weak({"title": "targetSdkVersion 23 trusts user-installed CA certificates",
+                              "vuln_class": "NETWORK-05"})
+        assert rule is not None and rule.id == "WEAK-13" and rule.chain_eligible
+        result = apply_gates(finding(title="App trusts user-installed CA certificates",
+                                     vuln_class="NETWORK-05", severity="Medium"))
+        assert result.verdict == "CHAIN_REQUIRED" and result.final_severity == "Informational"
+
+    def test_screenshot_and_client_side_controls_get_their_own_reasons(self):
+        """
+        Purpose:
+            Pin that the missing-FLAG_SECURE note is explained as screen capture, and that a present client-side control is explained as context rather than as something missing.
+
+        Implementation notes:
+            Both were filed under the anti-tamper rule, whose reason said "their absence harms nobody" - shown under notes that the app does pin certificates and does detect root, and under the screenshot note, which has nothing to do with tampering.
+        """
+        screen = classify_weak({"title": "No screenshot protection: FLAG_SECURE is never set",
+                                "vuln_class": "PLATFORM-12"})
+        assert screen.id == "WEAK-14" and "screenshot" in screen.reason
+        present = classify_weak({"title": "The app implements root detection using RootBeer",
+                                 "vuln_class": "BUILD-04"})
+        assert present.id == "WEAK-04" and "Present" in present.reason and "absent" in present.reason
 
     def test_description_is_not_searched(self):
         """
@@ -398,6 +431,121 @@ class TestClaimEvidenceGate:
             title="Hardcoded AES key in a helper class",
             code_snippet='SecretKeySpec key = new SecretKeySpec(bytes, "AES");'))
         assert result.verdict == "PASS"
+        assert result.mechanically_refuted is False
+
+    @pytest.mark.parametrize("snippet", [
+        'webView.addJavascriptInterface(new Bridge(), "Android");',
+        "<WebView onMessage={function onMessage(e) { handleAction(JSON.parse(e.nativeEvent.data)); }} />",
+        "window.ReactNativeWebView.postMessage(JSON.stringify(msg));",
+        "controller.addJavaScriptChannel('Native', onMessageReceived: handler);",
+        "controller.addJavaScriptHandler(handlerName: 'native', callback: run);",
+        "@com.facebook.react.bridge.ReactMethod\npublic final void readFile(String path, Promise p) {",
+        "NativeModules.SupportModule.openLogFile(path)",
+        "@android.webkit.JavascriptInterface\npublic double getLatitude() {",
+    ])
+    def test_a_bridge_title_is_supported_by_each_frameworks_bridge(self, snippet):
+        """
+        Purpose:
+            Pin that a JavaScript-bridge claim is supported by the bridge API of Java, React Native and Flutter alike.
+
+        Parameters:
+            snippet: The cited code, one framework's way of exposing a bridge.
+
+        Implementation notes:
+            React Native findings citing a WebView onMessage handler and a native module's @ReactMethod were refuted on real scans because only the Java API counted as evidence. JADX writes the Java annotation fully qualified, @android.webkit.JavascriptInterface, which the short alias does not match; a Ghera finding citing the annotated getLatitude() was refuted for it.
+        """
+        result = apply_gates(finding(
+            title="WebView JavaScript bridge exposed without origin validation",
+            code_snippet=snippet))
+        assert result.mechanically_refuted is False
+
+    def test_a_bridge_title_with_no_bridge_in_the_snippet_is_still_refuted(self):
+        """
+        Purpose:
+            Pin that widening the bridge evidence did not stop the gate refuting a bridge claim about unrelated code.
+        """
+        result = apply_gates(finding(
+            title="WebView JavaScript bridge exposed without origin validation",
+            code_snippet="int total = a + b;"))
+        assert result.mechanically_refuted is True
+
+    def test_module_vocabulary_supports_a_claim_outside_the_window(self):
+        """
+        Purpose:
+            Pin that a recovered module's own vocabulary supports a claim whose API sits outside the lines around the citation, and that without it the same finding is refuted.
+
+        Implementation notes:
+            On a real React Native scan the key was cited and CryptoJS.AES was called a few lines below, in the same module; the finding was refuted on four lines of context.
+        """
+        lines = ['let closure_7 = Utf8.parse("StreamBoxCardKey");', 'const iv = Utf82.parse("0102030405060708");']
+        base = dict(title="Hardcoded AES key and IV for card data", file="app_modules/512_WalletScreen.js",
+                    code_snippet=lines[0])
+        refuted = apply_gates(finding(**base, code_context={"lines": lines}))
+        assert refuted.mechanically_refuted is True
+        supported = apply_gates(finding(**base, code_context={"lines": lines, "module_terms": ["aes"]}))
+        assert supported.mechanically_refuted is False
+
+    def test_module_vocabulary_needs_code_to_count(self):
+        """
+        Purpose:
+            Pin that module vocabulary is only read alongside real context lines, so it never stands in for missing code.
+        """
+        result = apply_gates(finding(title="Hardcoded AES key", code_snippet="",
+                                     code_context={"module_terms": ["aes"]}))
+        assert result.mechanically_refuted is False
+        from lu77U_MobileSec.validation.gates import _evidence_blob
+        assert _evidence_blob({"code_context": {"module_terms": ["aes"]}}) == ""
+
+    def test_kotlin_hostname_lambda_supports_a_verifier_claim(self):
+        """
+        Purpose:
+            Pin that a hostname-verifier claim is supported by the static method a Kotlin lambda compiles to.
+
+        Implementation notes:
+            The rule engine's own finding on this shape was refuted on a real scan, because the method has neither the class name nor verify( in it.
+        """
+        snippet = ("public static final boolean create$lambda$0(java.lang.String str, "
+                   "javax.net.ssl.SSLSession sSLSession) {\n        return true;")
+        result = apply_gates(finding(title="HostnameVerifier accepts every hostname", code_snippet=snippet))
+        assert result.mechanically_refuted is False
+
+    @pytest.mark.parametrize("snippet", [
+        "client.badCertificateCallback = (cert, host, port) => true;",
+        "//     0x361d48: bl #0x33ac3c  ; [dart:_http] _HttpClient::_HttpClient",
+        "final context = SecurityContext(withTrustedRoots: false);",
+    ])
+    def test_dart_certificate_validation_claims(self, snippet):
+        """
+        Purpose:
+            Pin that a certificate-validation claim is supported by Dart's HttpClient API, in source or in disassembly.
+
+        Parameters:
+            snippet: The cited code.
+
+        Implementation notes:
+            A Flutter finding about an always-accepting badCertificateCallback was refuted on a real scan, merged with the rule engine's own finding of the same thing, because only the Java TrustManager API counted.
+        """
+        result = apply_gates(finding(title="TLS certificate validation disabled", code_snippet=snippet))
+        assert result.mechanically_refuted is False
+
+    @pytest.mark.parametrize("snippet", [
+        "console.log('StreamBox login', email, password);",
+        "print('login attempt account=$account pin=$pin');",
+        "debugPrint('token $token');",
+        'Log.d("Auth", "password=" + password);',
+    ])
+    def test_logging_claims_across_frameworks(self, snippet):
+        """
+        Purpose:
+            Pin that a logging claim is supported by JavaScript's and Dart's logging as well as Android's.
+
+        Parameters:
+            snippet: The cited code.
+
+        Implementation notes:
+            A React Native finding about console.log was refuted on a real scan because only android.util.Log counted.
+        """
+        result = apply_gates(finding(title="Credentials leaked to logcat", code_snippet=snippet))
         assert result.mechanically_refuted is False
 
     def test_a_sha1_title_is_supported_by_a_sha_dash_1_snippet(self):
@@ -1459,9 +1607,8 @@ class TestTaxonomy:
             A code absent from the catalogue has no proof requirement and matches no chain, so the finding silently loses both.
         """
         import re
-        from pathlib import Path
 
-        root = Path(__file__).resolve().parents[1] / "lu77U_MobileSec"
+        root = pathlib.Path(__file__).resolve().parents[1] / "lu77U_MobileSec"
         used = set()
         for f in (root / "analyzers" / "sast" / "extractors").glob("*.py"):
             text = f.read_text()
@@ -2047,6 +2194,25 @@ class TestManifestFactDeduplication:
         out = deduplicate([nsc, cleartext])
         assert len(out) == 2
 
+    def test_a_model_filing_user_ca_trust_as_a_bypass_is_refiled(self):
+        """
+        Purpose:
+            Pin that a user-CA finding stated as NETWORK-01 is re-filed as NETWORK-05 and merges with the scanner's copy, while a real bypass mentioning user CAs keeps its class.
+        """
+        scanner = {"title": "targetSdkVersion 23 trusts user-installed CA certificates",
+                   "severity": "Medium", "source": "static-analyzer", "vuln_class": "NETWORK-05",
+                   "file": "AndroidManifest.xml", "line": "0",
+                   "description": "targetSdkVersion 23 trusts user CAs by default."}
+        agent = {"title": "App trusts user-installed CA certificates (targetSdkVersion 23)",
+                 "severity": "High", "source": "agent", "vuln_class": "NETWORK-01",
+                 "file": "AndroidManifest.xml", "line": "0",
+                 "description": "Because targetSdkVersion is 23 the user CA store is trusted."}
+        out = deduplicate([scanner, agent])
+        assert len(out) == 1 and out[0]["vuln_class"] == "NETWORK-05"
+        bypass = {"title": "TrustManager accepts every certificate, including user CAs",
+                  "vuln_class": "NETWORK-01", "file": "sources/a/Net.java", "line": "5"}
+        assert deduplicate([bypass])[0]["vuln_class"] == "NETWORK-01"
+
     def test_a_plural_acronym_is_not_mistaken_for_a_named_component(self):
         """
         Purpose:
@@ -2087,7 +2253,7 @@ class TestVulnClassInference:
         ("Insecure storage of credentials to external storage", "STORAGE-02"),
         ("WebView has JavaScript enabled", "PLATFORM-06"),
         ("Application is debuggable in this build", "BUILD-01"),
-        ("targetSdkVersion 23 trusts user-installed CA certificates", "NETWORK-01"),
+        ("targetSdkVersion 23 trusts user-installed CA certificates", "NETWORK-05"),
         ("Class exposes 6 @JavascriptInterface methods to WebView content", "PLATFORM-04"),
     ])
     def test_wording_maps_to_the_right_class(self, title, expected):
@@ -2131,6 +2297,22 @@ class TestVulnClassInference:
             A wrong class is worse than none, because the chain builder matches on it and would pair the finding with something unrelated.
         """
         assert infer_vuln_class({"title": "Something entirely novel"}) == ""
+
+    @pytest.mark.parametrize("title,expected", [
+        ("No attempt limit on the 4-digit PIN allows brute force", "AUTH-04"),
+        ("Client-side authorization of premium content", "AUTH-03"),
+        ("Premium flag read from local storage gates paid content", "AUTH-03"),
+    ])
+    def test_local_auth_and_client_side_gates_are_classified(self, title, expected):
+        """
+        Purpose:
+            Pin the wording that maps to the two local-authorization classes.
+
+        Parameters:
+            title: The finding's title.
+            expected: The class it should get.
+        """
+        assert infer_vuln_class({"title": title}) == expected
 
     def test_every_inferred_code_is_in_the_catalogue(self):
         """
@@ -2213,6 +2395,17 @@ class TestApiClaimGate:
     _TITLE = ("WebView file access enabled (setAllowFileAccessFromFileURLs and "
               "setAllowUniversalAccessFromFileURLs)")
 
+    def test_a_dotted_name_is_met_by_its_member_being_defined_or_called(self):
+        """
+        Purpose:
+            Pin that "WebViewClient.shouldOverrideUrlLoading()" is supported by an override of shouldOverrideUrlLoading in a subclass, and that a member the code never calls or defines still refutes.
+        """
+        snippet = "public boolean shouldOverrideUrlLoading(WebView wv, String url) {\n    return false;\n}"
+        kept = apply_gates(finding(title="WebViewClient.shouldOverrideUrlLoading() checks nothing", code_snippet=snippet))
+        assert kept.mechanically_refuted is False
+        gone = apply_gates(finding(title="WebViewClient.shouldInterceptRequest() checks nothing", code_snippet=snippet))
+        assert gone.mechanically_refuted is True
+
     def test_both_named_apis_absent_is_a_mechanical_false_positive(self):
         """
         Purpose:
@@ -2259,6 +2452,31 @@ class TestApiClaimGate:
             code_snippet="return db.query(\"contacts\", null, null, null, null, null, null);"))
         assert result.mechanically_refuted is False
 
+
+    def test_the_cited_file_name_in_the_title_is_not_an_api_claim(self):
+        """
+        Purpose:
+            Pin that a title naming the file the finding cites is not refuted for that file name being absent from the excerpt.
+
+        Implementation notes:
+            A real native finding, "Hardcoded access secret in native library (libdivajni.so)", was refuted because the shape-based extractor read the library name as an API and a decompiled excerpt never contains its own file name.
+        """
+        result = apply_gates(finding(
+            title="Hardcoded access secret in native library (libdivajni.so)",
+            file="resources/lib/arm64-v8a/libdivajni.so",
+            code_snippet='iVar1 = strncmp("k3y",__s2,0xb);'))
+        assert result.mechanically_refuted is False
+
+    def test_a_different_file_name_in_the_title_is_still_checked(self):
+        """
+        Purpose:
+            Pin that only the cited file's own name is exempt, so naming some other library the excerpt does not touch is still refuted.
+        """
+        result = apply_gates(finding(
+            title="Key loaded from libother.so",
+            file="resources/lib/arm64-v8a/libdivajni.so",
+            code_snippet='iVar1 = strncmp("k3y",__s2,0xb);'))
+        assert result.mechanically_refuted is True
 
 class TestIdentifierPatterns:
     """
@@ -2557,11 +2775,551 @@ def test_an_identical_claim_is_not_re_reviewed():
         code_snippet="startActivity(new Intent(this, Next.class).putExtra(\"t\", token));")
     j1 = _Judge([{"id": 0, "verdict": "DOWNGRADE", "severity": "Low",
                   "reason": "only reachable from the app's own code"}])
-    first = validate_findings([make()], provider=j1)[0]["severity"]
+    first = validate_findings([make()], provider=j1, scope="app-a")[0]["severity"]
 
     j2 = _Judge([{"id": 0, "verdict": "PASS"}])
-    second = validate_findings([make()], provider=j2)[0]["severity"]
+    second = validate_findings([make()], provider=j2, scope="app-a")[0]["severity"]
 
     assert j2.prompts == []
     assert first == second
     clear_verdict_cache()
+
+
+@pytest.mark.parametrize("second_scope", ["app-b", ""])
+def test_a_verdict_is_not_reused_for_another_app(second_scope):
+    """
+    Purpose:
+        Pin that an identical claim about a different app, or about an app with no identity, is reviewed afresh.
+
+    Parameters:
+        second_scope: The second run's app identity.
+
+    Implementation notes:
+        A vulnerable app and its fixed version share package, file names and a method-signature snippet, and the fixed app's receiver, which checks the action before acting, took the vulnerable one's "spoofable" verdict.
+    """
+    clear_verdict_cache()
+    make = lambda: finding(title="Exported receiver acts on any sender",
+                           code_snippet="public void onReceive(Context context, Intent intent) {")
+    first = validate_findings([make()], provider=_Judge([{"id": 0, "verdict": "PASS"}]), scope="app-a")[0]
+    assert not first["gate_result"].get("from_cache")
+    j2 = _Judge([{"id": 0, "verdict": "INFORMATIONAL", "reason": "acts only on a protected action"}])
+    second = validate_findings([make()], provider=j2, scope=second_scope)[0]
+    assert j2.prompts and not second["gate_result"].get("from_cache")
+    clear_verdict_cache()
+
+
+@pytest.mark.parametrize("rule", [
+    "Name the weakest attacker who reaches it",
+    "Obfuscation, native code and string encryption",
+    "A check the client makes and trusts",
+    "check the app's targetSdkVersion",
+    "covers only devices running",
+    "whatever its intent filter lists",
+    "cannot be redirected by whoever",
+    "reachable only by apps signed",
+    "keeps dir even when name is absolute",
+    "Downgrade on a specific fact",
+])
+def test_review_pass_carries_the_rule(rule):
+    """
+    Purpose:
+        Pin that the review pass is told how to weigh the attacker, real and false mitigations, and what grounds a downgrade.
+
+    Parameters:
+        rule: A phrase the guidance must contain.
+
+    Implementation notes:
+        Without these the reviewer both inflated findings (an exported component scored as remote, a receiver called spoofable although it acts only on a protected system broadcast, and then one called safe merely for listening for one, an explicit mutable PendingIntent called hijackable, a signature-guarded service treated as open to any app, a `..` check called bypassable by an absolute name that Java's File(dir, name) keeps under dir) and deflated them (a hardcoded key downgraded because the code was obfuscated, a client-side gate treated as protection).
+    """
+    from lu77U_MobileSec.validation.validator import _JUDGMENT_SYSTEM
+    assert _JUDGMENT_SYSTEM.count(rule) == 1
+
+
+def test_the_sql_cap_leaves_a_storage_finding_alone():
+    """
+    Purpose:
+        Pin that a storage finding citing the same INSERT keeps its severity although its provenance says the statement takes the user's own text.
+    """
+    result = apply_gates(finding(title="Credential stored in a SQLite database in plain text (execSQL)",
+                                 vuln_class="STORAGE-01", severity="Medium", operand_provenance="ui-write",
+                                 code_snippet='mDB.execSQL("INSERT INTO myuser VALUES (\'" + usr + "\');");'))
+    assert result.final_severity == "Medium"
+
+
+def test_a_data_file_name_is_not_an_api_claim():
+    """
+    Purpose:
+        Pin that naming the file credentials are written to does not refute a finding whose code builds that name from parts.
+    """
+    result = apply_gates(finding(
+        title="User credentials are stored in plaintext within a temporary file ('uinfo.tmp')",
+        vuln_class="STORAGE-01", severity="Medium",
+        code_snippet='File uinfo = File.createTempFile("uinfo", "tmp", ddir);'))
+    assert result.verdict == "PASS" and not result.mechanically_refuted
+
+
+def test_a_self_injection_write_is_capped_low():
+    """
+    Purpose:
+        Pin that an injection finding whose only input is the app's own text field, written into its own database, is capped at Low whoever reported it.
+    """
+    result = apply_gates(finding(title="SQL injection in InsecureDataStorage2Activity", vuln_class="CODE-01",
+                                 severity="High", operand_provenance="ui-write"))
+    assert result.final_severity == "Low"
+
+
+class TestLocationDedupeAcrossPasses:
+    """
+    Purpose:
+        The region agents, the file review and the rule engine as separate passes, and what counts as one fact between them.
+
+    Implementation notes:
+        Each case is a pair a published demo scan shipped twice: the native vendor key filed as a secret by the review and as a crypto key by an agent, the admin secret filed as a hardcoded secret and as a seeded database row, and one preferences save cited at its first write by the review and its second by the rule engine.
+    """
+    def _f(self, title, cls, line, source="agent", origin="", description=""):
+        """
+        Purpose:
+            Build one finding.
+
+        Parameters:
+            title: The title.
+            cls: The class code.
+            line: The cited line.
+            source: The producing layer.
+            origin: The agent origin, "file_review" for the review.
+            description: The description.
+
+        Returns:
+            The finding.
+        """
+        f = {"title": title, "vuln_class": cls, "severity": "Medium", "source": source,
+             "file": "asm/app/screen.dart", "line": str(line), "description": description}
+        if origin:
+            f["agent_origin"] = origin
+        return f
+
+    def test_an_agent_and_the_review_on_one_secret_merge(self):
+        """
+        Purpose:
+            Pin that a region agent and the file review reporting one literal at one line merge, across the secret and crypto-key classes.
+        """
+        agent = self._f("Hardcoded secret in native library", "CRYPTO-02", 19)
+        review = self._f("Hardcoded vendor key compared in native code", "SECRET-01", 19,
+                         origin="file_review")
+        assert len(deduplicate([agent, review])) == 1
+
+    def test_one_pass_repeating_itself_is_not_merged_here(self):
+        """
+        Purpose:
+            Pin that two region-agent findings on one line are not collapsed by the location pass.
+        """
+        out = deduplicate([self._f("Hardcoded key in screen", "SECRET-01", 19),
+                           self._f("Token written to preferences", "STORAGE-01", 19)])
+        assert len(out) == 2
+
+    def test_a_secret_and_its_seeded_row_merge_on_the_shared_literal(self):
+        """
+        Purpose:
+            Pin that a hardcoded-secret finding and a stored-in-database finding quoting the same literal near one line merge.
+        """
+        agent = self._f("Hardcoded administrative secret", "SECRET-01", 1033,
+                        description="The literal 'SuperSecretKey_9912' is stored in the code.")
+        review = self._f("Database seeded with a secret", "STORAGE-01", 1043, origin="file_review",
+                         description="The seed row holds 'SuperSecretKey_9912' in plain text.")
+        assert len(deduplicate([agent, review])) == 1
+
+    def test_one_preferences_save_cited_at_two_writes_merges(self):
+        """
+        Purpose:
+            Pin that the rule engine and the review citing two writes of one preferences save, eleven lines apart, merge.
+        """
+        rule = self._f("Sensitive value 'pin' stored in plain SharedPreferences", "STORAGE-01", 818,
+                       source="static-analyzer")
+        review = self._f("Account ID and PIN stored in plaintext SharedPreferences", "STORAGE-01", 807,
+                         origin="file_review")
+        out = deduplicate([rule, review])
+        assert len(out) == 1 and out[0]["source"] == "static-analyzer"
+
+    def test_two_different_secrets_nearby_stay_apart(self):
+        """
+        Purpose:
+            Pin that two passes quoting different secrets a few lines apart are kept as two findings.
+        """
+        agent = self._f("Hardcoded API key", "SECRET-01", 100,
+                        description="The key 'AKIAEXAMPLEKEY0001' is embedded.")
+        review = self._f("Hardcoded signing secret", "SECRET-01", 108, origin="file_review",
+                         description="The secret 'sign-secret-example-77' is embedded.")
+        assert len(deduplicate([agent, review])) == 2
+
+    def test_a_component_and_its_intent_action_are_not_different_values(self):
+        """
+        Purpose:
+            Pin that one finding quoting a component's name and another quoting its intent action still merge, since dotted code names are not values.
+        """
+        rule = self._f("Exported activity APICredsActivity has no permission protection", "PLATFORM-01", 0,
+                       source="static-analyzer",
+                       description="'jakhar.aseem.diva.APICredsActivity' is exported with no permission.")
+        agent = self._f("The APICredsActivity is exported and reachable", "PLATFORM-01", 59,
+                        description="Reachable through 'jakhar.aseem.diva.action.VIEW_CREDS' by any app.")
+        rule["file"] = agent["file"] = "AndroidManifest.xml"
+        assert len(deduplicate([rule, agent])) == 1
+
+    def test_an_intent_extra_gate_filed_two_ways_on_one_line_merges(self):
+        """
+        Purpose:
+            Pin that an agent and the review filing one Intent-extra authorization bypass as AUTH-03 and as PLATFORM-02 on the same line merge, and that the same pair on different lines does not.
+        """
+        agent = self._f("Authentication bypass via Intent extra", "AUTH-03", 13)
+        review = self._f("A boolean Intent extra decides whether the PIN check runs", "PLATFORM-02", 13,
+                         origin="file_review")
+        assert len(deduplicate([dict(agent), dict(review)])) == 1
+        assert len(deduplicate([dict(agent), dict(review, line="40")])) == 2
+
+    def test_an_injection_and_a_storage_finding_on_one_line_stay_apart(self):
+        """
+        Purpose:
+            Pin that different classes on one line are not merged when no shared literal ties them.
+        """
+        rule = self._f("Credential stored in a SQLite database in plain text", "STORAGE-01", 23,
+                       source="static-analyzer")
+        agent = self._f("SQL injection in the insert", "CODE-01", 23)
+        assert len(deduplicate([rule, agent])) == 2
+
+
+class TestCleartextRequestGate:
+    """
+    Purpose:
+        A cleartext finding that cites a real http:// endpoint is a finding, not a configuration note.
+    """
+
+    def _cleartext(self, line):
+        """
+        Purpose:
+            Build a cleartext finding whose attached code is one line.
+
+        Parameters:
+            line: The cited code.
+
+        Returns:
+            The finding.
+        """
+        return finding(title="Account balance fetched over cleartext HTTP", severity="Medium",
+                       vuln_class="NETWORK-02", code_context={"lines": [line]})
+
+    @pytest.mark.parametrize("line,named", [
+        ('r16 = "http://api.bank-demo.net/v1/balance"', True),
+        ('final url = Uri.parse("http://10.0.2.2:8080/x");', True),
+        ('xmlns:android="http://schemas.android.com/apk/res/android"', False),
+        ('fetch("http://localhost:8081/status")', False),
+        ('fetch("https://api.bank-demo.net/v1")', False),
+    ])
+    def test_names_cleartext_request(self, line, named):
+        """
+        Purpose:
+            Pin which cited code counts as a named plain-HTTP request.
+
+        Parameters:
+            line: The cited code.
+            named: Whether it names a request.
+        """
+        from lu77U_MobileSec.validation.gates import names_cleartext_request
+        assert names_cleartext_request(self._cleartext(line)) is named
+
+    def test_a_named_request_escapes_the_weak_class(self):
+        """
+        Purpose:
+            Pin that the cleartext weak-class rule holds back a configuration-only finding but not one citing an endpoint.
+        """
+        held = apply_gates(self._cleartext('android:usesCleartextTraffic="true"'))
+        kept = apply_gates(self._cleartext('r16 = "http://api.bank-demo.net/v1/balance"'))
+        assert held.weak_class_rule == "WEAK-05" and held.final_severity == "Informational"
+        assert not kept.weak_class_rule and kept.final_severity == "Medium"
+
+
+@pytest.mark.parametrize("vuln_class,verdict,severity", [
+    ("STORAGE-01", "DOWNGRADE", "Low"),
+    ("NETWORK-03", "CHAIN_REQUIRED", "Informational"),
+    ("", "CHAIN_REQUIRED", "Informational"),
+])
+def test_chain_required_on_a_standalone_class_is_a_downgrade(vuln_class, verdict, severity):
+    """
+    Purpose:
+        Pin that a reviewer's CHAIN_REQUIRED steps a standalone class down one level, while a non-standalone or unclassified one still collapses.
+
+    Parameters:
+        vuln_class: The finding's class.
+        verdict: The verdict that should be recorded.
+        severity: The severity that should result.
+    """
+    from lu77U_MobileSec.validation.validator import _apply
+    f = finding(title="Something odd", description="Nothing recognisable here.",
+                severity="Medium", vuln_class=vuln_class)
+    _apply(f, "CHAIN_REQUIRED", "Only matters with root or a backup.", None)
+    assert f["gate_result"]["verdict"] == verdict
+    assert f["severity"] == severity
+
+
+class TestClassCeilings:
+    """
+    Purpose:
+        The catalogue's CVSS ceilings, and the gates that hold a finding to them.
+    """
+
+    def test_ceilings_match_the_skill_table(self):
+        """
+        Purpose:
+            Pin that each class's ceiling is the top of its CVSS range in the vulnerability_classes skill, so the gate and the guidance the model reads never disagree.
+        """
+        skill = (pathlib.Path(__file__).resolve().parents[1] / "lu77U_MobileSec" / "skills"
+                 / "vulnerability_classes.md").read_text(encoding="utf-8")
+        import re
+        table = {}
+        for row in skill.splitlines():
+            match = re.match(r"^\| ([A-Z]+-\d\d) .*\| ([\d.]+)(?:–([\d.]+))? \|$", row)
+            if match:
+                table[match.group(1)] = float(match.group(3) or match.group(2))
+        by_code = {c.code: c.max_cvss for c in VULN_CLASSES}
+        assert table and all(by_code[code] == top for code, top in table.items())
+        assert all(by_code[code] == 10.0 for code in by_code if code not in table)
+
+    @pytest.mark.parametrize("vuln_class,severity,expected", [
+        ("STORAGE-01", "High", "Medium"),
+        ("STORAGE-01", "Medium", "Medium"),
+        ("PLATFORM-04", "Critical", "Critical"),
+        ("AUTH-02", "Critical", "Medium"),
+        ("", "High", "High"),
+    ])
+    def test_a_finding_is_held_to_its_class_ceiling(self, vuln_class, severity, expected):
+        """
+        Purpose:
+            Pin that a severity above the class's ceiling is capped there, and an unclassified finding is left alone.
+
+        Parameters:
+            vuln_class: The finding's class.
+            severity: Its severity before gating.
+            expected: Its severity after.
+        """
+        result = apply_gates(finding(severity=severity, vuln_class=vuln_class))
+        assert result.final_severity == expected
+
+    @pytest.mark.parametrize("line,expected", [
+        ('export const API = "http://10.0.2.2:3000";', "Low"),
+        ('const a = "http://192.168.1.20/api"; const b = "http://127.0.0.1:8081";', "Low"),
+        ('export const API = "http://api.bank-demo.net/v1";', "Medium"),
+        ('const a = "http://10.0.2.2:3000"; const b = "http://api.bank-demo.net";', "Medium"),
+    ])
+    def test_cleartext_to_a_development_host_is_low(self, line, expected):
+        """
+        Purpose:
+            Pin that cleartext citing only private or loopback hosts is capped at Low, and a real endpoint beside one is not.
+
+        Parameters:
+            line: The cited code.
+            expected: The severity after gating.
+        """
+        result = apply_gates(finding(title="API base URL uses plain HTTP", severity="Medium",
+                                     vuln_class="NETWORK-02", code_context={"lines": [line]}))
+        assert result.final_severity == expected
+
+
+def test_a_hardcoded_check_and_its_secret_on_one_line_merge():
+    """
+    Purpose:
+        Pin that the rule engine's hardcoded-check finding and the agent's hardcoded-secret finding on the same line collapse into one, while a different class on that line stays separate.
+    """
+    rule = {"title": "User input checked against a hardcoded secret", "severity": "Medium",
+            "source": "static-analyzer", "vuln_class": "AUTH-04", "file": "sources/a/Gate.java", "line": "13",
+            "description": "Compares typed text with a literal."}
+    agent = {"title": "Hardcoded vendor key in Gate", "severity": "Medium", "source": "agent",
+             "vuln_class": "SECRET-01", "file": "sources/a/Gate.java", "line": "13",
+             "description": "The vendor key is a literal in the code."}
+    sqli = {"title": "SQL built by concatenation", "severity": "High", "source": "static-analyzer",
+            "vuln_class": "CODE-01", "file": "sources/a/Store.java", "line": "20", "description": "Concatenated."}
+    storage = {"title": "Password written to SQLite", "severity": "Medium", "source": "agent",
+               "vuln_class": "STORAGE-01", "file": "sources/a/Store.java", "line": "20", "description": "Plain text."}
+    out = deduplicate([rule, agent, sqli, storage])
+    assert len(out) == 3
+    assert sorted(f["vuln_class"] for f in out if f["file"].endswith("Store.java")) == ["CODE-01", "STORAGE-01"]
+
+
+@pytest.mark.parametrize("title,line,expected", [
+    ("Hardcoded AWS Access Key", 'r16 = "AKIA-MOCK-DEV-9982"', "Medium"),
+    ("Hardcoded AWS Access Key", 'key = "AKIAIOSFODNN7EXAMPLE";', "Critical"),
+    ("Hardcoded Stripe secret key", 'k = "sk_live_dvrn_9f8a2c1b4e7d";', "Medium"),
+    ("Hardcoded vendor key", 'k = "vendorsecretkey";', "Critical"),
+])
+def test_a_claimed_provider_key_needs_its_shape(title, line, expected):
+    """
+    Purpose:
+        Pin that a finding naming a provider's key type is held at Medium when no value of that type's shape is in its code, and left alone when one is or when no provider is claimed.
+
+    Parameters:
+        title: The finding's title.
+        line: The cited code.
+        expected: The severity after gating.
+    """
+    result = apply_gates(finding(title=title, severity="Critical", vuln_class="SECRET-01",
+                                 code_context={"lines": [line]}))
+    assert result.final_severity == expected
+
+
+def test_a_file_named_in_the_title_is_not_an_api_claim():
+    """
+    Purpose:
+        Pin that a finding naming another file in its flow is not refuted for that file's name being absent from the cited code, while a missing real API still refutes.
+    """
+    from lu77U_MobileSec.validation.gates import check_api_claim, GateResult
+    flow = finding(title="A deep link handled in main.dart triggers the transfer without confirmation",
+                   file="asm/vault/transfer_screen.dart",
+                   code_context={"lines": ["r0 = _performTransfer()"]})
+    result = GateResult()
+    check_api_claim(flow, result)
+    assert not result.mechanically_refuted
+    invented = finding(title="Token leaked through getSecretToken", file="asm/vault/transfer_screen.dart",
+                       code_context={"lines": ["r0 = _performTransfer()"]})
+    result = GateResult()
+    check_api_claim(invented, result)
+    assert result.mechanically_refuted
+
+
+def test_two_values_in_the_same_storage_api_stay_separate():
+    """
+    Purpose:
+        Pin that a token and a card number stored through AsyncStorage in different modules are two findings, not one grouped on the storage API's name.
+
+    Implementation notes:
+        The storage API is how the value is stored, not what the finding is about; grouping on it merged a session token into a credit-card finding in a benchmark report.
+    """
+    stored = {"title": "Sensitive value 'authToken' stored with setItem in unencrypted storage",
+             "severity": "Medium", "source": "static-analyzer", "vuln_class": "STORAGE-01",
+             "file": "app_modules/495.js", "line": "14",
+             "description": "The app writes a value with setItem, the AsyncStorage API."}
+    card = {"title": "Credit card data stored in AsyncStorage under the key 'cardVault'",
+            "severity": "Medium", "source": "agent", "vuln_class": "STORAGE-01",
+            "file": "app_modules/512_WalletScreen.js", "line": "135",
+            "description": "Card numbers are written to AsyncStorage."}
+    out = deduplicate([stored, card])
+    assert len(out) == 2 and {f["vuln_class"] for f in out} == {"STORAGE-01"}
+    assert out[0] is not out[1] and out[0]["line"] != out[1]["line"]
+
+def test_a_title_cut_inside_a_name_is_not_refuted_for_the_fragment():
+    """
+    Purpose:
+        Pin that the API-claim check ignores the partial word an ellipsis cut, while a whole name the code lacks still refutes.
+
+    Implementation notes:
+        A fallback title "... listens for android.i..." was refuted for naming "android.i", and a true receiver finding was lost with it.
+    """
+    from lu77U_MobileSec.validation.gates import GateResult, check_api_claim
+    code = 'context.startService(new Intent(context, DeleteFilesIntentService.class).putExtra("Delete", true));'
+    cut = finding(title="The LowMemoryReceiver is an exported component that listens for android.i...",
+                  code_snippet=code, file="sources/a/LowMemoryReceiver.java")
+    result = GateResult(original_severity="Medium", final_severity="Medium")
+    check_api_claim(cut, result)
+    assert not result.mechanically_refuted
+    whole = dict(cut, title="Receiver calls android.app.AlarmManager.setExact")
+    result = GateResult(original_severity="Medium", final_severity="Medium")
+    check_api_claim(whole, result)
+    assert result.mechanically_refuted
+
+
+def test_a_group_around_a_scanner_fact_keeps_the_scanner_finding():
+    """
+    Purpose:
+        Pin that when an agent finding joins a scanner finding's fact_key group, the scanner finding survives with the agent's account and the higher severity.
+    """
+    rule = {"title": "Exported receiver LowMemoryReceiver has no permission protection", "severity": "Medium",
+            "vuln_class": "PLATFORM-01", "file": "AndroidManifest.xml", "line": 12, "source": "static-analyzer",
+            "fact_key": "exported:edu.ksu.cs.benign.LowMemoryReceiver",
+            "description": "Receiver is reachable by any app on the device and declares no permission."}
+    agent = {"title": "LowMemoryReceiver deletes app data for any sender", "severity": "High",
+             "vuln_class": "PLATFORM-01", "file": "sources/a/LowMemoryReceiver.java", "line": 8, "source": "agent",
+             "description": "Any installed app can send the broadcast and make the receiver delete the app's private file, "
+                            "because onReceive acts on whatever intent arrives."}
+    out = deduplicate([dict(agent), dict(rule)])
+    assert len(out) == 1
+    kept = out[0]
+    assert kept["title"] == rule["title"] and kept["severity"] == "High"
+    assert "delete the app's private file" in kept["description"]
+
+
+class TestPlatformFactGates:
+    """
+    Purpose:
+        Gates that settle a claim from a platform fact the cited code shows.
+    """
+
+    def test_a_receiver_that_checks_a_protected_action_is_not_spoofable(self):
+        """
+        Purpose:
+            Pin that a claim resting on another app sending a protected broadcast is set aside when the code checks for that action, and kept when it does not.
+        """
+        checked = 'if (intent.getAction() != null && intent.getAction().equals("android.intent.action.DEVICE_STORAGE_LOW")) {'
+        claim = dict(title="Exported receiver LowMemoryReceiver deletes data", vuln_class="PLATFORM-01",
+                     description="Any app can send DEVICE_STORAGE_LOW and make it delete the app's file.",
+                     code_snippet=checked)
+        assert apply_gates(finding(**claim)).verdict == "INFORMATIONAL"
+        unchecked = dict(claim, code_snippet='context.startService(new Intent(context, DeleteFiles.class));')
+        assert apply_gates(finding(**unchecked)).verdict != "INFORMATIONAL"
+
+    @pytest.mark.parametrize("copied, set_aside", [('"DummyPass"', True), ("copyData()", False)])
+    def test_a_clipboard_copy_of_a_literal_exposes_nothing(self, copied, set_aside):
+        """
+        Purpose:
+            Pin that copying a string literal to the clipboard is set aside and copying data the app computes is not.
+
+        Parameters:
+            copied: The value passed to newPlainText.
+            set_aside: Whether the finding is set aside.
+        """
+        result = apply_gates(finding(
+            title="Sensitive value copied to global clipboard", vuln_class="STORAGE-02",
+            description="The app copies the password to the clipboard, where any app can read it.",
+            code_snippet=f'ClipData clip = ClipData.newPlainText("Password", {copied});'))
+        assert (result.verdict == "INFORMATIONAL") is set_aside
+
+    @pytest.mark.parametrize("base, capped", [
+        ("Intent i = new Intent();\ni.setComponent(new ComponentName(pkg, \"a.MyService\"));", True),
+        ("Intent i = new Intent(this, MyService.class);", True),
+        ("Intent i = new Intent(\"santos.cs.ksu.myServ\");", False),
+    ])
+    def test_a_pending_intent_with_a_named_component_is_capped(self, base, capped):
+        """
+        Purpose:
+            Pin that a PendingIntent finding is capped at Low when its base Intent names its component, and left alone when the base is implicit.
+
+        Parameters:
+            base: The code building the base Intent.
+            capped: Whether the cap applies.
+        """
+        result = apply_gates(finding(
+            title="Mutable PendingIntent sent to external application", vuln_class="PLATFORM-08",
+            description="A mutable PendingIntent is handed to another app.",
+            code_snippet=base + "\nPendingIntent pi = PendingIntent.getService(ctx, 0, i, 134217728);"))
+        assert (result.severity_cap == "Low") is capped
+
+
+@pytest.mark.parametrize("agent_status, scanner_status, kept", [
+    ("refuted", None, "refuted"), ("refuted", "verified", "verified"), ("not_verified", "refuted", "refuted"),
+])
+def test_a_merge_keeps_the_strongest_device_verdict(agent_status, scanner_status, kept):
+    """
+    Purpose:
+        Pin that findings merged into one keep the strongest device verdict among them, verified over refuted over not verified, so a refutation is not lost and a proof is not overridden.
+
+    Parameters:
+        agent_status: The agent finding's device verdict.
+        scanner_status: The scanner finding's, or None for none.
+        kept: The verdict the merged finding keeps.
+    """
+    rule = {"title": "Exported receiver LowMemoryReceiver has no permission protection", "severity": "Medium",
+            "vuln_class": "PLATFORM-01", "file": "AndroidManifest.xml", "line": 12, "source": "static-analyzer",
+            "fact_key": "exported:edu.ksu.cs.benign.LowMemoryReceiver", "description": "Reachable by any app."}
+    if scanner_status:
+        rule["dynamic_verification"] = {"status": scanner_status, "evidence": "scanner proof"}
+    agent = {"title": "LowMemoryReceiver deletes app data for any sender", "severity": "High",
+             "vuln_class": "PLATFORM-01", "file": "sources/a/LowMemoryReceiver.java", "line": 8, "source": "agent",
+             "description": "Any installed app can make the receiver delete the private file.",
+             "dynamic_verification": {"status": agent_status, "evidence": "device evidence", "reason": "r"}}
+    out = deduplicate([agent, rule])
+    assert len(out) == 1 and out[0]["dynamic_verification"]["status"] == kept

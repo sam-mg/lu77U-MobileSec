@@ -10,7 +10,7 @@ cd lu77U-MobileSec
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-./scripts/install_hooks.sh      # enable the pre-push gate - do this once
+./scripts/install_hooks.sh      # enable the commit-msg and pre-push hooks - do this once
 ```
 
 Then work as normal:
@@ -25,24 +25,25 @@ git push origin feature-name
 
 Open a pull request when the push succeeds.
 
-## The four gates
+## The five gates
 
-A push is refused unless **all four** pass. The pre-push hook runs them locally and CI runs the identical four, via the identical scripts, on every push and pull request.
+A push is refused unless **all five** pass. The pre-push hook runs them locally and CI runs the identical five, via the identical scripts, on every push and pull request.
 
 | Gate | Command | What it means |
 |---|---|---|
+| Commit messages | `python scripts/check_commit_message.py --unpushed` | Every commit being pushed follows the [commit message format](#commit-messages) |
 | Comment style | `python scripts/check_comment_style.py` | Every file follows the commenting standard below |
 | Tests | `python -m pytest` | The whole suite passes, including tests for your change |
 | CodeQL | `./scripts/codeql_scan.sh` | Zero findings from every finding-producing suite CodeQL ships for Python, JavaScript and the workflows - security and code quality both, including experimental queries |
 | Clean install | `./scripts/verify_install.sh` | A fresh venv, `pip install -e .` from cold, then `-v` and `-V` both actually work |
 
-Run all four at once with `./scripts/preflight.sh`.
+Run all five at once with `./scripts/preflight.sh`.
 
 The clean-install gate is the slowest one: it builds a brand-new venv and installs every dependency from PyPI with nothing reused, since that is the whole point of the check. `-v` has to print the exact version `pyproject.toml` declares - catching a case where the packaging metadata drifted from the source of truth - and `-V` has to start the real web dashboard without error. `-V` alone blocks forever and never exits by itself, so the script starts it with the real (if undocumented) `--port`/`--no-browser` flags and stops it again once it sees a clean startup with no traceback.
 
 The CodeQL gate installs its own CLI and query packs the first time it runs on a machine (a few hundred MB, cached outside the repo so later runs are fast) and does not stop at security bugs - `security-and-quality`, `security-experimental` and `code-quality-extended` all have to come back empty. There is no suppression: this project's ban on `#` comments also rules out CodeQL's usual inline `lgtm[rule-id]` marker, so a finding gets fixed or the code gets restructured, never silenced. A query is never dropped from the suites, even when its stock form cannot be satisfied by application code: `js/untrusted-data-to-external-api-more-sources` has no code-level sanitizer (tested against real validation already in this codebase - a type guard, primitive extraction, a JSON round trip - none of it clears the taint, because the query's `Sanitizer` class has no implementations upstream), so `scripts/codeql/lu77u-js-models/` supplies a small, real model extension marking exactly the two packages this pattern hits (`react`, `react-router-dom`) as not being external security boundaries, and `scripts/codeql/javascript-suite.qls` runs that copy under the same rule id in place of the stock one. The check still runs against every file and would still catch a real external-API sink; nothing is skipped.
 
-If the hook was not installed, `git config core.hooksPath .githooks` enables it. You can bypass it with `git push --no-verify`, but CI runs the same four gates, so a bypassed push fails there instead.
+If the hooks were not installed, `./scripts/install_hooks.sh` enables them. You can bypass them with `git push --no-verify`, but CI runs the same five gates, so a bypassed push fails there instead.
 
 ## Every change needs tests
 
@@ -163,6 +164,17 @@ Useful flags:
 python scripts/check_comment_style.py lu77U_MobileSec/example/thing.py   # one file
 python scripts/check_comment_style.py --json                             # machine-readable
 python scripts/check_comment_style.py --quiet                            # silent when clean
+```
+
+## Commit messages
+
+The first line is the subject. If more is needed, add one blank line, then a flat list with one `- ` item per line. Each item is a single line however long it runs: do not hard-wrap it, and do not write paragraphs or any other block. The `commit-msg` hook refuses a message that breaks this when you commit, and the pre-push hook and CI check every commit a push sends; merge commits and commits GitHub itself made are skipped.
+
+```text
+docs(wiki): add Benchmarks page, sidebar and footer
+
+- Benchmarks: Ghera results (59/60 vulnerable apps found, 17/59 fixed apps still reported), comparison with published results, how it was scored
+- Sidebar and footer on every page
 ```
 
 ## Reporting security issues

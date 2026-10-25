@@ -18,6 +18,7 @@ Security considerations:
     Paths come from model output and are confined to the decompiled tree by resolving them and checking containment before any read. There is no write capability here at all -- the static agent reads, and nothing else.
 """
 
+import hmac
 import os
 import re
 import shutil
@@ -25,12 +26,14 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from ...decompiler.ghidra_runner import NativeDecompilation, decompile_native_library
 from ...utils.verbose import plural
 from ...utils.xml_utils import is_framework_layout_file
 from .patterns import find_endpoints, find_secrets
 from .profiles import JAVA_KOTLIN, SourceProfile
 
 MAX_READ_CHARS = 12000
+MAX_LINE_CHARS = 2000
 MAX_TREE_ENTRIES = 400
 MAX_SEARCH_MATCHES = 60
 MAX_LIST_ENTRIES = 200
@@ -146,6 +149,176 @@ def _native_signal_summary(symbols: str, strings: List[str]) -> str:
 
     return "\n".join(sections)
 
+_DECOMPILATION_PREAMBLE = (
+    "JNI entry points first, then functions calling risky imports, then the rest. This is "
+    "pseudo-C reconstructed by a decompiler: names like param_1/local_18 and the types are "
+    "inferred, but control flow, constants, buffer sizes and call targets come from the "
+    "binary. Calls through the JNIEnv/JavaVM table are annotated with the JNI function "
+    "they reach. In a finding, put this view's line number in \"line\" (as with read_file) "
+    "and name the function and its address in the description."
+)
+
+_NATIVE_FUNCTION_HEADER_RE = re.compile(r"^// ---- (\S+) @ ([0-9A-Fa-f:]+) ")
+_NATIVE_CITABLE_CALLS = _RISKY_NATIVE_SYMBOLS | frozenset((
+    "strcmp", "strncmp", "strcasecmp", "strncasecmp", "memcmp", "fopen", "open",
+))
+
+
+def _native_function_spans(view: List[str]) -> List[tuple]:
+    """
+    Purpose:
+        Find where each decompiled function sits in a native view.
+
+    Parameters:
+        view: The view's lines, as native_view returns them.
+
+    Returns:
+        One (name, entry, first_code_line, last_code_line) tuple per function, 1-based and inclusive, excluding the header comment and trailing blank lines.
+    """
+    spans = []
+    current = None
+    for lineno, line in enumerate(view, 1):
+        header = _NATIVE_FUNCTION_HEADER_RE.match(line)
+        if header or line.startswith("## "):
+            if current:
+                spans.append(current)
+            current = [header.group(1), header.group(2), lineno + 1, lineno] if header else None
+            continue
+        if current and line.strip():
+            current[3] = lineno
+    if current:
+        spans.append(current)
+    return [tuple(span) for span in spans if span[3] >= span[2]]
+
+
+def native_function_span(view: List[str], line: int):
+    """
+    Purpose:
+        Find the decompiled function a line of a native view belongs to.
+
+    Parameters:
+        view: The view's lines.
+        line: A 1-based line number.
+
+    Returns:
+        (header_line, last_code_line), 1-based and inclusive, or None when the line is not inside a function.
+
+    Implementation notes:
+        The span starts at the generated header comment rather than the signature, because the header carries the function's name, address and imports, which is what a reader of an excerpt needs to place it.
+    """
+    for _, _, first, last in _native_function_spans(view):
+        if first <= line <= last:
+            return first - 1, last
+    return None
+
+def locate_native_citation(view: List[str], start: int, end: int, raw_line, text: str):
+    """
+    Purpose:
+        Turn a native finding's citation into a line span of decompiled code, repairing a citation that does not point into any function.
+
+    Parameters:
+        view: The native view's lines.
+        start: The cited first line, 0 when none parsed.
+        end: The cited last line.
+        raw_line: The finding's line field exactly as the model wrote it, which may be an address.
+        text: The finding's title and description, used to recognise the function and the call it is about.
+
+    Returns:
+        The (start, end) span to show, or None when nothing in the view can be tied to the finding.
+
+    Implementation notes:
+        A cited line inside a function is trusted as is. Otherwise the model has usually cited the function's entry address, or a number past the end that would clamp onto the symbol table, so the function is found by its address and then by its name appearing in the text, the full JNI name before the bare method name. Within that function the span narrows to the first line calling an API the finding names, such as strcpy or strncmp, so the excerpt highlights the defect rather than the whole function. Only calls in a fixed list are matched, because a word like "access" in a title would otherwise match the function's own signature.
+    """
+    spans = _native_function_spans(view)
+    if not spans:
+        return None
+    if start > 0 and any(first <= start <= last for _, _, first, last in spans):
+        return start, max(start, end)
+
+    raw = str(raw_line or "").strip().lower()
+    raw = raw[2:] if raw.startswith("0x") else raw
+    target = None
+    if raw and re.fullmatch(r"[0-9a-f:]+", raw):
+        wanted = raw.lstrip("0")
+        target = next((span for span in spans
+                       if hmac.compare_digest(span[1].lower().lstrip("0"), wanted)), None)
+    if target is None:
+        target = next((span for span in spans
+                       if re.search(r"\b" + re.escape(span[0]) + r"\b", text)), None)
+    if target is None:
+        for span in spans:
+            method = span[0].rsplit("_", 1)[-1] if span[0].startswith("Java_") else ""
+            if len(method) >= 4 and re.search(r"\b" + re.escape(method) + r"\b", text):
+                target = span
+                break
+    if target is None:
+        return None
+
+    _, _, first, last = target
+    lowered = text.lower()
+    named = [call for call in sorted(_NATIVE_CITABLE_CALLS)
+             if re.search(r"\b" + re.escape(call) + r"\b", lowered)]
+    for lineno in range(first, last + 1):
+        if any(re.search(r"\b" + re.escape(call) + r"\s*\(", view[lineno - 1]) for call in named):
+            return lineno, lineno
+    return first, last
+
+
+def _render_decompilation(decompiled: NativeDecompilation) -> List[str]:
+    """
+    Purpose:
+        Lay out a library's decompiled functions in the order the agent should read them.
+
+    Parameters:
+        decompiled: The Ghidra result.
+
+    Returns:
+        The lines of the decompiled view, or an empty list when there is no code to show.
+
+    Implementation notes:
+        JNI entry points come first because they are where data from Java enters, then functions that call a risky import, then named functions, then Ghidra's FUN_ placeholders. A large library has thousands of functions and the agent will read only the first pages, so the order decides what it actually sees. Each function is headed with its address and the imports it calls, which is what a finding cites when the library is stripped. The preamble says plainly that this is reconstructed pseudo-C, so names and types are not reported as if the developer wrote them.
+    """
+    functions = [f for f in decompiled.functions if f.code.strip()]
+    if not functions:
+        return []
+
+    def rank(function) -> tuple:
+        """
+        Purpose:
+            Sort key placing the most security-relevant functions first.
+
+        Parameters:
+            function: A decompiled function.
+
+        Returns:
+            The key: a priority tier, then the entry address.
+        """
+        if function.name == "JNI_OnLoad" or function.name.startswith("Java_"):
+            tier = 0
+        elif any(c.split("@", 1)[0] in _RISKY_NATIVE_SYMBOLS for c in function.calls):
+            tier = 1
+        elif not function.name.startswith("FUN_"):
+            tier = 2
+        else:
+            tier = 3
+        return (tier, function.entry)
+
+    shown = len(functions)
+    total = max(decompiled.function_count, shown)
+    note = (f" - first {shown} of {total} functions (cut off by the decompilation budget)"
+            if decompiled.truncated or shown < total else f" - {shown} functions")
+    lines = [
+        f"## Decompiled native code (Ghidra, {decompiled.language or 'unknown target'}){note}",
+        _DECOMPILATION_PREAMBLE,
+        "",
+    ]
+    for function in sorted(functions, key=rank):
+        calls = f" - calls {', '.join(function.calls)}" if function.calls else ""
+        lines.append(f"// ---- {function.name} @ {function.entry} ({function.size} bytes){calls}")
+        lines += function.code.split("\n")
+        lines.append("")
+    return lines
+
 
 _RES_QUALIFIER_RE = re.compile(r"^(values|drawable|layout|color|mipmap|anim|menu)-")
 
@@ -246,6 +419,7 @@ class AgentTools:
         self.profile = profile
         self.call_graph = call_graph
         self._read_progress: Dict[str, int] = {}
+        self._native_documents: Dict[str, object] = {}
         self._basename_index: Optional[Dict[str, List[str]]] = None
 
     def _suggest(self, rel_path: str) -> str:
@@ -350,6 +524,22 @@ class AgentTools:
             return True
         return _is_resource_variant_dir(rel)
 
+    def is_framework_path(self, rel: str) -> bool:
+        """
+        Purpose:
+            Tell code outside the tool surface whether a path is framework or generated noise under this profile.
+
+        Parameters:
+            rel: The file's relative path.
+
+        Returns:
+            True when the file is noise.
+
+        Implementation notes:
+            The review pass picks its files from the graph and the leads rather than from a listing, so it needs the same filter the listings apply, without reaching into the private helper.
+        """
+        return self._is_framework(rel)
+
     def list_files(self, path: str = "") -> str:
         """
         Purpose:
@@ -384,6 +574,67 @@ class AgentTools:
             extra = len(entries) - MAX_LIST_ENTRIES
             entries = entries[:MAX_LIST_ENTRIES] + [f"... (+{extra} more)"]
         return "\n".join(entries) if entries else "(empty directory)"
+
+    def _page(self, key: str, lines: List[str], start_line: Optional[int], tool: str) -> str:
+        """
+        Purpose:
+            Return the next bounded page of a line-oriented document, with a line-number gutter, remembering where the reader stopped.
+
+        Parameters:
+            key: Identifies the document, so each one keeps its own read position.
+            lines: The document's lines.
+            start_line: Where to start; continues from the last page when omitted.
+            tool: The tool name the continuation hint tells the agent to call again.
+
+        Returns:
+            The numbered page, with a continuation hint when more remains, or a note that the end was already reached.
+
+        Implementation notes:
+            Shared by read_file and the decompiled view of inspect_native, so both page identically and the agent learns one convention. A single line longer than MAX_LINE_CHARS is cut with a note saying so: a page always includes at least one whole line, and minified JavaScript carries lines of over a hundred thousand characters, so without the cap one read of a bundle would flood the agent's context. A document small enough to fit in one page restarts from the top when asked for again, since re-showing it costs no more than the note would.
+        """
+        total_lines = len(lines)
+        first_line = max(1, start_line) if start_line is not None else self._read_progress.get(key, 1)
+
+        if first_line > total_lines:
+            total_chars = sum(len(l) + 1 for l in lines)
+            if start_line is None and total_chars <= MAX_READ_CHARS:
+                first_line = 1
+            else:
+                return (
+                    f"NOTE: already read to the end of this file - {total_lines} lines "
+                    "total, nothing more to show. Pass start_line to jump elsewhere if "
+                    "needed."
+                )
+
+        selected: List[str] = []
+        used_chars = 0
+        last_line = first_line - 1
+        for lineno in range(first_line, total_lines + 1):
+            line_text = lines[lineno - 1]
+            if len(line_text) > MAX_LINE_CHARS:
+                line_text = (line_text[:MAX_LINE_CHARS]
+                             + f" ... [line truncated: {len(line_text)} chars; search_code finds text inside it]")
+            entry_len = len(line_text) + 1
+            if selected and used_chars + entry_len > MAX_READ_CHARS:
+                break
+            selected.append(line_text)
+            used_chars += entry_len
+            last_line = lineno
+
+        self._read_progress[key] = last_line + 1
+
+        width = len(str(total_lines))
+        numbered = "\n".join(
+            f"{lineno:>{width}}| {line}"
+            for lineno, line in zip(range(first_line, last_line + 1), selected)
+        )
+        if last_line < total_lines:
+            numbered += (
+                f"\n... (showing lines {first_line}-{last_line} of {total_lines}; call "
+                f"{tool} again on this path to continue from line {last_line + 1}, "
+                f"or pass start_line to jump elsewhere)"
+            )
+        return numbered
 
     def read_file(self, path: str, start_line: Optional[int] = None) -> str:
         """
@@ -420,61 +671,22 @@ class AgentTools:
             return f"ERROR: could not read {path}: {e}"
 
         lines = _collapse_jadx_noise(content.splitlines()) or [""]
-        total_lines = len(lines)
-        key = str(target)
-        first_line = max(1, start_line) if start_line is not None else self._read_progress.get(key, 1)
+        return self._page(str(target), lines, start_line, "read_file")
 
-        if first_line > total_lines:
-            total_chars = sum(len(l) + 1 for l in lines)
-            if start_line is None and total_chars <= MAX_READ_CHARS:
-                first_line = 1
-            else:
-                return (
-                    f"NOTE: already read to the end of this file - {total_lines} lines "
-                    "total, nothing more to show. Pass start_line to jump elsewhere if "
-                    "needed."
-                )
-
-        selected: List[str] = []
-        used_chars = 0
-        last_line = first_line - 1
-        for lineno in range(first_line, total_lines + 1):
-            line_text = lines[lineno - 1]
-            entry_len = len(line_text) + 1
-            if selected and used_chars + entry_len > MAX_READ_CHARS:
-                break
-            selected.append(line_text)
-            used_chars += entry_len
-            last_line = lineno
-
-        self._read_progress[key] = last_line + 1
-
-        width = len(str(total_lines))
-        numbered = "\n".join(
-            f"{lineno:>{width}}| {line}"
-            for lineno, line in zip(range(first_line, last_line + 1), selected)
-        )
-        if last_line < total_lines:
-            numbered += (
-                f"\n... (showing lines {first_line}-{last_line} of {total_lines}; call "
-                f"read_file again on this path to continue from line {last_line + 1}, "
-                f"or pass start_line to jump elsewhere)"
-            )
-        return numbered
-
-    def inspect_native(self, path: str) -> str:
+    def inspect_native(self, path: str, start_line: Optional[int] = None) -> str:
         """
         Purpose:
-            Summarise a native library: its symbols and strings.
+            Summarise a native library: its security signals, its decompiled C when Ghidra is configured, and its symbols.
 
         Parameters:
             path: The library.
+            start_line: Where to start in the decompiled view; continues from the last page when omitted.
 
         Returns:
-            The summary, or an error.
+            The summary or the next page of it, or an error.
 
         Implementation notes:
-            Native code cannot be decompiled here, but its exported symbols and string constants still reveal what it does and what it embeds -- which is often where a Java-side finding's other half lives. The symbol dump needs objdump; the string scan and the signals derived from it (risky imports, the JNI surface, endpoints, credential candidates) are pure Python, so they are produced even where objdump is absent rather than failing the whole inspection. Bounded everywhere, since a library holds far more strings than the agent can use, and the signals are leads for the native library and evidence skills to weigh rather than scored findings.
+            With Ghidra configured, the view is the signals, then the decompiled functions with JNI entry points first, then the symbol table, paged exactly like read_file so a large library can be read through rather than cut off. The decompilation is what lets the agent follow a Java string from GetStringUTFChars into a strcpy or a comparison against a constant, which a symbol table cannot show. Without Ghidra, or when it cannot decompile this library, the output is the symbols and signals as before, bounded to one page, with a line saying why there is no code so the agent does not present inferences as something it read. The symbol dump needs objdump; the string scan and the signals derived from it are pure Python, so they are produced even where objdump is absent rather than failing the whole inspection. The built view is cached per library for the life of this tool surface, so paging does not repeat the work.
         """
         try:
             target = self._resolve(path)
@@ -485,6 +697,71 @@ class AgentTools:
         if target.suffix != ".so":
             return f"ERROR: not a native library (.so): {path}"
 
+        document = self._cached_native_document(target, path)
+        if isinstance(document, str):
+            return document
+        return self._page(f"native:{target}", document, start_line, "inspect_native")
+
+    def native_view(self, path: str) -> Optional[List[str]]:
+        """
+        Purpose:
+            Return the decompiled view of a native library exactly as inspect_native numbers it, so a line the agent cited can be turned back into code.
+
+        Parameters:
+            path: The library, relative to the tree.
+
+        Returns:
+            The view's lines, or None when the path is not a library in the tree or no decompiled code is available for it.
+
+        Side effects:
+            Runs objdump, and Ghidra if this library has not been decompiled in this process yet.
+
+        Implementation notes:
+            Report enrichment calls this after the agent has finished, so the Ghidra run is normally a cache hit. Line numbers stay stable because the view is built the same way every time from the same library: the signals and the decompiled functions come first, and only the symbol table, which comes last, carries the path string.
+        """
+        try:
+            target = self._resolve(path)
+        except ValueError:
+            return None
+        if not target.is_file() or target.suffix != ".so":
+            return None
+        document = self._cached_native_document(target, path)
+        return None if isinstance(document, str) else list(document)
+
+    def _cached_native_document(self, target: Path, path: str):
+        """
+        Purpose:
+            Build a library's native view once per tool surface and reuse it.
+
+        Parameters:
+            target: The resolved library.
+            path: The path as the caller gave it.
+
+        Returns:
+            What _native_document returns for this library.
+        """
+        key = f"native:{target}"
+        document = self._native_documents.get(key)
+        if document is None:
+            document = self._native_document(target, path)
+            self._native_documents[key] = document
+        return document
+
+    def _native_document(self, target: Path, path: str):
+        """
+        Purpose:
+            Build the view inspect_native pages through.
+
+        Parameters:
+            target: The resolved library.
+            path: The path as the agent gave it, used in place of the absolute one in tool output.
+
+        Returns:
+            A list of lines when decompiled code is available, otherwise the finished single-page text.
+
+        Side effects:
+            Runs objdump, and Ghidra on first request for this library.
+        """
         if shutil.which("objdump") is None:
             symbols = ""
             header = "## Dynamic symbols\n(objdump is not installed on this host - symbols unavailable)"
@@ -506,11 +783,25 @@ class AgentTools:
         except Exception:
             strings = []
 
-        signals = _native_signal_summary(symbols, strings)
-        output = header + ("\n" + signals if signals else "")
-        if len(output) > MAX_READ_CHARS:
-            output = output[:MAX_READ_CHARS] + f"\n... [truncated at {MAX_READ_CHARS} chars]"
-        return output
+        decompiled = decompile_native_library(target)
+        imports = sorted({c for f in decompiled.functions for c in f.calls})
+        signals = _native_signal_summary("\n".join([symbols] + imports), strings)
+
+        code_lines = _render_decompilation(decompiled)
+        if not code_lines:
+            reason = decompiled.error or "Ghidra decompiled no functions from this library"
+            output = (header + ("\n" + signals if signals else "")
+                      + f"\n\n## Decompiled code\n(unavailable: {reason}. Only the symbols and "
+                        "strings above were read - do not describe function bodies.)")
+            if len(output) > MAX_READ_CHARS:
+                output = output[:MAX_READ_CHARS] + f"\n... [truncated at {MAX_READ_CHARS} chars]"
+            return output
+
+        lines: List[str] = []
+        if signals:
+            lines += signals.strip("\n").split("\n") + [""]
+        lines += code_lines + [""] + header.split("\n")
+        return lines
 
     def search_code(self, pattern: str, path: str = "") -> str:
         """
@@ -525,7 +816,7 @@ class AgentTools:
             The matches with their locations, or an error.
 
         Implementation notes:
-            This is how the agent navigates: it searches for a sink or an API and then reads around the hits, rather than reading files in order. Framework files are excluded and results are bounded, so a common term returns a usable sample rather than thousands of hits from bundled libraries.
+            This is how the agent navigates: it searches for a sink or an API and then reads around the hits, rather than reading files in order. Framework files are excluded and results are bounded, so a common term returns a usable sample rather than thousands of hits from bundled libraries. A search given an explicit path also covers resource files such as the manifest: without that, a search scoped to AndroidManifest.xml silently returned no matches, which an agent reasonably read as the app exporting nothing.
         """
         if not pattern:
             return "ERROR: empty pattern"
@@ -539,7 +830,7 @@ class AgentTools:
             regex = re.compile(re.escape(pattern), re.IGNORECASE)
 
         matches: List[str] = []
-        for file_path in self._iter_source_files(base):
+        for file_path in self._iter_source_files(base, include_resources=bool(path)):
             rel = self._rel(file_path)
             if not path and self._is_framework(rel):
                 continue
@@ -725,6 +1016,10 @@ class AgentTools:
             Where an agent starts when it wants to establish whether anything an attacker controls reaches a sink it has found.
         """
         if self.call_graph is None:
+            if self.profile.key == "flutter":
+                return self._flutter_entry_points()
+            if self.profile.key == "react_native":
+                return self._react_native_entry_points()
             return self._NO_GRAPH
         nodes = self.call_graph.entry_points()
         if not nodes:
@@ -733,6 +1028,57 @@ class AgentTools:
             [f"{plural(len(nodes), 'entry point')} - attacker-reachable, "
              "start here:"]
             + [f"  {n.key}   ({n.file})" for n in nodes])
+
+    def _flutter_entry_points(self) -> str:
+        """
+        Purpose:
+            Answer an entry-point request for a Flutter app, which has no DEX call graph for the Dart side.
+
+        Returns:
+            Where a Flutter app is entered: its main library, its platform channels and its exported components.
+
+        Implementation notes:
+            Agents ask for entry points first by habit, and on a Flutter app the call-graph answer was an error that cost a step and taught nothing. The real entry points are the app's main() library, the platform-channel calls the overview maps, and the manifest's exported components, so the answer names those files instead. The search is bounded to the two places a main library can be.
+        """
+        mains = sorted(self._rel(p) for p in self.root.glob("asm/*/main.dart"))
+        mains += sorted(self._rel(p) for p in self.root.glob("dart_source/lib/main.dart"))
+        lines = ["Flutter app - the Dart code is not in the DEX, so there is no method call "
+                 "graph. Its entry points are:"]
+        if mains:
+            lines.append("  main() and the first screen: " + ", ".join(mains[:4]))
+        lines.append("  platform channels: see the 'Flutter scan overview' at the top of your "
+                     "context (each Dart call site and the Java file answering it)")
+        if (self.root / "platform/resources/AndroidManifest.xml").is_file():
+            lines.append("  exported components and deep links: "
+                         "platform/resources/AndroidManifest.xml (read it, or search it for "
+                         "'exported' / 'intent-filter')")
+        lines.append("Move between Dart functions by the call annotations "
+                     "('; [package:...] Class::method') rather than callers/callees.")
+        return "\n".join(lines)
+
+    def _react_native_entry_points(self) -> str:
+        """
+        Purpose:
+            Answer an entry-point request for a React Native app, whose JavaScript has no DEX call graph.
+
+        Returns:
+            Where a React Native app is entered: its entry module and root component, its native modules, and its exported components.
+
+        Implementation notes:
+            The same reasoning as for Flutter: the useful answer names files rather than reporting that a graph is missing. Native modules are listed through the overview because any JavaScript in the app can call them, which makes them entry points for an attacker who gets JavaScript to run.
+        """
+        lines = ["React Native app - the JavaScript is not in the DEX, so there is no method call "
+                 "graph. Its entry points are:"]
+        entry = sorted(self._rel(p) for p in self.root.glob("app_modules/0*.js"))
+        if entry:
+            lines.append("  the entry module (AppRegistry -> root component): " + ", ".join(entry[:2]))
+        lines.append("  native modules: see 'Native modules' in the React Native scan overview - every "
+                     "@ReactMethod there is callable by any JS that runs in the app")
+        if (self.root / "platform/resources/AndroidManifest.xml").is_file():
+            lines.append("  exported components and deep links: platform/resources/AndroidManifest.xml")
+        lines.append("Follow each module's '// Dependencies: [...]' header and its require/import ids "
+                     "between app_modules files.")
+        return "\n".join(lines)
 
     def file_tree(self) -> str:
         """

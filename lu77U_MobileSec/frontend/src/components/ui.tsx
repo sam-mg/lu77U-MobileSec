@@ -232,7 +232,7 @@ export function Segmented<T extends string>({
 export function PlatformBadge({ framework }: { framework?: string | null }) {
   if (!framework) return <span className="text-slate-500">-</span>;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-ink-800 px-2 py-0.5 text-xs font-medium text-slate-300 ring-1 ring-inset ring-ink-700">
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-ink-800 px-2 py-0.5 text-xs font-medium text-slate-300 ring-1 ring-inset ring-ink-700">
       {framework}
     </span>
   );

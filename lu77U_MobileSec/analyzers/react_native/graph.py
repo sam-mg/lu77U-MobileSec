@@ -40,6 +40,7 @@ _SINK_FAMILIES: Dict[str, tuple] = {
     "crypto": ("crypto-js", "CryptoJS", "createCipher", "createHash"),
     "deeplink": ("Linking.getInitialURL", "Linking.openURL", "Linking.addEventListener"),
     "logging": ("console.log", "console.warn", "console.error"),
+    "native_module": ("NativeModules", "TurboModuleRegistry"),
 }
 
 
@@ -236,6 +237,62 @@ def _build_module_dir_nodes(js_files: List[Path], root: Path, verbose: bool) -> 
     return nodes
 
 
+_MODULE_ID_RE = re.compile(r"^(\d+)(?:_.*)?\.js$")
+_HEADER_DEPS_RE = re.compile(r"^//\s*Dependencies:\s*\[([\d,\s]*)\]", re.MULTILINE)
+
+
+def _build_module_tree_nodes(root: Path, verbose: bool) -> Dict[str, CodeNode]:
+    """
+    Purpose:
+        Build nodes over a Metro module tree: the app region's modules and the app's own native modules.
+
+    Parameters:
+        root: The analysis root holding app_modules/ and framework_modules/.
+        verbose: Traces unreadable files.
+
+    Returns:
+        The nodes, keyed by relative path.
+
+    Side effects:
+        Reads the app-region modules and the decompiled platform layer.
+
+    Implementation notes:
+        The app region is already the app plus what it imports, so every module in it is flagged -- a screen that gates a feature on a client-side flag or a module holding a key matches no sink pattern, and those are the findings that matter here. Module 0 is the entry. Refs follow each module's Metro dependency list within the app region, so the agent can walk from a screen to the helper that does the work. The app's own native modules are added as nodes of their own, always flagged, because a @ReactMethod is callable by any JavaScript in the app whether or not the bundle calls it. Framework modules are left out entirely.
+    """
+    from ...decompiler.rn_metro import APP_DIR
+    from .overview import app_package, find_native_modules
+
+    app_dir = root / APP_DIR
+    files: Dict[int, Path] = {}
+    for path in sorted(app_dir.glob("*.js")):
+        match = _MODULE_ID_RE.match(path.name)
+        if match:
+            files[int(match.group(1))] = path
+    nodes: Dict[str, CodeNode] = {}
+    deps_of: Dict[str, List[int]] = {}
+    for module_id, path in sorted(files.items()):
+        rel = path.relative_to(root).as_posix()
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError as exc:
+            verbose_print(f"Could not read {path}: {exc}", verbose)
+            continue
+        signals, strings, _refs = _scan_content(content)
+        header = _HEADER_DEPS_RE.search(content[:2000])
+        deps_of[rel] = [int(x) for x in header.group(1).replace(" ", "").split(",") if x.isdigit()] if header else []
+        role = "app-entry" if module_id == 0 else "app-code"
+        nodes[rel] = CodeNode(cls=path.stem, file=rel, role=role, signals=signals, strings=strings)
+    for rel, deps in deps_of.items():
+        targets = [files[d].relative_to(root).as_posix() for d in deps if d in files]
+        nodes[rel].refs = [t for t in targets if t in nodes][:_MAX_REFS_PER_NODE]
+    for module in find_native_modules(root, app_package(root)):
+        if module.app_owned:
+            nodes[module.file] = CodeNode(cls=module.java_class, file=module.file, role="native-module",
+                                          signals={"native_module": [module.js_name] + module.methods[:3]})
+    verbose_print(f"RN graph: {plural(len(files), 'app-region module')} from the Metro module tree", verbose)
+    return nodes
+
+
 def build_rn_graph(js_root, verbose: bool = False) -> Optional[CodeGraph]:
     """
     Purpose:
@@ -252,7 +309,7 @@ def build_rn_graph(js_root, verbose: bool = False) -> Optional[CodeGraph]:
         Reads and may split the recovered files.
 
     Implementation notes:
-        Chooses between the two node builders by what the decompiler actually produced rather than by which tool ran, since either can emit either shape depending on the bundle.
+        Chooses the node builder by what the recovery actually produced: a Metro module tree (app_modules/ beside framework_modules/), which is what the analyzer writes for both Hermes and plain bundles; otherwise per-module files or a single reconstructed bundle from an external decompiler. With a module tree, the native libraries the app's own code loads are attached as the graph's native libraries, so inspecting them counts toward coverage; a real scan otherwise read the JNI bridge and never opened the library behind it.
     """
     try:
         root = Path(js_root)
@@ -260,23 +317,32 @@ def build_rn_graph(js_root, verbose: bool = False) -> Optional[CodeGraph]:
             verbose_print(f"RN graph: source root {root} is not a directory", verbose)
             return None
 
-        js_files = sorted(
-            f for ext in _JS_EXTS for f in root.rglob(f"*{ext}") if f.is_file())
-        if not js_files:
-            verbose_print("RN graph: no JS files found; falling back", verbose)
-            return None
-
-        single_file = next((f for f in js_files if f.name == "bundle.js"), None)
-        if single_file is not None and len(js_files) == 1:
-            nodes = _build_single_file_nodes(single_file, root, verbose)
+        from ...decompiler.rn_metro import APP_DIR
+        if (root / APP_DIR).is_dir():
+            nodes = _build_module_tree_nodes(root, verbose)
         else:
-            nodes = _build_module_dir_nodes(js_files, root, verbose)
+            js_files = sorted(
+                f for ext in _JS_EXTS for f in root.rglob(f"*{ext}") if f.is_file())
+            if not js_files:
+                verbose_print("RN graph: no JS files found; falling back", verbose)
+                return None
+            single_file = next((f for f in js_files if f.name == "bundle.js"), None)
+            if single_file is not None and len(js_files) == 1:
+                nodes = _build_single_file_nodes(single_file, root, verbose)
+            else:
+                nodes = _build_module_dir_nodes(js_files, root, verbose)
 
         if not nodes:
             verbose_print("RN graph: no nodes recovered; falling back", verbose)
             return None
 
-        graph = CodeGraph(package="react-native-bundle", nodes=nodes, native_libs=[])
+        native_libs = []
+        if (root / APP_DIR).is_dir():
+            from ..agent.code_graph import NativeLib
+            from .overview import app_native_libraries
+            native_libs = [NativeLib(path=lib.path, loaded_by=lib.loaded_from)
+                           for lib in app_native_libraries(root)]
+        graph = CodeGraph(package="react-native-bundle", nodes=nodes, native_libs=native_libs)
         verbose_print(
             f"RN graph built: {plural(len(nodes), 'node')}, "
             f"{plural(len(graph.flagged_files()), 'flagged file')}", verbose)

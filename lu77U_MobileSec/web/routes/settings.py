@@ -43,6 +43,7 @@ class SettingsUpdate(BaseModel):
     blutter_path: Optional[str] = None
     hermes_decomp_path: Optional[str] = None
     rn_decompiler_path: Optional[str] = None
+    ghidra_path: Optional[str] = None
     output_dir: Optional[str] = None
     dynamic_verification: Optional[bool] = None
     agent_memory: Optional[bool] = None
@@ -64,6 +65,20 @@ class CredentialUpdate(BaseModel):
     """
     provider: str
     api_key: Optional[str] = None
+    label: Optional[str] = None
+
+class CredentialLabel(BaseModel):
+    """
+    Purpose:
+        Request body for labelling one stored key.
+
+    Invariants:
+        Validated by the framework before the handler runs; the label's own rules are applied by the credential store.
+
+    Thread-safety:
+        A plain data model; instances are per-request.
+    """
+    label: Optional[str] = None
 
 class CredentialReveal(BaseModel):
     """
@@ -148,7 +163,7 @@ async def set_credentials(payload: CredentialUpdate):
         Store an API key for a provider.
 
     Parameters:
-        payload: The provider and the key.
+        payload: The provider, the key and an optional label.
 
     Returns:
         The provider's masked key list.
@@ -160,7 +175,7 @@ async def set_credentials(payload: CredentialUpdate):
         The key is never written to the settings file. The response carries only masked forms, so a key is not echoed back to the client that just sent it.
     """
     try:
-        settings_service.set_credential(payload.provider, payload.api_key)
+        settings_service.set_credential(payload.provider, payload.api_key, payload.label)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return {"ok": True, "provider": payload.provider}
@@ -189,6 +204,32 @@ async def remove_credential(provider: str, index: int):
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return {"ok": True, "provider": provider}
+
+@router.put("/settings/credentials/{provider}/{index}/label")
+async def label_credential(provider: str, index: int, payload: CredentialLabel):
+    """
+    Purpose:
+        Label one stored key, change its label, or clear it.
+
+    Parameters:
+        provider: The provider.
+        index: Position of the key, as the interface lists them.
+        payload: The new label; empty clears it.
+
+    Returns:
+        The JSON response body.
+
+    Side effects:
+        Rewrites the provider's stored keys.
+
+    Security considerations:
+        Addressed by position, so the client never sends a key back to label it. A PUT with a JSON body is always preflighted by a browser, so another site cannot relabel a key.
+    """
+    try:
+        settings_service.set_credential_label(provider, index, payload.label)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "provider": provider, "index": index}
 
 @router.post("/settings/credentials/{provider}/reveal")
 async def reveal_credential(provider: str, payload: CredentialReveal):

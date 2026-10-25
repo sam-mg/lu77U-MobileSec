@@ -7,12 +7,31 @@ precisely enough for a report, and knowing where your evidence stops.
 
 ## What this system actually gives you
 
-`inspect_native <path>` runs `objdump -T` and returns the **dynamic symbol table**.
-That is exported symbol names only - no strings, no disassembly, no decompilation.
-Everything below works from the symbol table, the decompiled Java that calls into it,
-and (in dynamic verification) a Frida hook on a resolved export.
+`inspect_native <path>` returns, in this order:
 
-Do not claim you read native code. You read its symbol table.
+1. **Signals** - exported `Java_*` entry points, risky imports (`strcpy`, `system`,
+   ...), embedded endpoints and credential candidates, from the symbols and strings.
+2. **Decompiled C**, only when Ghidra is configured - every function of the library,
+   JNI entry points first, then functions that call a risky import, then the rest.
+   Calls through the JNI function table are annotated, so
+   `(**(code **)(*param_1 + 0x548))(param_1,param_3,0)  /* JNIEnv->GetStringUTFChars */`
+   reads as "take the Java string argument as a C string".
+3. **The dynamic symbol table** (`objdump -T`).
+
+A large library is paged like `read_file`: call `inspect_native` on the same path again
+to continue, or pass `start_line`.
+
+If the output says `## Decompiled code (unavailable: ...)`, you have only the symbols
+and strings. Then do not describe what a function does - you did not read it. When
+the decompiled C is present, you did read it, and you can and should trace data flow
+through it.
+
+Decompiled C is reconstructed: `param_1`, `local_48`, `iVar1` and the types are the
+decompiler's inventions. Control flow, constants, string literals, buffer sizes and
+call targets come from the binary and are citable. In a finding, put the line number
+from the `inspect_native` view in `"line"`, exactly as you would for `read_file`, and
+name the function (or its `FUN_<address>` placeholder in a stripped library) and its
+address in the description. An address in `"line"` is not a line number.
 
 ## Two registration models, and why the symbol table lies
 
@@ -29,7 +48,9 @@ Java_com_vendor_app_Security_sign
 **Dynamic registration** - `JNI_OnLoad` calls `RegisterNatives` with a table of
 `{name, signature, function_pointer}`. The implementation functions are usually
 local, often stripped, and named nothing in particular. `objdump -T` shows you
-`JNI_OnLoad` and little else.
+`JNI_OnLoad` and little else. With decompiled C, read `JNI_OnLoad`: the call
+annotated `JNIEnv->RegisterNatives` takes the table, and its entries name each Java
+method and the `FUN_<address>` that implements it.
 
 The consequence matters more than the mechanism:
 
@@ -93,22 +114,52 @@ When several of these line up, the honest finding is "the check is implemented i
 `lib<name>.so` and is not analysable from the decompiled Java" - which is a real,
 reportable coverage statement. It is not a vulnerability by itself.
 
-## Reading the import side for memory-safety risk
+## Reading the decompiled JNI functions
 
-`objdump -T` also lists imported symbols. The classic memory-unsafe and
-command-executing libc calls are worth noting when they appear in a library that
-handles untrusted input:
+In a `Java_*` function the parameters are fixed by the JNI calling convention:
+`param_1` is the `JNIEnv*`, `param_2` the `jobject`/`jclass`, and `param_3` onwards are
+the Java method's own arguments, in order. That is what lets you follow Java input:
+
+```c
+__src = (char *)(**(code **)(*param_1 + 0x548))(param_1,param_3,0);  /* JNIEnv->GetStringUTFChars */
+strcpy(local_48,__src);          /* local_48 is char[64] */
+```
+
+Here the first Java argument is copied, unbounded, into a 64-byte stack buffer: a
+stack buffer overflow driven by whatever the Java caller passes. Two things make this
+a finding rather than a lead - the source is a Java argument, and the destination has
+a fixed size smaller than what the caller can supply. Name both, and find the Java
+call site that feeds the argument (usually a UI field or an intent extra). Class it
+`CODE-05` (memory corruption), not `CODE-02`.
+
+```c
+__s2 = (char *)(**(code **)(*param_1 + 0x548))(param_1,param_3,0);  /* JNIEnv->GetStringUTFChars */
+iVar1 = strcmp("Xk9-pr0-l1c3nse",__s2);
+return iVar1 == 0;
+```
+
+Here a Java argument is compared against a literal and the result returned: a secret
+hardcoded in native code. Moving a key into a `.so` hides it from the decompiled Java,
+not from anyone with a decompiler. Report the literal, the function, and the Java
+method that calls it.
+
+Other patterns worth the same treatment:
 
 ```
 strcpy  strcat  sprintf  vsprintf  gets        # no bounds, caller-supplied length
-system  popen  execl  execve                   # command execution
+system  popen  execl  execve                   # command execution - check what builds the string
 memcpy  alloca                                 # unbounded when the length is attacker-derived
+strcmp/strncmp/memcmp against a literal        # hardcoded credential or licence check
+fopen/open on a path built from input          # path traversal in native code
 ```
 
-An import is not a bug. It is a reason to trace whether attacker-controlled data
-reaches that call - which, without disassembly, you usually cannot finish. Report
-the import alongside the reachable entry point and say the data-flow step was not
-performed, rather than asserting an overflow you did not demonstrate.
+## When there is no decompiled code
+
+An import is not a bug. Without the decompiled C, it is a reason to trace whether
+attacker-controlled data reaches that call - which you usually cannot finish from the
+symbol table. Report the import alongside the reachable entry point and say the
+data-flow step was not performed, rather than asserting an overflow you did not
+demonstrate.
 
 ## Proving reachability at runtime
 
@@ -134,11 +185,13 @@ A defensible native finding names:
 
 - the library, by the path it actually has in the APK (`lib/arm64-v8a/lib<name>.so`)
 - the entry point, as either a resolved export or a Java `native` declaration
+- the function and address you read, and the decompiled lines that show the bug
+  (the copy into a fixed-size buffer, the comparison against a literal)
 - which registration model it uses, and therefore what you could and could not enumerate
-- the Java call site that reaches it
+- the Java call site that reaches it, and which argument carries the input
 - whether reachability was demonstrated at runtime or only inferred statically
 
 A finding that stops at "the app contains native code" is not a finding. Neither is
-one that describes behaviour inside a function nobody disassembled - if the analysis
-needs disassembly, recommend it as a follow-up and say why, instead of guessing at
-what the function does.
+one that describes behaviour inside a function nobody decompiled - if the decompiled
+code is unavailable and the analysis needs it, recommend decompilation as a follow-up
+and say why, instead of guessing at what the function does.

@@ -398,16 +398,16 @@ class Db {
 """)
         assert findings and findings[0].severity == "High"
 
-    def test_a_compile_time_constant_scores_low(self, tmp_path):
+    def test_a_compile_time_constant_is_not_reported(self, tmp_path):
         """
         Purpose:
-            Pin that a value fixed at compile time scores low.
+            Pin that a statement built only from values fixed at compile time is not reported.
 
         Parameters:
             tmp_path: The tree root.
 
         Implementation notes:
-            Nothing can be injected into a value the attacker cannot influence, so reporting it seriously is report padding.
+            Nothing can be injected into a value the attacker cannot influence. This used to be reported at Low; a fixed Ghera app's `"DELETE FROM " + Table.TABLE_NAME` then counted as its SQL injection still being there, so a statement whose every operand is a constant is now dropped, as a command made only of constants already was.
         """
         findings = self._findings(tmp_path, """
 class Db {
@@ -417,7 +417,7 @@ class Db {
   }
 }
 """)
-        assert findings and findings[0].severity == "Low"
+        assert findings == []
 
     def test_unknown_provenance_stays_medium(self, tmp_path):
         """
@@ -439,7 +439,7 @@ class Db {
     def test_a_content_provider_does_not_inflate_a_constant_identifier(self, tmp_path):
         """
         Purpose:
-            Pin that a fixed table name in a component reachable from other applications is still scored as a constant.
+            Pin that a fixed table name in a component reachable from other applications is still treated as a constant, and so, being the statement's only operand, not reported at all.
 
         Parameters:
             tmp_path: The tree root.
@@ -455,7 +455,7 @@ class Db extends ContentProvider {
   }
 }
 """)
-        assert findings and findings[0].severity == "Low"
+        assert findings == []
 
     def test_every_sql_finding_is_grammatical(self, tmp_path):
         """

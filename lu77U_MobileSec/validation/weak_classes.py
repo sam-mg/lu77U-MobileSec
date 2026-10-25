@@ -75,9 +75,9 @@ WEAK_CLASS_RULES: Tuple[WeakClassRule, ...] = (
                   "backup is enabled", "backup-enabled", "adb backup"),
         chain_eligible=True,
         reason=(
-            "Backup is a documented platform feature, and the default below "
-            "targetSdk 31. What matters is what would be in the backup: name a "
-            "credential in app storage and this becomes a real extraction path."),
+            "Backup is a documented platform feature and on by default. What matters "
+            "is what would be in the backup: name a credential in app storage and "
+            "this becomes a real extraction path."),
     ),
     WeakClassRule(
         id="WEAK-03",
@@ -92,15 +92,28 @@ WEAK_CLASS_RULES: Tuple[WeakClassRule, ...] = (
     ),
     WeakClassRule(
         id="WEAK-04",
-        label="Missing anti-tamper control",
+        label="Client-side protection",
         codes=("BUILD-04",),
         patterns=("root detection", "missing root", "rooted device detection",
                   "jailbreak detection", "emulator detection", "tamper detection"),
         chain_eligible=False,
         reason=(
-            "These controls run on the device they are trying to check, so an "
-            "attacker who has rooted their own phone can always defeat them. Their "
-            "absence harms nobody who has not already done so."),
+            "Root, emulator, debugger, integrity and pinning checks run on the device "
+            "they check, so whoever controls that device can hook or patch them. Present, "
+            "they raise the cost of analysis without stopping it; absent, they expose "
+            "nothing that was not already the device owner's. Either way this is context, "
+            "not a vulnerability."),
+    ),
+    WeakClassRule(
+        id="WEAK-14",
+        label="Screen contents not protected from capture",
+        codes=("PLATFORM-12",),
+        patterns=("flag_secure", "screenshot protection", "screen capture protection"),
+        chain_eligible=False,
+        reason=(
+            "Without FLAG_SECURE, what a screen shows can end up in screenshots, screen "
+            "recordings and the task-switcher preview. That matters on screens showing "
+            "credentials, card numbers or balances; on its own it is a hardening note."),
     ),
     WeakClassRule(
         id="WEAK-05",
@@ -114,6 +127,18 @@ WEAK_CLASS_RULES: Tuple[WeakClassRule, ...] = (
             "The flag permits HTTP; it does not show that anything is sent over it. "
             "Name a request that actually goes out in cleartext, and what it carries, "
             "and this is a genuine finding."),
+    ),
+    WeakClassRule(
+        id="WEAK-13",
+        label="User-installed CA certificates trusted",
+        codes=("NETWORK-05",),
+        patterns=("trusts user installed ca", "user installed ca certificates",
+                  "user ca certificates", "trusts user ca", 'src="user"'),
+        chain_eligible=True,
+        reason=(
+            "Trusting the user CA store lets someone who first gets a CA onto the device "
+            "intercept HTTPS; it is not a trust-all bypass. Name the sensitive traffic on "
+            "that channel and this becomes a real interception path."),
     ),
     WeakClassRule(
         id="WEAK-06",
@@ -231,9 +256,11 @@ def classify_weak(finding: Dict[str, Any]) -> Optional[WeakClassRule]:
         O(r * p) for rule count r and patterns per rule p, only on the wording path.
 
     Implementation notes:
-        A finding carrying a recognised vulnerability class is classified by that code alone and never falls through to pattern matching. This is the important case: a model that classified correctly has already said what kind of finding this is, and re-judging it on wording would let a phrase in the title override an accurate classification. Pattern matching applies only when the class code is unknown or absent, which is where a description-shaped guess is the only signal available. The first matching rule wins; rules are ordered so that the more specific observations come first.
+        A finding carrying a recognised vulnerability class is classified by that code alone and never falls through to pattern matching. This is the important case: a model that classified correctly has already said what kind of finding this is, and re-judging it on wording would let a phrase in the title override an accurate classification. Pattern matching applies only when the class code is unknown or absent, which is where a description-shaped guess is the only signal available. The first matching rule wins; rules are ordered so that the more specific observations come first. A confirmed chain is never a weak class: it is the pairing a weak class asks for, and its description, which names the weak component, once matched the backup rule's wording and sent a confirmed backup-and-credentials chain to Informational.
     """
     code = str(finding.get("vuln_class") or "").strip().upper()
+    if finding.get("chain") or code.startswith("CHAIN-"):
+        return None
     if describe(code) is not None:
         return _BY_CODE.get(code)
     return next((rule for rule in WEAK_CLASS_RULES

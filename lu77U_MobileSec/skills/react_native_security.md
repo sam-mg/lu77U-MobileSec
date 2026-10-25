@@ -1,11 +1,12 @@
 # React Native / JavaScript Security Review
 
-You are auditing a React Native app's JavaScript bundle - decompiled from the APK's
-`assets/index.android.bundle`, either from plain JS (via react-native-decompiler) or
-from Hermes bytecode (via hermes-decomp) - for security vulnerabilities. Minified/
-bundled identifiers are often meaningless (`a`, `_0x1a2b`, module numbers instead of
-names); read the actual logic, not the names. Prioritize the app's own modules over
-vendored `node_modules` code pulled in by third-party packages.
+You are auditing a React Native app for security vulnerabilities. Its JavaScript bundle
+(`assets/index.android.bundle`, plain JS or Hermes bytecode decompiled by hermes-decomp)
+is recovered as one file per Metro module: `app_modules/` is the app and the libraries it
+imports, `framework_modules/` is React Native itself. Its Java/Kotlin layer, where the
+native modules live, is in `platform/sources/`. Minified identifiers are often
+meaningless (`a`, `t`, module numbers); read the actual logic, not the names.
+`react_native_reverse_engineering` explains how to read and instrument all of it.
 
 Your scope is not limited to any list below. These are recognizable, well-understood
 patterns for React Native apps - a starting intuition, not a checklist to complete or
@@ -35,7 +36,12 @@ fit any category here, investigate and report it anyway.
   or parameters.
 - **Native-module bridge issues**: a custom native module exposed to JS with no
   input validation on the JS-supplied arguments, or one that grants JS more
-  capability than the feature actually needs.
+  capability than the feature actually needs. It is callable by any JS that runs in
+  the app even when the bundle never calls it - name the route JS takes to reach it.
+- **Client-side authorization**: a premium, admin or feature flag returned by the
+  server (or kept in storage) that only the UI checks, with the backend serving the
+  protected data regardless. Cite where the flag gates the screen and say whether the
+  endpoint re-checks it.
 - **Debug/logging leaks**: `console.log`/`console.warn` of tokens, PII, or full
   request/response bodies - these commonly survive into a release bundle.
 - ...and anything else the app's real logic exposes that isn't captured above:

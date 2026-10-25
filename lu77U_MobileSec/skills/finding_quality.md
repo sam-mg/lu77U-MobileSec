@@ -54,6 +54,36 @@ well enough to report it.
 
 ---
 
+## Who the attacker is
+
+Name the weakest attacker who can actually reach the flaw, and nobody stronger:
+
+| Attacker | Reaches the flaw through |
+|---|---|
+| remote | a web page, a link, a QR code, a network position, a server response |
+| another app | an exported component, a broadcast, a shared file, the clipboard, an unverified URL scheme |
+| physical | brief hands-on access to the device, unlocked or not |
+| root | a rooted or instrumented device the attacker controls |
+
+A deep link is remote only if a web page can fire it; an exported activity is
+another app, not remote. Overstating the attacker is the easiest mistake for a
+reviewer to catch, and it costs the whole finding its credibility.
+
+## What is not a mitigation
+
+- **Obfuscation.** R8, string encryption and native code slow a reader down;
+  they do not stop one. A key or rule shipped in the app is recoverable.
+- **A check the client makes and the client trusts.** A root-detection boolean,
+  a biometric callback with no key behind it, a premium flag in local storage -
+  each is one hook or one patch away. It counts only when the server verifies
+  something the client cannot forge.
+- **A platform default the app does not get.** Newer Android closes some paths
+  by default (implicit export from targetSdk 31, scoped storage from 29), but
+  only for apps that target those levels. Check the app's targetSdk before
+  calling a path closed.
+
+---
+
 ## Severity
 
 Severity comes from the CVSS vector, and the vector comes from what the code

@@ -6,7 +6,7 @@ Purpose:
     Pausing on a provider outage and continuing afterwards, rather than replaying the region from the start or treating it as finished.
 
 Responsibilities:
-    Pin the flag that marks a region continuable, that continuing actually spends more turns and keeps the findings from before, that a genuinely finished region is still replayed for free, that the fan-out's own reuse check reads the same flag, and the shared definition of an exhausted quota.
+    Pin the flag that marks a region continuable, that continuing actually spends more turns and keeps the findings from before, that a genuinely finished region is still replayed for free, that the fan-out's own reuse check reads the same flag, the shared definition of an exhausted quota, and an unreachable provider treated as an outage rather than as a model that cannot drive the loop.
 
 Dependencies:
     pytest, the agent loop and the analysis service.
@@ -18,7 +18,8 @@ Implementation notes:
 import pytest
 
 from lu77U_MobileSec.analyzers.agent.agent_loop import run_agent_analysis
-from lu77U_MobileSec.web.services.analysis_service import quota_exhausted
+from lu77U_MobileSec.ai.errors import is_unreachable
+from lu77U_MobileSec.web.services.analysis_service import provider_outage, quota_exhausted
 
 _VEC = "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
 
@@ -394,3 +395,104 @@ class TestQuotaExhaustedDetection:
         """
         result = {"analyzer_details": {"llm_usage": {"unavailable": None}}}
         assert quota_exhausted(result) is False
+
+
+class UnreachableProvider:
+    """
+    Purpose:
+        A provider whose host cannot be resolved, failing every turn while still reporting itself available.
+
+    Attributes:
+        calls: How many turns were requested.
+        unavailable: Always absent: an unreachable host is a transient failure, not a tripped circuit.
+    """
+    def __init__(self):
+        """
+        Purpose:
+            Build the provider.
+        """
+        self.calls = 0
+        self.unavailable = None
+
+    def analyze(self, _, **__):
+        """
+        Purpose:
+            Fail as a call whose every attempt could not resolve the host.
+
+        Parameters:
+            _: The turn prompt, ignored.
+            __: The turn's keyword arguments, ignored.
+
+        Returns:
+            The provider's error result.
+        """
+        self.calls += 1
+        return {"error": "Ollama failed after 3 attempts: [Errno 8] nodename nor servname provided, or not known"}
+
+
+class TestUnreachableProvider:
+    """
+    Purpose:
+        A provider host that cannot be reached, as when the machine is offline.
+
+    Implementation notes:
+        A real resumed scan ran with the network down: its region had spent sixteen steps before the pause, every new turn failed to resolve the host, and the loop reported that the model could not drive it at all. The analyzer then discarded everything and the scan was recorded as completed with no findings.
+    """
+    def test_a_resumed_region_keeps_its_place_when_the_host_is_down(self, src):
+        """
+        Purpose:
+            Pin that a region resumed with steps already spent ends as having driven the loop, keeping its restored findings, when the provider cannot be reached.
+
+        Parameters:
+            src: The source tree.
+        """
+        resume_state = {"steps_taken": 16, "accumulated": [], "transcript": ["[Step 16] read a.java"],
+                        "done": True, "resumable": True, "stop_reason": "provider_error"}
+        vulns, completed_ok, _ = run_agent_analysis(
+            UnreachableProvider(), str(src), verbose=False, resume_state=resume_state)
+        assert completed_ok is True and vulns == []
+
+    @pytest.mark.parametrize("message, expected", [
+        ("[Errno 8] nodename nor servname provided, or not known", True),
+        ("[Errno -2] Name or service not known", True),
+        ("[Errno 61] Connection refused", True),
+        ("You reached the Free usage limit (status code: 429)", False),
+        ("Internal Server Error (status code: 500)", False),
+    ])
+    def test_unreachable_failures_are_recognised(self, message, expected):
+        """
+        Purpose:
+            Pin which failure messages mean the host could not be reached.
+
+        Parameters:
+            message: A provider failure message.
+            expected: Whether it means the host is unreachable.
+        """
+        assert is_unreachable(message) is expected
+
+    def test_an_unreachable_provider_is_an_outage_and_quota_takes_precedence(self):
+        """
+        Purpose:
+            Pin that a scan whose provider was unreachable when it stopped is an outage, and that an exhausted quota is reported as such first.
+        """
+        unreachable = {"analyzer_details": {"llm_usage": {"unreachable": "nodename nor servname"}}}
+        both = {"analyzer_details": {"llm_usage": {"unreachable": "x",
+                                                   "unavailable": "fatal_quota: limit"}}}
+        assert provider_outage(unreachable) == "provider_unreachable"
+        assert provider_outage(both) == "provider_quota"
+        assert provider_outage({"analyzer_details": {"llm_usage": {}}}) == ""
+
+    def test_the_provider_marker_clears_on_the_next_success(self):
+        """
+        Purpose:
+            Pin that a provider remembers an unreachable host until a call succeeds, and reports it in its usage summary.
+        """
+        from lu77U_MobileSec.ai.ollama_provider import OllamaProvider
+
+        provider = OllamaProvider(config={"mode": "local"})
+        provider.note_reachability(OSError("[Errno 8] nodename nor servname provided, or not known"))
+        assert provider.usage_summary()["unreachable"]
+        provider.record_usage(1.0, ok=False)
+        assert provider.usage_summary()["unreachable"]
+        provider.record_usage(1.0, ok=True)
+        assert provider.usage_summary()["unreachable"] is None

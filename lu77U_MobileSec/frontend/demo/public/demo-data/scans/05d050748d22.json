@@ -1,0 +1,1461 @@
+{
+  "meta": {
+    "id": "05d050748d22",
+    "kind": "static",
+    "filename": "github.com/brnpl/Flutter-Reverse-Engineering-Labs/all-release.apk",
+    "status": "completed",
+    "created_at": "2026-10-22T09:21:01.701911+00:00",
+    "started_at": "2026-10-22T09:31:37.387475+00:00",
+    "finished_at": "2026-10-22T09:39:41.863100+00:00",
+    "duration": 484.48,
+    "progress": 100,
+    "phase": "done",
+    "error": null,
+    "pause_reason": null,
+    "resume_attempts": 0,
+    "summary": {
+      "primary_framework": "Flutter",
+      "total_vulnerabilities": 15,
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0,
+      "security_score": 100.0,
+      "package_name": "com.flutter_labs.all",
+      "app_name": "github.com/brnpl/Flutter-Reverse-Engineering-Labs/all-release.apk",
+      "analysis_supported": true
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "boot_id": "28bfcc14bd3747a8b903d85680ec7f36",
+    "owner_pid": 15131
+  },
+  "result": {
+    "metadata": {
+      "tool": "lu77U-MobileSec",
+      "version": "0.1.5",
+      "timestamp": "2026-10-22T15:09:41.855474",
+      "target": "github.com/brnpl/Flutter-Reverse-Engineering-Labs/all-release.apk",
+      "analysis_date": "2026-10-22 15:09:41"
+    },
+    "framework_detection": {
+      "detected": true,
+      "primary_framework": "Flutter",
+      "confidence": 0.9,
+      "confidence_level": "High",
+      "frameworks": [
+        {
+          "name": "Flutter",
+          "confidence": 0.9,
+          "confidence_level": "High",
+          "indicators_found": [
+            "libflutter.so (1 architectures)",
+            "Flutter assets (8 files)",
+            "APK contains Flutter artifacts"
+          ]
+        }
+      ]
+    },
+    "application_info": {
+      "package_name": "com.flutter_labs.all",
+      "app_name": "github.com/brnpl/Flutter-Reverse-Engineering-Labs/all-release.apk",
+      "version_name": "1.0.0",
+      "version_code": "1",
+      "min_sdk": "24",
+      "target_sdk": "36",
+      "file_size": 17853583,
+      "file_size_mb": 17.03,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "com.flutter_labs.all.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+      ],
+      "activities": [
+        "com.flutter_labs.all.MainActivity"
+      ],
+      "services": [
+        "com.emrys.rjsniffer.rjsniffer.Sniffer"
+      ],
+      "receivers": [
+        "androidx.profileinstaller.ProfileInstallReceiver"
+      ],
+      "providers": [
+        "androidx.startup.InitializationProvider"
+      ]
+    },
+    "vulnerability_analysis": {
+      "analyzed": true,
+      "total_vulnerabilities": 15,
+      "by_severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 15
+      },
+      "vulnerabilities": {
+        "critical": [],
+        "high": [],
+        "medium": [],
+        "low": [],
+        "info": [
+          {
+            "title": "Application data is backup-enabled",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+            "cvss_score": 5.4,
+            "description": "android:allowBackup is absent, which defaults to true, so the app's data goes into cloud backups and device-to-device transfers. With targetSdkVersion 36, Android 12 and later leave it out of `adb backup`, so USB extraction needs a device older than Android 12.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 25,
+            "line_start": 25,
+            "line_end": 25,
+            "impact": "Locally stored credentials or PII travel with the user's cloud backup and to a new device, and are extractable over USB on devices older than Android 12.",
+            "code_snippet": "    <application",
+            "code_context": {
+              "start_line": 21,
+              "end_line": 29,
+              "highlight_start": 25,
+              "highlight_end": 25,
+              "lines": [
+                "    <permission",
+                "        android:name=\"com.flutter_labs.all.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\"",
+                "        android:protectionLevel=\"signature\"/>",
+                "    <uses-permission android:name=\"com.flutter_labs.all.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\"/>",
+                "    <application",
+                "        android:label=\"Flutter RE Labs\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:name=\"android.app.Application\"",
+                "        android:extractNativeLibs=\"false\""
+              ],
+              "lines_html": [
+                "    &lt;permission",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;com.flutter_labs.all.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION&quot;</span>",
+                "        <span class=\"tok-fn\">android:protectionLevel=</span><span class=\"tok-str\">&quot;signature&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;com.flutter_labs.all.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;Flutter RE Labs&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.app.Application&quot;</span>",
+                "        <span class=\"tok-fn\">android:extractNativeLibs=</span><span class=\"tok-str\">&quot;false&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Set android:allowBackup=\"false\", or exclude sensitive files with android:dataExtractionRules (android:fullBackupContent below Android 12).",
+            "cwe": "CWE-530",
+            "owasp_mobile": "M9: Insecure Data Storage",
+            "dynamic_verification": null,
+            "vuln_class": "STORAGE-04",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "Backup-extractable app data. Backup is a documented platform feature and on by default. What matters is what would be in the backup: name a credential in app storage and this becomes a real extraction path."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-02",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Hardcoded secret 'FLAG{hardcoded_secret}' in asm/all/main.dart",
+                  "file": "asm/all/main.dart",
+                  "line": 853
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Hardcoded secret 'FLAG{hooking_dart_code}' in asm/all/chall3.dart",
+                  "file": "asm/all/chall3.dart",
+                  "line": 25
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Hardcoded secret in asm/all/chall4.dart",
+                  "file": "asm/all/chall4.dart",
+                  "line": 390
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Hardcoded secret 'FLAG{hooking_platform_code}' in asm/all/chall5.dart",
+                  "file": "asm/all/chall5.dart",
+                  "line": 25
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Hardcoded secret in asm/all/chall9.dart",
+                  "file": "asm/all/chall9.dart",
+                  "line": 46
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "File integrity check bypass in MainActivity.java",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "The app implements file integrity checking by validating the SHA-256 hash of 'libflutter.so'. A hook on 'checkLibFlutter' returning true would bypass the check.",
+            "file": "platform/sources/com/flutter_labs/all/MainActivity.java",
+            "location": "platform/sources/com/flutter_labs/all/MainActivity.java:52",
+            "line": 52,
+            "line_start": 52,
+            "line_end": 52,
+            "impact": "",
+            "code_snippet": "            return strSha256.equalsIgnoreCase(\"cbcd613d19791a34dc7886ce0cc3504e787fbcd8bf9bfea8d4c55f3bcba9ede1\");",
+            "code_context": {
+              "start_line": 48,
+              "end_line": 56,
+              "highlight_start": 52,
+              "highlight_end": 52,
+              "lines": [
+                "                return false;",
+                "            }",
+                "            java.lang.String strSha256 = sha256(file);",
+                "            java.lang.System.out.println(\"libflutter.so SHA-256: \" + strSha256);",
+                "            return strSha256.equalsIgnoreCase(\"cbcd613d19791a34dc7886ce0cc3504e787fbcd8bf9bfea8d4c55f3bcba9ede1\");",
+                "        } catch (java.lang.Exception e) {",
+                "            e.printStackTrace();",
+                "            return false;",
+                "        }"
+              ],
+              "lines_html": [
+                "                <span class=\"tok-kw\">return</span> <span class=\"tok-kw\">false</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-op\">}</span>",
+                "            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> strSha256 <span class=\"tok-op\">=</span> sha256<span class=\"tok-op\">(</span>file<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">System</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">out</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">println</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">libflutter.so SHA-256: </span><span class=\"tok-str\">&quot;</span> <span class=\"tok-op\">+</span> strSha256<span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-kw\">return</span> strSha256<span class=\"tok-op\">.</span><span class=\"tok-fn\">equalsIgnoreCase</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">cbcd613d19791a34dc7886ce0cc3504e787fbcd8bf9bfea8d4c55f3bcba9ede1</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span> <span class=\"tok-kw\">catch</span> <span class=\"tok-op\">(</span>java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Exception</span> e<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "            e<span class=\"tok-op\">.</span><span class=\"tok-fn\">printStackTrace</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-kw\">return</span> <span class=\"tok-kw\">false</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span>"
+              ],
+              "hop_terms": [
+                "printstacktrace"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-693",
+            "owasp_mobile": "M7: Insufficient Binary Protections",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-04",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Client-side protection. Root, emulator, debugger, integrity and pinning checks run on the device they check, so whoever controls that device can hook or patch them. Present, they raise the cost of analysis without stopping it; absent, they expose nothing that was not already the device owner's. Either way this is context, not a vulnerability."
+              ],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-04",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Root detection bypass in MainActivity.java",
+                  "file": "platform/sources/com/flutter_labs/all/MainActivity.java",
+                  "line": 28
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Hardcoded secret 'FLAG{hardcoded_secret}' in asm/all/main.dart",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 4.0,
+            "description": "A hardcoded secret 'FLAG{hardcoded_secret}' was found in the app's object pool/constants.",
+            "file": "asm/all/main.dart",
+            "location": "asm/all/main.dart:853",
+            "line": 853,
+            "line_start": 853,
+            "line_end": 853,
+            "impact": "",
+            "code_snippet": "    // 0x2cf0bc: r0 = Instance_HomePage",
+            "code_context": {
+              "start_line": 849,
+              "end_line": 857,
+              "highlight_start": 853,
+              "highlight_end": 853,
+              "lines": [
+                "    //     0x2cf0ac: ret             ",
+                "  }",
+                "  [closure] static HomePage <anonymous closure>(dynamic, BuildContext) {",
+                "    // ** addr: 0x2cf0bc, size: 0xc",
+                "    // 0x2cf0bc: r0 = Instance_HomePage",
+                "    //     0x2cf0bc: add             x0, PP, #9, lsl #12  ; [pp+0x9f28] Obj!HomePage@47c2e1",
+                "    //     0x2cf0c0: ldr             x0, [x0, #0xf28]",
+                "    // 0x2cf0c4: ret",
+                "    //     0x2cf0c4: ret             "
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x2cf0ac: ret             </span>",
+                "  <span class=\"tok-op\">}</span>",
+                "  <span class=\"tok-op\">[</span>closure<span class=\"tok-op\">]</span> <span class=\"tok-kw\">static</span> HomePage <span class=\"tok-op\">&lt;</span>anonymous closure<span class=\"tok-op\">&gt;</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">dynamic</span><span class=\"tok-op\">,</span> BuildContext<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "    <span class=\"tok-cm\">// ** addr: 0x2cf0bc, size: 0xc</span>",
+                "    <span class=\"tok-cm\">// 0x2cf0bc: r0 = Instance_HomePage</span>",
+                "    <span class=\"tok-cm\">//     0x2cf0bc: add             x0, PP, #9, lsl #12  ; [pp+0x9f28] Obj!HomePage@47c2e1</span>",
+                "    <span class=\"tok-cm\">//     0x2cf0c0: ldr             x0, [x0, #0xf28]</span>",
+                "    <span class=\"tok-cm\">// 0x2cf0c4: ret</span>",
+                "    <span class=\"tok-cm\">//     0x2cf0c4: ret             </span>"
+              ],
+              "module_terms": [
+                "ecb"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Does not establish the service it authenticates to or the access it grants as required by the proof."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Hardcoded secret 'FLAG{hooking_dart_code}' in asm/all/chall3.dart",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 4.0,
+            "description": "A hardcoded secret 'FLAG{hooking_dart_code}' is stored as a constant integer array and decoded at runtime.",
+            "file": "asm/all/chall3.dart",
+            "location": "asm/all/chall3.dart:25",
+            "line": 25,
+            "line_start": 25,
+            "line_end": 25,
+            "impact": "",
+            "code_snippet": "    // 0x280368: r16 = 142",
+            "code_context": {
+              "start_line": 21,
+              "end_line": 29,
+              "highlight_start": 25,
+              "highlight_end": 25,
+              "lines": [
+                "    //     0x28035c: ldr             x1, [PP, #0x818]  ; [pp+0x818] TypeArguments: <int>",
+                "    // 0x280360: r0 = AllocateArray()",
+                "    //     0x280360: bl              #0x3d677c  ; AllocateArrayStub",
+                "    // 0x280364: stur            x0, [fp, #-8]",
+                "    // 0x280368: r16 = 142",
+                "    //     0x280368: mov             x16, #0x8e",
+                "    // 0x28036c: StoreField: r0->field_f = r16",
+                "    //     0x28036c: stur            w16, [x0, #0xf]",
+                "    // 0x280370: r16 = 154"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x28035c: ldr             x1, [PP, #0x818]  ; [pp+0x818] TypeArguments: &lt;int&gt;</span>",
+                "    <span class=\"tok-cm\">// 0x280360: r0 = AllocateArray()</span>",
+                "    <span class=\"tok-cm\">//     0x280360: bl              #0x3d677c  ; AllocateArrayStub</span>",
+                "    <span class=\"tok-cm\">// 0x280364: stur            x0, [fp, #-8]</span>",
+                "    <span class=\"tok-cm\">// 0x280368: r16 = 142</span>",
+                "    <span class=\"tok-cm\">//     0x280368: mov             x16, #0x8e</span>",
+                "    <span class=\"tok-cm\">// 0x28036c: StoreField: r0-&gt;field_f = r16</span>",
+                "    <span class=\"tok-cm\">//     0x28036c: stur            w16, [x0, #0xf]</span>",
+                "    <span class=\"tok-cm\">// 0x280370: r16 = 154</span>"
+              ],
+              "module_terms": [
+                "des"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Does not establish the service it authenticates to or the access it grants as required by the proof."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Hardcoded secret 'FLAG{hooking_platform_code}' in asm/all/chall5.dart",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 4.0,
+            "description": "A hardcoded secret 'FLAG{hooking_platform_code}' is stored as a constant integer array and decoded at runtime.",
+            "file": "asm/all/chall5.dart",
+            "location": "asm/all/chall5.dart:25",
+            "line": 25,
+            "line_start": 25,
+            "line_end": 25,
+            "impact": "",
+            "code_snippet": "    // 0x250be4: r16 = 150",
+            "code_context": {
+              "start_line": 21,
+              "end_line": 29,
+              "highlight_start": 25,
+              "highlight_end": 25,
+              "lines": [
+                "    //     0x250bd8: ldr             x1, [PP, #0x818]  ; [pp+0x818] TypeArguments: <int>",
+                "    // 0x250bdc: r0 = AllocateArray()",
+                "    //     0x250bdc: bl              #0x3d677c  ; AllocateArrayStub",
+                "    // 0x250be0: stur            x0, [fp, #-8]",
+                "    // 0x250be4: r16 = 150",
+                "    //     0x250be4: mov             x16, #0x96",
+                "    // 0x250be8: StoreField: r0->field_f = r16",
+                "    //     0x250be8: stur            w16, [x0, #0xf]",
+                "    // 0x250bec: r16 = 162"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x250bd8: ldr             x1, [PP, #0x818]  ; [pp+0x818] TypeArguments: &lt;int&gt;</span>",
+                "    <span class=\"tok-cm\">// 0x250bdc: r0 = AllocateArray()</span>",
+                "    <span class=\"tok-cm\">//     0x250bdc: bl              #0x3d677c  ; AllocateArrayStub</span>",
+                "    <span class=\"tok-cm\">// 0x250be0: stur            x0, [fp, #-8]</span>",
+                "    <span class=\"tok-cm\">// 0x250be4: r16 = 150</span>",
+                "    <span class=\"tok-cm\">//     0x250be4: mov             x16, #0x96</span>",
+                "    <span class=\"tok-cm\">// 0x250be8: StoreField: r0-&gt;field_f = r16</span>",
+                "    <span class=\"tok-cm\">//     0x250be8: stur            w16, [x0, #0xf]</span>",
+                "    <span class=\"tok-cm\">// 0x250bec: r16 = 162</span>"
+              ],
+              "module_terms": [
+                "des",
+                "loadclass"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Does not establish the service it authenticates to or the access it grants as required by the proof."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Hardcoded secret in asm/all/chall4.dart",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 4.0,
+            "description": "A hardcoded secret is stored as the string 'EOBDxkllhjmd\\qfwvqm\\ubovf~' and decoded via XOR with 3.",
+            "file": "asm/all/chall4.dart",
+            "location": "asm/all/chall4.dart:390",
+            "line": 390,
+            "line_start": 390,
+            "line_end": 390,
+            "impact": "",
+            "code_snippet": "    // 0x280a20: r2 = \"EOBDxkllhjmd\\\\qfwvqm\\\\ubovf~\"",
+            "code_context": {
+              "start_line": 386,
+              "end_line": 394,
+              "highlight_start": 390,
+              "highlight_end": 390,
+              "lines": [
+                "    //     0x280a14: bl              #0x197ad8  ; [dart:core] _GrowableList::_GrowableList",
+                "    // 0x280a18: stur            x0, [fp, #-0x20]",
+                "    // 0x280a1c: r3 = 0",
+                "    //     0x280a1c: mov             x3, #0",
+                "    // 0x280a20: r2 = \"EOBDxkllhjmd\\\\qfwvqm\\\\ubovf~\"",
+                "    //     0x280a20: add             x2, PP, #0xe, lsl #12  ; [pp+0xe1b8] \"EOBDxkllhjmd\\\\qfwvqm\\\\ubovf~\"",
+                "    //     0x280a24: ldr             x2, [x2, #0x1b8]",
+                "    // 0x280a28: stur            x3, [fp, #-0x18]",
+                "    // 0x280a2c: CheckStackOverflow"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x280a14: bl              #0x197ad8  ; [dart:core] _GrowableList::_GrowableList</span>",
+                "    <span class=\"tok-cm\">// 0x280a18: stur            x0, [fp, #-0x20]</span>",
+                "    <span class=\"tok-cm\">// 0x280a1c: r3 = 0</span>",
+                "    <span class=\"tok-cm\">//     0x280a1c: mov             x3, #0</span>",
+                "    <span class=\"tok-cm\">// 0x280a20: r2 = &quot;EOBDxkllhjmd\\\\qfwvqm\\\\ubovf~&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x280a20: add             x2, PP, #0xe, lsl #12  ; [pp+0xe1b8] &quot;EOBDxkllhjmd\\\\qfwvqm\\\\ubovf~&quot;</span>",
+                "    <span class=\"tok-cm\">//     0x280a24: ldr             x2, [x2, #0x1b8]</span>",
+                "    <span class=\"tok-cm\">// 0x280a28: stur            x3, [fp, #-0x18]</span>",
+                "    <span class=\"tok-cm\">// 0x280a2c: CheckStackOverflow</span>"
+              ],
+              "module_terms": [
+                "des"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Does not establish the service it authenticates to or the access it grants as required by the proof."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Hardcoded secret in asm/all/chall9.dart",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            "cvss_score": 4.0,
+            "description": "A hardcoded secret 'FLAG{hooking_third_part_libraries}' is stored as a constant integer array and decoded at runtime.",
+            "file": "asm/all/chall9.dart",
+            "location": "asm/all/chall9.dart:46",
+            "line": 46,
+            "line_start": 46,
+            "line_end": 46,
+            "impact": "",
+            "code_snippet": "    // 0x250d90: r16 = 150",
+            "code_context": {
+              "start_line": 42,
+              "end_line": 50,
+              "highlight_start": 46,
+              "highlight_end": 46,
+              "lines": [
+                "    //     0x250d84: ldr             x1, [PP, #0x818]  ; [pp+0x818] TypeArguments: <int>",
+                "    // 0x250d88: r0 = AllocateArray()",
+                "    //     0x250d88: bl              #0x3d677c  ; AllocateArrayStub",
+                "    // 0x250d8c: stur            x0, [fp, #-8]",
+                "    // 0x250d90: r16 = 150",
+                "    //     0x250d90: mov             x16, #0x96",
+                "    // 0x250d94: StoreField: r0->field_f = r16",
+                "    //     0x250d94: stur            w16, [x0, #0xf]",
+                "    // 0x250d98: r16 = 162"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x250d84: ldr             x1, [PP, #0x818]  ; [pp+0x818] TypeArguments: &lt;int&gt;</span>",
+                "    <span class=\"tok-cm\">// 0x250d88: r0 = AllocateArray()</span>",
+                "    <span class=\"tok-cm\">//     0x250d88: bl              #0x3d677c  ; AllocateArrayStub</span>",
+                "    <span class=\"tok-cm\">// 0x250d8c: stur            x0, [fp, #-8]</span>",
+                "    <span class=\"tok-cm\">// 0x250d90: r16 = 150</span>",
+                "    <span class=\"tok-cm\">//     0x250d90: mov             x16, #0x96</span>",
+                "    <span class=\"tok-cm\">// 0x250d94: StoreField: r0-&gt;field_f = r16</span>",
+                "    <span class=\"tok-cm\">//     0x250d94: stur            w16, [x0, #0xf]</span>",
+                "    <span class=\"tok-cm\">// 0x250d98: r16 = 162</span>"
+              ],
+              "module_terms": [
+                "des"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-798",
+            "owasp_mobile": "M1: Improper Credential Usage",
+            "dynamic_verification": null,
+            "vuln_class": "SECRET-01",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Does not establish the service it authenticates to or the access it grants as required by the proof."
+              ],
+              "warnings": [],
+              "original_severity": "Medium",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "unconfirmed chain candidate: Backup-enabled app stores credentials in local storage",
+                "pattern": "CHAIN-05",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Root, emulator, and debugger detection bypass in asm/all/chall9.dart",
+                  "file": "asm/all/chall9.dart",
+                  "line": 280
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "No network security config declared",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "The app declares neither android:networkSecurityConfig nor usesCleartextTraffic, so it relies on platform defaults and pins no domain. With targetSdkVersion 36 those defaults block cleartext HTTP and trust only system CAs.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 25,
+            "line_start": 25,
+            "line_end": 25,
+            "impact": "Without pinning, anyone who gets a CA trusted on the device can read and alter the app's TLS traffic.",
+            "code_snippet": "    <application",
+            "code_context": {
+              "start_line": 21,
+              "end_line": 29,
+              "highlight_start": 25,
+              "highlight_end": 25,
+              "lines": [
+                "    <permission",
+                "        android:name=\"com.flutter_labs.all.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\"",
+                "        android:protectionLevel=\"signature\"/>",
+                "    <uses-permission android:name=\"com.flutter_labs.all.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\"/>",
+                "    <application",
+                "        android:label=\"Flutter RE Labs\"",
+                "        android:icon=\"@mipmap/ic_launcher\"",
+                "        android:name=\"android.app.Application\"",
+                "        android:extractNativeLibs=\"false\""
+              ],
+              "lines_html": [
+                "    &lt;permission",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;com.flutter_labs.all.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION&quot;</span>",
+                "        <span class=\"tok-fn\">android:protectionLevel=</span><span class=\"tok-str\">&quot;signature&quot;</span>/&gt;",
+                "    &lt;uses-permission <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;com.flutter_labs.all.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION&quot;</span>/&gt;",
+                "    &lt;application",
+                "        <span class=\"tok-fn\">android:label=</span><span class=\"tok-str\">&quot;Flutter RE Labs&quot;</span>",
+                "        <span class=\"tok-fn\">android:icon=</span><span class=\"tok-str\">&quot;@mipmap/ic_launcher&quot;</span>",
+                "        <span class=\"tok-fn\">android:name=</span><span class=\"tok-str\">&quot;android.app.Application&quot;</span>",
+                "        <span class=\"tok-fn\">android:extractNativeLibs=</span><span class=\"tok-str\">&quot;false&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Declare a network security config that disables cleartext and pins the domains that carry sensitive traffic.",
+            "cwe": "CWE-319",
+            "owasp_mobile": "M5: Insecure Communication",
+            "dynamic_verification": null,
+            "vuln_class": "NETWORK-03",
+            "gate_result": {
+              "verdict": "CHAIN_REQUIRED",
+              "reasons": [
+                "No certificate pinning. Pinning defends against an attacker who already controls a trusted CA or the device's trust store. Without one of those, TLS is still doing its job. It becomes a finding when paired with what the unpinned channel actually carries."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": true,
+              "weak_class_rule": "WEAK-01",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "7"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No screenshot protection: FLAG_SECURE is never set",
+                  "file": "AndroidManifest.xml",
+                  "line": ""
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "No screenshot protection: FLAG_SECURE is never set",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "Nothing in the app sets WindowManager.LayoutParams.FLAG_SECURE, so every screen can be screenshotted or recorded and appears in the recent-apps snapshot.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 0,
+            "line_start": 0,
+            "line_end": 0,
+            "impact": "Credentials, balances or personal data on screen end up in screenshots, screen recordings and the task-switcher preview.",
+            "code_snippet": "",
+            "code_context": null,
+            "exploitation": "",
+            "recommendation": "Set FLAG_SECURE on the windows of screens that show credentials or account data.",
+            "cwe": "CWE-200",
+            "owasp_mobile": "M8: Security Misconfiguration",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-12",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Screen contents not protected from capture. Without FLAG_SECURE, what a screen shows can end up in screenshots, screen recordings and the task-switcher preview. That matters on screens showing credentials, card numbers or balances; on its own it is a hardening note."
+              ],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-14",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+                  "file": "AndroidManifest.xml",
+                  "line": "7"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Root detection bypass in MainActivity.java",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "The app implements root detection using the RootBeer library. A hook on 'com.scottyab.rootbeer.RootBeer.isRooted' would bypass this check.",
+            "file": "platform/sources/com/flutter_labs/all/MainActivity.java",
+            "location": "platform/sources/com/flutter_labs/all/MainActivity.java:28",
+            "line": 28,
+            "line_start": 28,
+            "line_end": 28,
+            "impact": "",
+            "code_snippet": "            result.success(java.lang.Boolean.valueOf(new com.scottyab.rootbeer.RootBeer(this).isRooted()));",
+            "code_context": {
+              "start_line": 24,
+              "end_line": 32,
+              "highlight_start": 28,
+              "highlight_end": 28,
+              "lines": [
+                "",
+                "    /* JADX INFO: Access modifiers changed from: private */",
+                "    public /* synthetic */ void lambda$configureFlutterEngine$0(io.flutter.plugin.common.MethodCall methodCall, io.flutter.plugin.common.MethodChannel.Result result) {",
+                "        if (methodCall.method.equals(\"isRooted\")) {",
+                "            result.success(java.lang.Boolean.valueOf(new com.scottyab.rootbeer.RootBeer(this).isRooted()));",
+                "        } else {",
+                "            result.notImplemented();",
+                "        }",
+                "    }"
+              ],
+              "lines_html": [
+                "",
+                "    <span class=\"tok-cm\">/* JADX INFO: Access modifiers changed from: private */</span>",
+                "    <span class=\"tok-kw\">public</span> <span class=\"tok-cm\">/* synthetic */</span> <span class=\"tok-kw\">void</span> <span class=\"tok-fn\">lambda$configureFlutterEngine$0</span><span class=\"tok-op\">(</span>io<span class=\"tok-op\">.</span><span class=\"tok-fn\">flutter</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">plugin</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">common</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">MethodCall</span> methodCall<span class=\"tok-op\">,</span> io<span class=\"tok-op\">.</span><span class=\"tok-fn\">flutter</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">plugin</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">common</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">MethodChannel</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Result</span> result<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "        <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>methodCall<span class=\"tok-op\">.</span><span class=\"tok-fn\">method</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">equals</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">isRooted</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "            result<span class=\"tok-op\">.</span><span class=\"tok-fn\">success</span><span class=\"tok-op\">(</span>java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Boolean</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">valueOf</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">new</span> com<span class=\"tok-op\">.</span><span class=\"tok-fn\">scottyab</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">rootbeer</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">RootBeer</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">this</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">isRooted</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span> <span class=\"tok-kw\">else</span> <span class=\"tok-op\">{</span>",
+                "            result<span class=\"tok-op\">.</span><span class=\"tok-fn\">notImplemented</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-op\">}</span>",
+                "    <span class=\"tok-op\">}</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-693",
+            "owasp_mobile": "M7: Insufficient Binary Protections",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-04",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Client-side protection. Root, emulator, debugger, integrity and pinning checks run on the device they check, so whoever controls that device can hook or patch them. Present, they raise the cost of analysis without stopping it; absent, they expose nothing that was not already the device owner's. Either way this is context, not a vulnerability."
+              ],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-04",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "File integrity check bypass in MainActivity.java",
+                  "file": "platform/sources/com/flutter_labs/all/MainActivity.java",
+                  "line": 52
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Root, emulator, and debugger detection bypass in asm/all/chall9.dart",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "The app implements root, emulator, and debugger detection using the 'root_jailbreak_sniffer' package. Hooks on 'Rjsniffer.amICompromised', 'amIEmulator', and 'amIDebugged' would bypass these checks.",
+            "file": "asm/all/chall9.dart",
+            "location": "asm/all/chall9.dart:280",
+            "line": 280,
+            "line_start": 280,
+            "line_end": 280,
+            "impact": "",
+            "code_snippet": "    // 0x250f9c: r0 = amICompromised()",
+            "code_context": {
+              "start_line": 276,
+              "end_line": 284,
+              "highlight_start": 280,
+              "highlight_end": 280,
+              "lines": [
+                "    //     0x250f90: stur            w1, [x2, #0xf]",
+                "    // 0x250f94: InitAsync() -> Future<void?>",
+                "    //     0x250f94: ldr             x0, [PP, #0x2d8]  ; [pp+0x2d8] TypeArguments: <void?>",
+                "    //     0x250f98: bl              #0x1b9b64  ; InitAsyncStub",
+                "    // 0x250f9c: r0 = amICompromised()",
+                "    //     0x250f9c: bl              #0x251384  ; [package:root_jailbreak_sniffer/rjsniffer.dart] Rjsniffer::amICompromised",
+                "    // 0x250fa0: mov             x1, x0",
+                "    // 0x250fa4: stur            x1, [fp, #-0x78]",
+                "    // 0x250fa8: r0 = Await()"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x250f90: stur            w1, [x2, #0xf]</span>",
+                "    <span class=\"tok-cm\">// 0x250f94: InitAsync() -&gt; Future&lt;void?&gt;</span>",
+                "    <span class=\"tok-cm\">//     0x250f94: ldr             x0, [PP, #0x2d8]  ; [pp+0x2d8] TypeArguments: &lt;void?&gt;</span>",
+                "    <span class=\"tok-cm\">//     0x250f98: bl              #0x1b9b64  ; InitAsyncStub</span>",
+                "    <span class=\"tok-cm\">// 0x250f9c: r0 = amICompromised()</span>",
+                "    <span class=\"tok-cm\">//     0x250f9c: bl              #0x251384  ; [package:root_jailbreak_sniffer/rjsniffer.dart] Rjsniffer::amICompromised</span>",
+                "    <span class=\"tok-cm\">// 0x250fa0: mov             x1, x0</span>",
+                "    <span class=\"tok-cm\">// 0x250fa4: stur            x1, [fp, #-0x78]</span>",
+                "    <span class=\"tok-cm\">// 0x250fa8: r0 = Await()</span>"
+              ],
+              "module_terms": [
+                "des"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "",
+            "cwe": "CWE-693",
+            "owasp_mobile": "M7: Insufficient Binary Protections",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-04",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Client-side protection. Root, emulator, debugger, integrity and pinning checks run on the device they check, so whoever controls that device can hook or patch them. Present, they raise the cost of analysis without stopping it; absent, they expose nothing that was not already the device owner's. Either way this is context, not a vulnerability."
+              ],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-04",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Hardcoded secret in asm/all/chall9.dart",
+                  "file": "asm/all/chall9.dart",
+                  "line": 46
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Runtime.exec() invocation in RjsnifferPlugin.java",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "A command built at runtime is executed. Nothing in this file shows its input coming from outside the app; confirm where the command comes from. This code is in com.emrys.rjsniffer.rjsniffer, a third-party plugin bundled with the app rather than the app's own code, so it is reported as a dependency note.",
+            "file": "platform/sources/com/emrys/rjsniffer/rjsniffer/RjsnifferPlugin.java",
+            "location": "",
+            "line": 248,
+            "line_start": 248,
+            "line_end": 248,
+            "impact": "",
+            "code_snippet": "            java.io.InputStream inputStream = java.lang.Runtime.getRuntime().exec(str).getInputStream();",
+            "code_context": {
+              "start_line": 244,
+              "end_line": 252,
+              "highlight_start": 248,
+              "highlight_end": 248,
+              "lines": [
+                "    }",
+                "",
+                "    private java.lang.String[] commander(java.lang.String str) {",
+                "        try {",
+                "            java.io.InputStream inputStream = java.lang.Runtime.getRuntime().exec(str).getInputStream();",
+                "            if (inputStream == null) {",
+                "                return null;",
+                "            }",
+                "            return new java.util.Scanner(inputStream).useDelimiter(\"\\\\A\").next().split(\"\\n\");"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-op\">}</span>",
+                "",
+                "    <span class=\"tok-kw\">private</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span><span class=\"tok-op\">[</span><span class=\"tok-op\">]</span> <span class=\"tok-fn\">commander</span><span class=\"tok-op\">(</span>java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span> str<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "        <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>",
+                "            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">InputStream</span> inputStream <span class=\"tok-op\">=</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Runtime</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getRuntime</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">exec</span><span class=\"tok-op\">(</span>str<span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getInputStream</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-kw\">if</span> <span class=\"tok-op\">(</span>inputStream <span class=\"tok-op\">=</span><span class=\"tok-op\">=</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "                <span class=\"tok-kw\">return</span> <span class=\"tok-kw\">null</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-op\">}</span>",
+                "            <span class=\"tok-kw\">return</span> <span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Scanner</span><span class=\"tok-op\">(</span>inputStream<span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">useDelimiter</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">\\\\</span><span class=\"tok-str\">A</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">next</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">split</span><span class=\"tok-op\">(</span><span class=\"tok-str\">&quot;</span><span class=\"tok-str\">\\</span><span class=\"tok-str\">n</span><span class=\"tok-str\">&quot;</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>"
+              ],
+              "hop_terms": [
+                "getruntime",
+                ".exec(",
+                "printstacktrace"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Avoid dynamic execution; if unavoidable, validate the input against a strict allowlist.",
+            "cwe": "CWE-78",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "CODE-02",
+            "gate_result": {
+              "verdict": "DOWNGRADE",
+              "reasons": [
+                "Reported at LOW confidence - treat as a lead to verify rather than a confirmed issue."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "Runtime.exec() invocation in shellEx.java",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N",
+            "cvss_score": 2.6,
+            "description": "A command built at runtime is executed. Nothing in this file shows its input coming from outside the app; confirm where the command comes from. This code is in com.emrys.rjsniffer.rjsniffer, a third-party plugin bundled with the app rather than the app's own code, so it is reported as a dependency note.",
+            "file": "platform/sources/com/emrys/rjsniffer/rjsniffer/shellEx.java",
+            "location": "",
+            "line": 22,
+            "line_start": 22,
+            "line_end": 22,
+            "impact": "",
+            "code_snippet": "            java.lang.Process processExec = java.lang.Runtime.getRuntime().exec(shell_cmd.command);",
+            "code_context": {
+              "start_line": 18,
+              "end_line": 26,
+              "highlight_start": 22,
+              "highlight_end": 22,
+              "lines": [
+                "",
+                "    public java.util.ArrayList<java.lang.String> executeCommand(com.emrys.rjsniffer.rjsniffer.shellEx.SHELL_CMD shell_cmd) {",
+                "        java.util.ArrayList<java.lang.String> arrayList = new java.util.ArrayList<>();",
+                "        try {",
+                "            java.lang.Process processExec = java.lang.Runtime.getRuntime().exec(shell_cmd.command);",
+                "            new java.io.BufferedWriter(new java.io.OutputStreamWriter(processExec.getOutputStream()));",
+                "            java.io.BufferedReader bufferedReader = new java.io.BufferedReader(new java.io.InputStreamReader(processExec.getInputStream()));",
+                "            while (true) {",
+                "                try {"
+              ],
+              "lines_html": [
+                "",
+                "    <span class=\"tok-kw\">public</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">ArrayList</span><span class=\"tok-op\">&lt;</span>java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span><span class=\"tok-op\">&gt;</span> <span class=\"tok-fn\">executeCommand</span><span class=\"tok-op\">(</span>com<span class=\"tok-op\">.</span><span class=\"tok-fn\">emrys</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">rjsniffer</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">rjsniffer</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">shellEx</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">SHELL_CMD</span> shell_cmd<span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "        java<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">ArrayList</span><span class=\"tok-op\">&lt;</span>java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">String</span><span class=\"tok-op\">&gt;</span> arrayList <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">util</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">ArrayList</span><span class=\"tok-op\">&lt;</span><span class=\"tok-op\">&gt;</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "        <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>",
+                "            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Process</span> processExec <span class=\"tok-op\">=</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">lang</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">Runtime</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">getRuntime</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">exec</span><span class=\"tok-op\">(</span>shell_cmd<span class=\"tok-op\">.</span><span class=\"tok-fn\">command</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">BufferedWriter</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">OutputStreamWriter</span><span class=\"tok-op\">(</span>processExec<span class=\"tok-op\">.</span><span class=\"tok-fn\">getOutputStream</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">BufferedReader</span> bufferedReader <span class=\"tok-op\">=</span> <span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">BufferedReader</span><span class=\"tok-op\">(</span><span class=\"tok-kw\">new</span> java<span class=\"tok-op\">.</span><span class=\"tok-fn\">io</span><span class=\"tok-op\">.</span><span class=\"tok-fn\">InputStreamReader</span><span class=\"tok-op\">(</span>processExec<span class=\"tok-op\">.</span><span class=\"tok-fn\">getInputStream</span><span class=\"tok-op\">(</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">)</span><span class=\"tok-op\">;</span>",
+                "            <span class=\"tok-kw\">while</span> <span class=\"tok-op\">(</span><span class=\"tok-kw\">true</span><span class=\"tok-op\">)</span> <span class=\"tok-op\">{</span>",
+                "                <span class=\"tok-kw\">try</span> <span class=\"tok-op\">{</span>"
+              ],
+              "hop_terms": [
+                "getruntime",
+                ".exec(",
+                "log.d",
+                "android.util.log",
+                "printstacktrace",
+                "shellEx"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Avoid dynamic execution; if unavoidable, validate the input against a strict allowlist.",
+            "cwe": "CWE-78",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "CODE-02",
+            "gate_result": {
+              "verdict": "DOWNGRADE",
+              "reasons": [
+                "Reported at LOW confidence - treat as a lead to verify rather than a confirmed issue."
+              ],
+              "warnings": [],
+              "original_severity": "Low",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false,
+              "rule_verified": true
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "static-analyzer",
+            "surface": ""
+          },
+          {
+            "title": "SSL pinning bypass in asm/all/chall8.dart",
+            "severity": "Informational",
+            "cvss_vector": "AV:L/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "The app implements SSL pinning using the 'http_certificate_pinning' package. A hook on 'HttpCertificatePinning.check' returning 'CONNECTION_SECURE' would bypass the pinning.",
+            "file": "asm/all/chall8.dart",
+            "location": "asm/all/chall8.dart:1078",
+            "line": 1078,
+            "line_start": 1078,
+            "line_end": 1078,
+            "impact": "Context for the network findings: interception for testing needs this check bypassed first.",
+            "code_snippet": "    // 0x2ce5c8: r0 = check()",
+            "code_context": {
+              "start_line": 1074,
+              "end_line": 1082,
+              "highlight_start": 1078,
+              "highlight_end": 1078,
+              "lines": [
+                "    //     0x2ce5bc: ldr             x2, [x2, #0xf78]",
+                "    // 0x2ce5c0: r3 = 10",
+                "    //     0x2ce5c0: mov             x3, #0xa",
+                "    // 0x2ce5c4: stur            x0, [fp, #-0x80]",
+                "    // 0x2ce5c8: r0 = check()",
+                "    //     0x2ce5c8: bl              #0x2c0a4c  ; [package:http_certificate_pinning/src/http_certificate_pinning.dart] HttpCertificatePinning::check",
+                "    // 0x2ce5cc: mov             x1, x0",
+                "    // 0x2ce5d0: stur            x1, [fp, #-0x88]",
+                "    // 0x2ce5d4: r0 = Await()"
+              ],
+              "lines_html": [
+                "    <span class=\"tok-cm\">//     0x2ce5bc: ldr             x2, [x2, #0xf78]</span>",
+                "    <span class=\"tok-cm\">// 0x2ce5c0: r3 = 10</span>",
+                "    <span class=\"tok-cm\">//     0x2ce5c0: mov             x3, #0xa</span>",
+                "    <span class=\"tok-cm\">// 0x2ce5c4: stur            x0, [fp, #-0x80]</span>",
+                "    <span class=\"tok-cm\">// 0x2ce5c8: r0 = check()</span>",
+                "    <span class=\"tok-cm\">//     0x2ce5c8: bl              #0x2c0a4c  ; [package:http_certificate_pinning/src/http_certificate_pinning.dart] HttpCertificatePinning::check</span>",
+                "    <span class=\"tok-cm\">// 0x2ce5cc: mov             x1, x0</span>",
+                "    <span class=\"tok-cm\">// 0x2ce5d0: stur            x1, [fp, #-0x88]</span>",
+                "    <span class=\"tok-cm\">// 0x2ce5d4: r0 = Await()</span>"
+              ],
+              "module_terms": [
+                "loadclass",
+                "log.d"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Keep pinning, and make sure every client that carries credentials goes through it.",
+            "cwe": "CWE-693",
+            "owasp_mobile": "M7: Insufficient Binary Protections",
+            "dynamic_verification": null,
+            "vuln_class": "BUILD-04",
+            "gate_result": {
+              "verdict": "INFORMATIONAL",
+              "reasons": [
+                "Client-side protection. Root, emulator, debugger, integrity and pinning checks run on the device they check, so whoever controls that device can hook or patch them. Present, they raise the cost of analysis without stopping it; absent, they expose nothing that was not already the device owner's. Either way this is context, not a vulnerability."
+              ],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "WEAK-04",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [],
+            "source": "agent",
+            "surface": ""
+          },
+          {
+            "title": "Task hijacking (StrandHogg) possible on Android 10 and lower",
+            "severity": "Informational",
+            "cvss_vector": "AV:N/AC:H/PR:H/UI:R/S:U/C:N/I:N/A:N",
+            "cvss_score": 0.0,
+            "description": "minSdkVersion 24 lets the app run on Android versions before 11, and its task affinity is its package name \"com.flutter_labs.all\". There, another app can declare the same affinity, with allowTaskReparenting, and have its own activity shown in this app's task.",
+            "file": "AndroidManifest.xml",
+            "location": "",
+            "line": 7,
+            "line_start": 7,
+            "line_end": 7,
+            "impact": "On a device running Android 10 or lower, a malicious app can put a look-alike screen on top of this app's task, phishing credentials or keeping the real app from being shown.",
+            "code_snippet": "    package=\"com.flutter_labs.all\"",
+            "code_context": {
+              "start_line": 3,
+              "end_line": 11,
+              "highlight_start": 7,
+              "highlight_end": 7,
+              "lines": [
+                "    android:versionCode=\"1\"",
+                "    android:versionName=\"1.0.0\"",
+                "    android:compileSdkVersion=\"36\"",
+                "    android:compileSdkVersionCodename=\"16\"",
+                "    package=\"com.flutter_labs.all\"",
+                "    platformBuildVersionCode=\"36\"",
+                "    platformBuildVersionName=\"16\">",
+                "    <uses-sdk",
+                "        android:minSdkVersion=\"24\""
+              ],
+              "lines_html": [
+                "    android:versionCode=&quot;1&quot;",
+                "    android:versionName=&quot;1.0.0&quot;",
+                "    android:compileSdkVersion=&quot;36&quot;",
+                "    android:compileSdkVersionCodename=&quot;16&quot;",
+                "    package=&quot;com.flutter_labs.all&quot;",
+                "    platformBuildVersionCode=&quot;36&quot;",
+                "    platformBuildVersionName=&quot;16&quot;&gt;",
+                "    &lt;uses-sdk",
+                "        <span class=\"tok-fn\">android:minSdkVersion=</span><span class=\"tok-str\">&quot;24&quot;</span>"
+              ]
+            },
+            "exploitation": "",
+            "recommendation": "Raise minSdkVersion to 30, where Android fixed this. Until then, android:taskAffinity=\"\" on the <application> mitigates the original attack, though not its runtime variant on unpatched Android 9 and lower.",
+            "cwe": "CWE-1021",
+            "owasp_mobile": "M4: Insufficient Input/Output Validation",
+            "dynamic_verification": null,
+            "vuln_class": "PLATFORM-09",
+            "gate_result": {
+              "verdict": "PASS",
+              "reasons": [],
+              "warnings": [],
+              "original_severity": "Informational",
+              "final_severity": "Informational",
+              "chain_eligible": false,
+              "weak_class_rule": "",
+              "mechanically_refuted": false,
+              "severity_cap": "",
+              "needs_recitation": false
+            },
+            "chain": null,
+            "chained_into": [],
+            "related_findings": [
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "Application data is backup-enabled",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No network security config declared",
+                  "file": "AndroidManifest.xml",
+                  "line": "25"
+                },
+                "confirmed": false
+              },
+              {
+                "reason": "same file",
+                "pattern": "same-file",
+                "with": {
+                  "title": "No screenshot protection: FLAG_SECURE is never set",
+                  "file": "AndroidManifest.xml",
+                  "line": ""
+                },
+                "confirmed": false
+              }
+            ],
+            "source": "static-analyzer",
+            "surface": ""
+          }
+        ]
+      },
+      "refuted": [],
+      "refuted_count": 0
+    },
+    "analyzer_details": {
+      "framework": "Flutter",
+      "analysis_time": 420.23465275764465,
+      "files_analyzed": 33,
+      "decompilation_status": "Successful",
+      "error": null,
+      "agent_coverage": {
+        "regions": [
+          {
+            "key": "region-1-all/chall5",
+            "nodes": 14,
+            "steps": 23,
+            "files_read": 16,
+            "stop_reason": "reported",
+            "findings": 0
+          }
+        ],
+        "complete": true,
+        "regions_incomplete": 0,
+        "regions_total": 1,
+        "degraded_reason": null,
+        "file_review": {
+          "files": 11,
+          "parts": 1,
+          "parts_skipped": 0,
+          "parts_failed": 0,
+          "findings": 9
+        }
+      },
+      "limitation": "",
+      "llm_usage": {
+        "provider": "ollama",
+        "calls": 29,
+        "failed": 0,
+        "wall_clock_s": 454.2,
+        "prompt_tokens": 883773,
+        "completion_tokens": 45218,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0,
+        "throttled_attempts": 0,
+        "transient_attempts": 0,
+        "failed_attempt_seconds": 0.0,
+        "retried_calls": 0,
+        "truncation_retries": 0,
+        "transient_retries": 0,
+        "throttle_retries": 0,
+        "slow_calls": 0,
+        "unparseable_responses": 0,
+        "blocked_seconds": 0.0,
+        "mode": "cloud",
+        "model": "gemma4:31b",
+        "unavailable": null,
+        "unreachable": null,
+        "keys_total": 9,
+        "keys_used": 7
+      }
+    },
+    "summary": {
+      "framework_detected": true,
+      "vulnerability_scan_complete": true,
+      "total_vulnerabilities": 15,
+      "critical_count": 0,
+      "high_count": 0,
+      "medium_count": 0,
+      "low_count": 0,
+      "refuted_count": 0,
+      "security_score": 100.0,
+      "weighted_finding_count": 0,
+      "security_grade": "A"
+    },
+    "analysis": {
+      "supported": true,
+      "success": true,
+      "files_analyzed": 33,
+      "analysis_time": 420.23465275764465,
+      "framework": "Flutter",
+      "decompilation_status": "Successful",
+      "unsupported_framework": false,
+      "error": null,
+      "limitation": ""
+    },
+    "reports": {
+      "json": true,
+      "html": true,
+      "pdf": true
+    },
+    "dynamic_session": {
+      "attempted": false,
+      "reason": "Dynamic verification is disabled in Settings."
+    }
+  }
+}

@@ -122,14 +122,14 @@ SECRET_PATTERNS: Tuple[SecretPattern, ...] = (
     _p("Bearer Token", r"Bearer\s+[A-Za-z0-9\-_\.]{20,}", "High"),
 
     _p("Hardcoded Password",
-       r"""(?i)(?:password|passwd|pwd)\s*[=:]\s*["']([^"']{8,})["']""", "High"),
+       r"""(?i)(?:password|passwd|pwd)\s*[=:]\s*["']([^"'\r\n();]{8,})["']""", "High"),
     _p("Generic API Key",
        r"""(?i)(?:api[_\-]?key|apikey)["\s:=]+["'`]([A-Za-z0-9\-_]{20,})["'`]""", "Medium"),
     _p("Generic Secret",
        r"""(?i)(?:secret|client_secret)["\s:=]+["'`]([A-Za-z0-9\-_!@#$%^&*]{16,})["'`]""",
        "Medium"),
     _p("Private Network Address",
-       r"\b(?:10|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}\b", "Low"),
+       r"\b(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}\b", "Informational"),
 )
 
 API_ENDPOINT_RE = re.compile(

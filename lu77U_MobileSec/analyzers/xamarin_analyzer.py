@@ -18,7 +18,7 @@ Implementation notes:
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .agent.profiles import XAMARIN
 from .base import BaseAnalyzer
@@ -62,10 +62,13 @@ class XamarinAnalyzer(BaseAnalyzer):
         self.source_root = None
         self.output_manager = OutputManager(verbose=verbose)
 
-    def preflight(self) -> Tuple[bool, str]:
+    def preflight(self, apk_path: Optional[str] = None) -> Tuple[bool, str]:
         """
         Purpose:
             Report readiness; this analyzer runs with or without a .NET decompiler.
+
+        Parameters:
+            apk_path: The APK about to be scanned; unused here, since this analyzer's requirements do not depend on how the app was built.
 
         Returns:
             Always ready.

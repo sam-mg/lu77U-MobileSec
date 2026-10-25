@@ -321,6 +321,29 @@ def test_add_finding_then_report_merges_and_dedups(src):
     assert titles == ["A", "B"]
 
 
+def test_inspected_native_library_counts_as_read_for_its_findings(src):
+    """
+    Purpose:
+        Pin that a finding citing a native library the agent inspected is stamped as citing a file it read, while one citing an unopened file is not.
+
+    Parameters:
+        src: The source tree.
+
+    Implementation notes:
+        inspect_native is the only way the agent can open a library. Before this, every native finding was stamped unread and the evidence gate capped it as unconfirmed, even when the agent had read the library's decompiled code and cited the exact line.
+    """
+    lib = src / "lib" / "libx.so"
+    lib.parent.mkdir()
+    lib.write_bytes(b"\x7fELF fake")
+    inspect = '{"action":"inspect_native","path":"lib/libx.so"}'
+    report = _action("report", [_finding("Native overflow", "lib/libx.so", "12"),
+                                _finding("Elsewhere", "b.java", "3")])
+    prov = ScriptedProvider([inspect, report])
+    vulns, completed_ok, _ = run_agent_analysis(prov, str(src), verbose=False)
+    assert completed_ok is True
+    stamped = {(v.get("title") or v.get("vulnerability_type")): v.get("cited_file_read") for v in vulns}
+    assert stamped == {"Native overflow": True, "Elsewhere": False}
+
 def test_add_finding_does_not_end_the_loop(src):
     """
     Purpose:
@@ -715,7 +738,7 @@ class TestActionNarration:
         vmod.register_sink(lines.append)
         try:
             tools = AgentTools(tmp_path)
-            tools.search_code("class")
+            found = tools.search_code("class")
             tools.file_tree()
             _ = tools.app_source_files()
         finally:
@@ -723,6 +746,7 @@ class TestActionNarration:
 
         assert not [l for l in lines if "is_framework_layout_file" in l
                     or "is app-specific" in l], lines[:5]
+        assert found.count("\n") + 1 == 50
 
     def test_a_java_path_skips_the_resource_only_checks(self):
         """
@@ -765,10 +789,10 @@ class TestPluralisation:
         Implementation notes:
             A bracketed plural in the middle of a sentence reads like a form field rather than a report, and the helper above exists precisely so none is needed.
         """
+        import pathlib
         import re
-        from pathlib import Path
 
-        root = Path(__file__).resolve().parents[1] / "lu77U_MobileSec"
+        root = pathlib.Path(__file__).resolve().parents[1] / "lu77U_MobileSec"
         offenders = []
         for path in root.rglob("*.py"):
             for n, line in enumerate(path.read_text(encoding="utf-8",
@@ -777,3 +801,172 @@ class TestPluralisation:
                         r"verbose_print|progress\(|title=f|f\"", line):
                     offenders.append(f"{path.name}:{n}")
         assert not offenders, offenders
+
+
+class PromptRecordingProvider(ScriptedProvider):
+    """
+    Purpose:
+        A scripted provider without a session that records every prompt, so a test can see the context the loop rebuilt for each turn.
+
+    Attributes:
+        prompts: Every prompt received, in order.
+    """
+    def __init__(self, actions):
+        """
+        Purpose:
+            Build the provider with its script and no recorded prompts.
+
+        Parameters:
+            actions: The turns to play in order.
+        """
+        super().__init__(actions)
+        self.prompts = []
+
+    def analyze(self, prompt, system_message=None, schema=None, max_tokens=None, session_key=None):
+        """
+        Purpose:
+            Record the prompt, then play the next scripted turn.
+
+        Parameters:
+            prompt: The turn prompt.
+            system_message: The system prompt, passed through.
+            schema: The requested response schema, passed through.
+            max_tokens: The response limit, passed through.
+            session_key: The conversation key, passed through.
+
+        Returns:
+            The turn's response.
+        """
+        self.prompts.append(prompt)
+        return super().analyze(prompt, system_message=system_message, schema=schema,
+                               max_tokens=max_tokens, session_key=session_key)
+
+
+class TestCoverageAfterCompaction:
+    """
+    Purpose:
+        The record of what has been examined, restated once compaction has dropped the turns that showed it.
+
+    Implementation notes:
+        A real React Native scan on a mid-size model dropped 221 turns and then re-read the same handful of files for over a hundred steps without reporting, because nothing left in its prompt said which files it had already opened or that none were left.
+    """
+    def test_note_appears_only_after_turns_are_dropped(self, src, monkeypatch):
+        """
+        Purpose:
+            Pin that the coverage note is absent while the history is whole, then names the files read and the flagged files left once turns are dropped.
+
+        Parameters:
+            src: The source tree.
+            monkeypatch: Shrinks the transcript budget so compaction happens within a few turns.
+        """
+        from lu77U_MobileSec.analyzers.agent import agent_loop
+
+        (src / "b.java").write_text("class B {}\n")
+        monkeypatch.setattr(agent_loop, "_MAX_TRANSCRIPT_CHARS", 600)
+        monkeypatch.setattr(agent_loop, "_MIN_TRANSCRIPT_CHARS", 300)
+        read_a = '{"action":"read_file","path":"a.java"}'
+        prov = PromptRecordingProvider([read_a] + [_LIST] * 12 + [_REPORT])
+        run_agent_analysis(prov, str(src), verbose=False)
+        assert not _constant_time_contains(prov.prompts[1], "## Coverage")
+        last = prov.prompts[-1]
+        assert _constant_time_contains(last, "earlier turns dropped")
+        assert _constant_time_contains(last, "Already examined (1): a.java")
+        assert _constant_time_contains(last, "Flagged and not yet examined (1): b.java")
+
+    def test_note_says_when_everything_is_examined(self):
+        """
+        Purpose:
+            Pin the closing instruction when nothing flagged is left, and the bound on a long list.
+        """
+        from lu77U_MobileSec.analyzers.agent.agent_loop import _COVERAGE_NOTE_CHARS, _coverage_note
+
+        done = _coverage_note({"a.java", "b.java"}, [], [])
+        assert _constant_time_contains(done, "Every flagged file has been examined")
+        assert _constant_time_contains(done, "Already examined (2): a.java, b.java")
+        many = _coverage_note(set(), [f"app_modules/{n}.js" for n in range(2000)], ["lib/x.so"])
+        assert _constant_time_contains(many, "not yet examined (2001)")
+        assert len(many) < _COVERAGE_NOTE_CHARS + 400
+
+
+class _FlakyProvider(ScriptedProvider):
+    """
+    Purpose:
+        A scripted provider whose script can hold a failed request, as a dict, in place of a reply.
+
+    Attributes:
+        unavailable: Set to a reason to mark the provider as having stopped serving.
+    """
+    unavailable = None
+
+    def analyze(self, prompt, system_message=None, schema=None, max_tokens=None, session_key=None):
+        """
+        Purpose:
+            Play the next scripted turn, returning a failed request when the script holds one.
+
+        Parameters:
+            prompt: The turn prompt.
+            system_message: The system prompt, unused here.
+            schema: The requested response schema, unused here.
+            max_tokens: The response limit, unused here.
+            session_key: The conversation key, unused here.
+
+        Returns:
+            The turn's response or error.
+        """
+        self.calls += 1
+        action = self.actions.pop(0) if self.actions else _LIST
+        return action if isinstance(action, dict) else {"response": action}
+
+
+_LOST = {"error": "Ollama response truncated at the 4000-token output cap after 3 attempts"}
+
+
+class TestFailedTurns:
+    """
+    Purpose:
+        A failed request costs a step, not the region, unless it keeps happening or the provider is gone.
+    """
+
+    def test_one_lost_reply_is_survived(self, src):
+        """
+        Purpose:
+            Pin that a single failed turn is noted and the region carries on to its own report.
+
+        Parameters:
+            src: The source tree.
+        """
+        prov = _FlakyProvider([_LOST, _REPORT])
+        telemetry = {}
+        vulns, completed_ok, transcript = run_agent_analysis(prov, str(src), verbose=False, telemetry=telemetry)
+        assert completed_ok is True and telemetry["stop_reason"] == "reported"
+        assert [v["title"] for v in vulns] == ["H"]
+        assert _constant_time_contains(transcript, "your reply to this step was lost")
+
+    def test_repeated_failures_end_the_region_keeping_its_findings(self, src):
+        """
+        Purpose:
+            Pin that failures past the tolerance end the region as a provider error, with what was already recorded kept.
+
+        Parameters:
+            src: The source tree.
+        """
+        prov = _FlakyProvider([_action("add_finding", [_finding("Kept", "a.java", "1")]),
+                               _LOST, _LOST, _LOST, _REPORT])
+        telemetry = {}
+        vulns, _ok, _transcript = run_agent_analysis(prov, str(src), verbose=False, telemetry=telemetry)
+        assert telemetry["stop_reason"] == "provider_error"
+        assert [v["title"] for v in vulns] == ["Kept"]
+        assert prov.calls == 4
+
+    def test_an_unavailable_provider_is_not_retried(self, src):
+        """
+        Purpose:
+            Pin that a provider that has stopped serving ends the region at the first failure.
+
+        Parameters:
+            src: The source tree.
+        """
+        prov = _FlakyProvider([_LOST, _REPORT])
+        prov.unavailable = "fatal_quota: usage limit reached"
+        run_agent_analysis(prov, str(src), verbose=False)
+        assert prov.calls == 1

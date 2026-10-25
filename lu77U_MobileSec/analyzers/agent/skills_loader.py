@@ -12,7 +12,7 @@ Dependencies:
     The configuration directory.
 
 Implementation notes:
-    Skills are prompt fragments describing how to look for a class of issue. Keeping them as files rather than in code lets a user add or replace one without touching the tool, which is the point of the user directory.
+    Skills are prompt fragments describing how to look for a class of issue. Keeping them as files rather than in code lets a user add or replace one without touching the tool, which is the point of the user directory. CORE_SKILLS gives each framework the one skill that carries its reporting contract; PROFILE_SKILLS adds any further skill every region of that framework needs, such as the guide to reading Flutter's recovered output, which no single region's signals would reliably select. The cross-platform frameworks also always get the business-logic and deep-link guidance: their logic lives in JavaScript or Dart rather than in components a manifest scan flags, and benchmark scans of both repeatedly missed a client-side entitlement gate and a deep link that acted on arrival.
 
 Security considerations:
     A skill becomes part of the agent's instructions, so an uploaded one influences what the scan looks for. Upload validation lives in the settings service; this module only reads what is already there.
@@ -34,6 +34,11 @@ CORE_SKILLS = {
     "react_native": "react_native_security",
     "cordova": "cordova_hybrid_security",
     "xamarin": "xamarin_dotnet_security",
+}
+
+PROFILE_SKILLS = {
+    "flutter": ("flutter_reverse_engineering", "business_logic_abuse", "deeplink_clipboard_trust"),
+    "react_native": ("react_native_reverse_engineering", "business_logic_abuse", "deeplink_clipboard_trust"),
 }
 
 def user_skills_dir() -> Path:

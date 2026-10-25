@@ -140,14 +140,6 @@ authorization. WebView JS-bridge and `addJavascriptInterface` issues are covered
 `vulnerability_classes` and (for hybrid apps) `cordova_hybrid_security` /
 `react_native_security`; hook the exposed bridge object to prove it is callable.
 
-## MobSF and other automated scanners (informational)
-
-MobSF gives fast static + optional dynamic coverage and is a fine human triage step,
-but its output is not evidence on its own - it flags candidates. Anything it raises
-still has to be confirmed the way everything else here is: read the code that backs
-the claim, then reproduce the behaviour at runtime. Do not cite an automated scanner's
-label as a proven finding.
-
 ## Evidence discipline
 
 Objection makes it trivial to *do* things to an app; a finding needs proof that the

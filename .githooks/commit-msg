@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#
+# Refuses a commit whose message breaks the format in CONTRIBUTING.md: a one-line subject, then optionally one blank line and one "- " item per line, never wrapped. Enable it with:  ./scripts/install_hooks.sh
+
+set -uo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root" || exit 1
+
+if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
+    PY="${VIRTUAL_ENV}/bin/python"
+elif [ -x ".venv/bin/python" ]; then
+    PY=".venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PY="python3"
+else
+    PY="python"
+fi
+
+exec "$PY" scripts/check_commit_message.py "$1"

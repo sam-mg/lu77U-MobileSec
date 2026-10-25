@@ -24,6 +24,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from .gates import normalize_severity, severity_rank
 from ..utils.cancellation import ScanCancelled
+from ..utils.cvss import severity_from_vector
 from ..utils.verbose import plural, verbose_print
 
 
@@ -39,12 +40,13 @@ class ChainPattern:
         entry_classes: Vulnerability classes that can act as the attacker's way in.
         target_classes: Vulnerability classes that can act as what the entry point reaches.
         impact: What the attacker gains, written for the app owner.
-        severity: Severity the chain warrants when confirmed.
-        cvss_vector: CVSS vector describing the combination rather than either part.
+        severity: Severity the chain warrants when confirmed, the band its CVSS vector scores (a test keeps the two equal).
+        cvss_vector: CVSS vector describing the combination rather than either part; the chain's severity is computed from it.
         entry_keywords: Wording that identifies an entry component when it carries no class.
         target_keywords: Wording that identifies a target component when it carries no class.
         priority: Whether this pattern is evaluated before others when candidates are capped.
         recommendation: How to break the chain, naming the specific fix.
+        entry_component: The kind of component the entry must be (such as "provider"), named in its title, snippet or file; empty for any.
 
     Invariants:
         Frozen. The CVSS vector describes the chain, which is why it is stated per pattern rather than derived from the components.
@@ -63,6 +65,7 @@ class ChainPattern:
     target_keywords: Tuple[str, ...] = ()
     priority: bool = False
     recommendation: str = ""
+    entry_component: str = ""
 
 
 CHAIN_PATTERNS: Tuple[ChainPattern, ...] = (
@@ -133,6 +136,7 @@ CHAIN_PATTERNS: Tuple[ChainPattern, ...] = (
             "Set android:exported=\"false\" if no other app needs the provider. If it "
             "does, use parameterised selection arguments only, and validate the "
             "projection and sort order against a fixed allowlist."),
+        entry_component="provider",
     ),
     ChainPattern(
         id="CHAIN-04",
@@ -147,7 +151,7 @@ CHAIN_PATTERNS: Tuple[ChainPattern, ...] = (
             "Intent it is handed without validating it, so a malicious app drives the "
             "target app's privileged behaviour with data of its choosing."),
         severity="High",
-        cvss_vector="AV:L/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+        cvss_vector="AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
         recommendation=(
             "Guard the component with a signature-level permission, or unexport it. "
             "Validate every Intent extra before use, and never forward a nested Intent "
@@ -157,16 +161,18 @@ CHAIN_PATTERNS: Tuple[ChainPattern, ...] = (
         id="CHAIN-05",
         title="Backup-enabled app stores credentials in local storage",
         entry_classes=("STORAGE-04",),
-        target_classes=("SECRET-01", "STORAGE-03"),
+        target_classes=("STORAGE-01", "SECRET-01", "STORAGE-03"),
         entry_keywords=("allowbackup", "backup enabled", "backup-enabled"),
         target_keywords=("sharedpreferences", "token", "credential", "password",
                          "session", "plaintext"),
         impact=(
-            "`adb backup` copies the app's private storage off the device without root, "
-            "and that storage holds a credential. Anyone with a minute of USB access to "
-            "an unlocked phone walks away with the user's session."),
-        severity="High",
-        cvss_vector="AV:P/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N",
+            "Backup copies the app's private storage, and that storage holds a credential. "
+            "For an app targeting below Android 12 (API 31), or a debuggable one, `adb backup` "
+            "does it over USB without root, so anyone with a minute at an unlocked phone walks "
+            "away with the credential; for newer targets it travels in cloud and "
+            "device-transfer backups."),
+        severity="Medium",
+        cvss_vector="AV:P/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
         recommendation=(
             "Set android:allowBackup=\"false\", or exclude the credential store via "
             "android:dataExtractionRules. Keep tokens in EncryptedSharedPreferences or "
@@ -202,7 +208,7 @@ CHAIN_PATTERNS: Tuple[ChainPattern, ...] = (
             "The broadcast is sent without a receiver permission, so any app that has "
             "registered for the action receives it - along with the token it carries."),
         severity="High",
-        cvss_vector="AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+        cvss_vector="AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
         recommendation=(
             "Send the broadcast with an explicit component or a signature-level "
             "permission, or use LocalBroadcastManager. Never put a credential in a "
@@ -220,7 +226,7 @@ CHAIN_PATTERNS: Tuple[ChainPattern, ...] = (
             "it fill in the blanks and have the action executed with the granting app's "
             "identity and permissions."),
         severity="High",
-        cvss_vector="AV:L/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+        cvss_vector="AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
         recommendation=(
             "Create PendingIntents with FLAG_IMMUTABLE, and always set an explicit "
             "component on the base Intent."),
@@ -228,7 +234,7 @@ CHAIN_PATTERNS: Tuple[ChainPattern, ...] = (
     ChainPattern(
         id="CHAIN-09",
         title="Unpinned TLS carries credentials that are also weakly protected",
-        entry_classes=("NETWORK-01",),
+        entry_classes=("NETWORK-01", "NETWORK-05"),
         target_classes=("SECRET-01", "CRYPTO-01", "AUTH-01"),
         entry_keywords=("pinning", "cleartext", "trusts user", "tls", "certificate"),
         target_keywords=("token", "credential", "password", "api key", "session"),
@@ -255,7 +261,7 @@ CHAIN_PATTERNS: Tuple[ChainPattern, ...] = (
             "The encryption on the stored data is reversible - a hardcoded key in the "
             "app, or a mode that leaks structure - and the ciphertext is reachable "
             "without root. The encryption buys nothing."),
-        severity="High",
+        severity="Medium",
         cvss_vector="AV:P/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
         recommendation=(
             "Use AES-GCM with a key generated in and held by the Android Keystore. A "
@@ -317,6 +323,27 @@ def _plays_role(finding: Dict[str, Any], classes: Sequence[str],
     return any(keyword in text for keyword in keywords)
 
 
+def _is_component(finding: Dict[str, Any], kind: str) -> bool:
+    """
+    Purpose:
+        Decide whether a finding is about a component of the given kind.
+
+    Parameters:
+        finding: The finding dict.
+        kind: The component kind, such as "provider".
+
+    Returns:
+        True when no kind is required, or when the finding's title, code snippet or cited file names it.
+
+    Implementation notes:
+        PLATFORM-01 covers every exported component, but a pattern's impact can hold for one kind only: a provider hands its query's cursor back to the caller, an activity does not. CHAIN-03 took a Ghera app's exported activity as its entry and published "Exported ContentProvider exposes an injectable SQL query" at Critical over an app with no provider. The description is left out because it names neighbouring components too ("the activity queries the provider").
+    """
+    if not kind:
+        return True
+    text = " ".join(str(finding.get(k) or "") for k in ("title", "code_snippet", "file")).lower()
+    return kind in text
+
+
 def find_candidate_chains(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Purpose:
@@ -339,6 +366,8 @@ def find_candidate_chains(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]
     for pattern in sorted(CHAIN_PATTERNS, key=lambda p: (not p.priority, p.id)):
         for i, entry in enumerate(findings):
             if not _plays_role(entry, pattern.entry_classes, pattern.entry_keywords):
+                continue
+            if not _is_component(entry, pattern.entry_component):
                 continue
             for j, target in enumerate(findings):
                 if i == j:
@@ -550,7 +579,7 @@ _AUTO_PAIRINGS: Tuple[Tuple[str, Tuple[str, ...], ChainPattern], ...] = (
                "compromised router - presents any certificate and the app accepts "
                "it. Nothing else in the app would have caught this: pinning is "
                "precisely the mitigation that exists for a bypass like this one.",
-        severity="Critical",
+        severity="High",
         cvss_vector="AV:A/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
         recommendation="Fix the TLS bypass first - it is the actual defect. Then "
                        "add certificate pinning (a network security config "
@@ -715,7 +744,7 @@ def build_chains(
         f"Chains: {len(chains) - len(auto_chains)} confirmed of "
         f"{plural(len(candidates), 'model-evaluated candidate')} ({rejected} rejected), "
         f"plus {plural(len(auto_chains), 'deterministic chain')}", verbose)
-    return _dedupe_chains(chains, verbose)
+    return _merge_shared_entry(_dedupe_chains(chains, verbose), findings)
 
 
 def _dedupe_chains(chains: List[Dict[str, Any]], verbose: bool = False
@@ -747,6 +776,61 @@ def _dedupe_chains(chains: List[Dict[str, Any]], verbose: bool = False
             continue
         seen.add(key)
         out.append(chain)
+    return out
+
+
+def _merge_shared_entry(chains: List[Dict[str, Any]], findings: List[Dict[str, Any]]
+                        ) -> List[Dict[str, Any]]:
+    """
+    Purpose:
+        Fold chains of one pattern that start from the same entry finding into a single chain over all their targets.
+
+    Parameters:
+        chains: The chain findings.
+        findings: All findings, whose chain references are repointed to the surviving chain.
+
+    Returns:
+        The chains, one per pattern and entry.
+
+    Side effects:
+        Extends the surviving chain's components and description, and rewrites the chain ids recorded on the components of the chains folded into it.
+
+    Implementation notes:
+        A backup-enabled app with four plaintext credential stores confirmed four backup chains, which the generic deduplication then collapsed by title into one that named a single store, while the backup finding still said it was part of three chains that no longer existed. One chain per entry that names every target says the same thing once and keeps every reference valid. The first chain keeps its flow; the others' targets are listed as further components.
+    """
+    survivors: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    renamed: Dict[str, str] = {}
+    out: List[Dict[str, Any]] = []
+    for chain in chains:
+        block = chain.get("chain") or {}
+        components = list(block.get("components") or [])
+        key = (str(block.get("pattern") or ""), components[0] if components else "")
+        first = survivors.get(key)
+        if first is None or not key[1]:
+            survivors[key] = chain
+            out.append(chain)
+            continue
+        kept = first["chain"]
+        for title in components[1:]:
+            if title not in kept["components"]:
+                kept["components"].append(title)
+        renamed[str(block.get("id"))] = str(kept.get("id"))
+    for chain in out:
+        names = chain["chain"]["components"]
+        if len(names) > 2:
+            quoted = ", ".join(f'"{n}"' for n in names[:-1]) + f' and "{names[-1]}"'
+            head, _, rest = str(chain.get("description") or "").partition("\n\n")
+            if head.startswith("Two findings in this app combine"):
+                chain["description"] = (f"{len(names)} findings in this app combine into one "
+                                        f"exploitable path: {quoted}.") + (f"\n\n{rest}" if rest else "")
+    if renamed:
+        for finding in findings:
+            ids = [renamed.get(c, c) for c in finding.get("chained_into") or []]
+            finding["chained_into"] = list(dict.fromkeys(ids)) if ids else finding.get("chained_into")
+            gate = finding.get("gate_result")
+            if isinstance(gate, dict) and gate.get("reasons"):
+                gate["reasons"] = [r for r in gate["reasons"]
+                                   if not any(r.startswith(f"Confirmed as part of {old}:") for old in renamed)]
     return out
 
 
@@ -843,7 +927,7 @@ def _build_chain_finding(candidate, findings, verdict, number: int) -> Dict[str,
         Records the chain identifier on both components, and appends a confirmation note to a component that the gates had marked chain-required.
 
     Implementation notes:
-        The note appended to a chain-required component is what closes the loop from gating: a finding demoted for needing a chain now says which chain it found. The description is assembled from the components, the model's reason and the numbered attack path, so the reader sees the route rather than an assertion that one exists. CWE and OWASP identifiers are taken from the more severe component rather than from the pattern, because the chain's classification is its own pattern id while the standards mapping belongs to the underlying weakness. The chain carries HIGH confidence and names the chain-builder as its source, so deduplication and gating downstream can recognise it as synthesised rather than observed -- which is why the evidence gates exempt it from needing cited code of its own.
+        The note appended to a chain-required component is what closes the loop from gating: a finding demoted for needing a chain now says which chain it found. The description is assembled from the components, the model's reason and the numbered attack path, so the reader sees the route rather than an assertion that one exists. When a component outranks the pattern, the chain carries that component's vector as well as its severity, so the two still agree. CWE and OWASP identifiers are taken from the more severe component rather than from the pattern, because the chain's classification is its own pattern id while the standards mapping belongs to the underlying weakness. The chain carries HIGH confidence and names the chain-builder as its source, so deduplication and gating downstream can recognise it as synthesised rather than observed -- which is why the evidence gates exempt it from needing cited code of its own.
     """
     pattern: ChainPattern = candidate["pattern"]
     entry = findings[candidate["entry_index"]]
@@ -878,11 +962,15 @@ def _build_chain_finding(candidate, findings, verdict, number: int) -> Dict[str,
     severity = _chain_severity(pattern, entry, target)
     best_component = (entry if severity_rank(entry.get("severity"))
                       >= severity_rank(target.get("severity")) else target)
+    vector = pattern.cvss_vector
+    if (severity_rank(severity) > severity_rank(severity_from_vector(vector)[0] or "")
+            and best_component.get("cvss_vector")):
+        vector = best_component["cvss_vector"]
     return {
         "title": pattern.title,
         "vulnerability_type": pattern.title,
         "severity": severity,
-        "cvss_vector": pattern.cvss_vector,
+        "cvss_vector": vector,
         "vuln_class": pattern.id,
         "cwe": best_component.get("cwe") or "",
         "owasp_mobile": best_component.get("owasp_mobile") or "",
@@ -917,10 +1005,11 @@ def _chain_severity(pattern: ChainPattern, entry, target) -> str:
         The chain's severity.
 
     Implementation notes:
-        The pattern's severity applies when it is at least as high as the worse component, which is the normal case -- the point of a chain is that the combination is worse than its parts. When a component is already more severe than the pattern claims, that higher severity carries through rather than being lowered. A chain must never make a finding look less serious than one of its own components.
+        The pattern's severity is the band its CVSS vector scores, so the number a report prints beside a chain always supports its label; the table once called a physical-access backup chain High beside a vector scoring 5.9. That severity applies when it is at least as high as the worse component, which is the normal case -- the point of a chain is that the combination is worse than its parts. When a component is already more severe than the pattern claims, that higher severity carries through rather than being lowered. A chain must never make a finding look less serious than one of its own components.
     """
+    own = severity_from_vector(pattern.cvss_vector)[0] or pattern.severity
     best = max(severity_rank(entry.get("severity")), severity_rank(target.get("severity")))
-    return (pattern.severity if severity_rank(pattern.severity) >= best
+    return (own if severity_rank(own) >= best
             else normalize_severity(entry.get("severity") if
                                     severity_rank(entry.get("severity")) == best
                                     else target.get("severity")))

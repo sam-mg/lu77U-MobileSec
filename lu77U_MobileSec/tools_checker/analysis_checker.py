@@ -12,11 +12,12 @@ Dependencies:
     The sibling checker modules, ..ui.colors.
 
 Implementation notes:
-    Only JADX and an AI provider are required. The framework-specific decompilers are reported in the status but never block a scan, because an app that needs none of them analyses perfectly well without them.
+    Only JADX and an AI provider are required. The framework-specific decompilers and Ghidra are reported in the status but never block a scan, because an app that needs none of them analyses perfectly well without them.
 """
 
 from ..ui.colors import Colors
 from .blutter_checker import check_blutter_configured
+from .ghidra_checker import check_ghidra_configured
 from .hermes_checker import check_hermes_configured
 from .jadx_checker import check_jadx_configured, get_jadx_setup_message
 from .ollama_checker import check_ollama_configured, get_ollama_setup_message
@@ -100,5 +101,6 @@ def get_analysis_status() -> dict:
         'blutter_configured': check_blutter_configured(verbose=False),
         'hermes_decomp_configured': check_hermes_configured(verbose=False),
         'rn_decompiler_configured': check_rn_decompiler_configured(verbose=False),
+        'ghidra_configured': check_ghidra_configured(verbose=False),
         'ready_for_analysis': jadx_ok and ollama_ok
     }

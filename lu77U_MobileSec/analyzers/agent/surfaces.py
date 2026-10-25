@@ -68,7 +68,8 @@ ANDROID_SURFACES: Tuple[AttackSurface, ...] = (
         sink_families=frozenset({"ipc"}),
         roles=frozenset({"exported-activity", "exported-service",
                          "exported-receiver", "exported-provider"}),
-        skills=("manifest_review", "android_analysis", "reading_obfuscated_code"),
+        skills=("manifest_review", "android_analysis", "reading_obfuscated_code",
+                "android_ipc_ui_attacks"),
     ),
     AttackSurface(
         key="deeplinks_intents",
@@ -84,7 +85,8 @@ ANDROID_SURFACES: Tuple[AttackSurface, ...] = (
         ),
         sink_families=frozenset({"ipc", "uri"}),
         roles=frozenset({"exported-activity", "exported-receiver"}),
-        skills=("vulnerability_classes", "chain_building", "reading_obfuscated_code"),
+        skills=("vulnerability_classes", "chain_building", "reading_obfuscated_code",
+                "deeplink_clipboard_trust", "deeplink_endpoint_analysis"),
         wants_intent_actions=True,
     ),
     AttackSurface(
@@ -100,7 +102,7 @@ ANDROID_SURFACES: Tuple[AttackSurface, ...] = (
             "named value is not a finding."
         ),
         sink_families=frozenset({"prefs", "sql", "storage"}),
-        skills=("vulnerability_classes",),
+        skills=("vulnerability_classes", "storage_crypto_review"),
     ),
     AttackSurface(
         key="network_webview",

@@ -9,7 +9,7 @@ Responsibilities:
     Wrap adb invocation with validation and timeouts, and provide the device operations the dynamic pipeline needs.
 
 Dependencies:
-    subprocess, re.
+    subprocess, re, hashlib and hmac for the installed-build check, androguard (lazily) for the local APK's version.
 
 Implementation notes:
     Every operation goes through one invocation helper, so validation, timeouts and tracing are applied uniformly rather than per call site.
@@ -19,14 +19,66 @@ Security considerations:
 """
 
 import contextlib
+import hashlib
+import hmac
 import re
 import subprocess
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
+from ..decompiler.apk_payload import available_native_abis
 from ..utils.verbose import verbose_print
 
 _ANDROID_PACKAGE_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 _SERIAL_RE = re.compile(r"^[a-zA-Z0-9.\-:_]{1,64}$")
+_DEVICE_APK_PATH_RE = re.compile(r"^/[A-Za-z0-9._~=+/\-]{1,400}\.apk$")
+_VERSION_CODE_RE = re.compile(r"\bversionCode=(\d+)")
+_VERSION_NAME_RE = re.compile(r"\bversionName=(\S+)")
+_SHA256_RE = re.compile(r"^([0-9a-fA-F]{64})\b")
+
+
+def local_apk_version(apk_path: str) -> Tuple[str, str]:
+    """
+    Purpose:
+        Read the version an APK on disk declares.
+
+    Parameters:
+        apk_path: Local path to the APK.
+
+    Returns:
+        (versionCode, versionName) as strings, empty when the manifest cannot be read.
+
+    Implementation notes:
+        Only the manifest is parsed, not the code, so this costs milliseconds even for a large app. androguard is imported here so the device layer does not load it until an install actually needs it, and its logging is set up the way the rest of the tool sets it, so the parser's debug output does not flood the scan log.
+    """
+    try:
+        from androguard.core.apk import APK
+        from ..detection.extractors.logging_config import setup_androguard_logging
+        setup_androguard_logging(False)
+        apk = APK(apk_path)
+        return str(apk.get_androidversion_code() or ""), str(apk.get_androidversion_name() or "")
+    except Exception:
+        return "", ""
+
+
+def local_sha256(path: str) -> str:
+    """
+    Purpose:
+        Hash a local file.
+
+    Parameters:
+        path: The file.
+
+    Returns:
+        The lower-case hex SHA-256, or "" when the file cannot be read.
+    """
+    digest = hashlib.sha256()
+    try:
+        with open(path, "rb") as handle:
+            for block in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(block)
+    except OSError:
+        return ""
+    return digest.hexdigest()
 
 _VERIFIER_BLOCKED_MARKERS = (
     "INSTALL_FAILED_VERIFICATION_FAILURE",
@@ -177,6 +229,19 @@ class ADBManager:
             })
         verbose_print(f"Total devices: {len(devices)}", self.verbose)
         return devices
+
+    def get_android_release(self, device: str) -> Optional[str]:
+        """
+        Purpose:
+            Read the Android version a device runs, such as "11".
+
+        Parameters:
+            device: Device serial.
+
+        Returns:
+            The release string, or None when it could not be read.
+        """
+        return self._getprop(device, "ro.build.version.release")
 
     def _getprop(self, device: str, prop: str) -> Optional[str]:
         """
@@ -376,30 +441,107 @@ class ADBManager:
         remote_path = next((p for p in paths if p.endswith("base.apk")), paths[0])
         return self.pull(device, remote_path, local_path)
 
-    def install_apk(self, device: str, apk_path: str) -> tuple:
+    def installed_copy_matches(self, device: str, package: str, apk_path: str) -> Tuple[bool, str]:
         """
         Purpose:
-            Install an APK, working around the device's package verifier when it blocks the install.
+            Decide whether the device already has exactly this APK installed.
+
+        Parameters:
+            device: Device serial.
+            package: The package name, validated before use.
+            apk_path: Local path to the APK under test.
+
+        Returns:
+            Whether the installed copy is the same build, and why or why not.
+
+        Implementation notes:
+            Three checks, cheapest first, and any doubt means "install": the package must be present as a single APK, its versionCode and versionName must equal the local file's, and the SHA-256 of the installed base.apk must equal the local file's. The version alone is not enough - a rebuilt lab app keeps its version while its code changes - and the hash alone would hide why a reinstall happened. A split install never matches a single local APK, and a device without sha256sum cannot prove the match, so both reinstall.
+
+        Security considerations:
+            The package name is validated before it reaches the device shell, and the installed path, which the device reports, is validated against a strict path pattern before it is composed into the hashing command.
+        """
+        if not _ANDROID_PACKAGE_RE.match(package or ""):
+            return False, "package name not usable for the check"
+        try:
+            paths_result = self.shell(device, f"pm path {package}", timeout=15)
+        except Exception as exc:
+            return False, f"could not query the package manager ({exc})"
+        paths = [line[len("package:"):].strip() for line in (paths_result.stdout or "").splitlines()
+                 if line.startswith("package:")]
+        if not paths:
+            return False, "not installed"
+        if len(paths) != 1:
+            return False, "installed as a split APK, which is not the single APK under test"
+        local_code, local_name = local_apk_version(apk_path)
+        try:
+            dump = self.shell(device, f"dumpsys package {package}", timeout=20).stdout or ""
+        except Exception as exc:
+            return False, f"could not read the installed version ({exc})"
+        code = _VERSION_CODE_RE.search(dump)
+        name = _VERSION_NAME_RE.search(dump)
+        device_code, device_name = (code.group(1) if code else ""), (name.group(1) if name else "")
+        if not local_code or (device_code, device_name) != (local_code, local_name):
+            return False, (f"installed version {device_name or '?'} ({device_code or '?'}) differs from "
+                           f"{local_name or '?'} ({local_code or '?'})")
+        remote_path = paths[0]
+        if not _DEVICE_APK_PATH_RE.match(remote_path):
+            return False, "installed path is not one the hash check can use"
+        try:
+            hashed = self.shell(device, f"sha256sum {remote_path}", timeout=60).stdout or ""
+        except Exception as exc:
+            return False, f"could not hash the installed APK ({exc})"
+        remote_hash = _SHA256_RE.match(hashed.strip())
+        local_hash = local_sha256(apk_path)
+        if not remote_hash or not local_hash:
+            return False, "the installed APK could not be hashed"
+        if not hmac.compare_digest(remote_hash.group(1).lower(), local_hash):
+            return False, f"same version {local_name} ({local_code}) but a different build (SHA-256 differs)"
+        return True, f"version {local_name} ({local_code}) and SHA-256 match"
+
+    def install_apk(self, device: str, apk_path: str, package: Optional[str] = None) -> tuple:
+        """
+        Purpose:
+            Install an APK, unless the device already has this exact build, working around the device's package verifier when it blocks the install.
 
         Parameters:
             device: Device serial.
             apk_path: Local path to the APK.
+            package: The APK's package name; when given, an identical installed copy is reused instead of reinstalled.
 
         Returns:
             A success flag and a message.
 
         Side effects:
-            Installs the app, and temporarily changes device verification settings on the retry path.
+            Installs the app, temporarily changes device verification settings on the retry path, and uninstalls an installed copy of the same package signed with another key, with its data.
 
         Implementation notes:
-            The first attempt is plain. Only a failure whose message names a verifier block triggers the retry, so an ordinary install failure is reported as itself rather than being blamed on verification.
+            An APK whose native code targets none of the device's ABIs is not sent at all (abi_mismatch), so the reason reads as the mismatch it is rather than as adb's INSTALL_FAILED_NO_MATCHING_ABIS. With a package name the device is asked first (installed_copy_matches): the same version with the same SHA-256 is left as it is, since reinstalling the same build costs a minute per scan and resets nothing the run needs. Anything else - not installed, another version, a rebuilt APK under the same version, a check that cannot be completed - installs over it. The install's first attempt is plain. Only a failure whose message names a verifier block, or an install that hung until it timed out, triggers the retry, so an ordinary install failure is reported as itself rather than being blamed on verification. A hang counts because the verifier's "verify apps over USB" consent dialog waits for a tap and adb prints nothing meanwhile: the first install of each Ghera benchmark app hung for the full three minutes, and the same APK installed in under a second once the device had decided. An installed copy of the same package signed with another key (INSTALL_FAILED_UPDATE_INCOMPATIBLE) is uninstalled and the install retried once: Android cannot update across signing keys, every Ghera app is edu.ksu.cs.benign, and one built with a different key otherwise lost its whole device phase.
 
         Security considerations:
             The package verifier is Google Play Protect's check on sideloaded apps. Disabling it is exactly what an analyst needs -- the app under test is expected to be malicious and would otherwise be refused -- and exactly what must never be left disabled. The bypass is scoped to a context manager that restores the prior settings.
         """
+        if package:
+            same, reason = self.installed_copy_matches(device, package, apk_path)
+            if same:
+                verbose_print(f"{package} already installed on {device}: {reason}; not reinstalling",
+                              self.verbose)
+                return True, f"Already installed: {reason}"
+            verbose_print(f"Installing {package} on {device}: {reason}", self.verbose)
+        mismatch = self.abi_mismatch(device, apk_path)
+        if mismatch:
+            verbose_print(f"Not installing: {mismatch}", self.verbose)
+            return False, mismatch
         verbose_print(f"Installing {apk_path} on {device}", self.verbose)
         ok, message = self._install_once(device, apk_path)
-        if ok or not any(marker in message for marker in _VERIFIER_BLOCKED_MARKERS):
+        if not ok and "INSTALL_FAILED_UPDATE_INCOMPATIBLE" in message and _ANDROID_PACKAGE_RE.match(package or ""):
+            verbose_print(f"{package} on {device} is signed with a different key; uninstalling it to install "
+                          "the build under test", self.verbose)
+            self.run_adb(["uninstall", package], device=device, timeout=60)
+            ok, message = self._install_once(device, apk_path)
+            if ok:
+                return True, f"Replaced an installed {package} signed with a different key"
+        hung = "timed out" in message
+        if ok or not (hung or any(marker in message for marker in _VERIFIER_BLOCKED_MARKERS)):
             return ok, message
         verbose_print(
             f"Install blocked by the device package verifier ({message[:160]!r}); "
@@ -409,6 +551,33 @@ class ADBManager:
         if not ok:
             return False, f"Device package verifier blocked the install: {message}"
         return True, "Success"
+
+    def abi_mismatch(self, device: str, apk_path: str) -> str:
+        """
+        Purpose:
+            Say why an APK cannot run on a device when its native code targets none of the device's ABIs.
+
+        Parameters:
+            device: Device serial.
+            apk_path: Local path to the APK.
+
+        Returns:
+            The reason, written for the report; empty when the APK has no native code, the ABIs overlap, or the device's list cannot be read.
+
+        Implementation notes:
+            Only a definite mismatch counts. An APK with no native libraries runs anywhere, and a device that will not report its ABI list is left for the install itself to judge, so this can only ever save a doomed install, never block a working one. The common case is an APK pulled from an x86_64 emulator, which the store delivered only that slice, being tested on an arm64 one.
+        """
+        apk_abis = available_native_abis(apk_path)
+        if not apk_abis:
+            return ""
+        device_abis = [a.strip() for a in (self._getprop(device, "ro.product.cpu.abilist") or "").split(",")
+                       if a.strip()]
+        if not device_abis or set(apk_abis) & set(device_abis):
+            return ""
+        return (f"This APK ships native code only for {', '.join(apk_abis)}, and the device runs "
+                f"{', '.join(device_abis)}, so it cannot be installed there. Use an emulator or device "
+                f"with a matching ABI (an {apk_abis[0]} system image), or test a build that includes "
+                f"{device_abis[0]}.")
 
     def _install_once(self, device: str, apk_path: str) -> tuple:
         """

@@ -52,10 +52,12 @@ class FakeADBManager:
         installed: Whether the install is reported as successful.
         message: The message the install reports.
         construct_count: How many times the bridge was constructed during the phase.
+        last_package: The package name the last install was given.
     """
     installed = True
     message = "Success"
     construct_count = 0
+    last_package = None
 
     def __init__(self, verbose=False):
         """
@@ -70,7 +72,7 @@ class FakeADBManager:
         """
         FakeADBManager.construct_count += 1
 
-    def install_apk(self, unused_device, unused_apk_path):
+    def install_apk(self, unused_device, unused_apk_path, package=None):
         """
         Purpose:
             Report the configured install outcome without touching a device.
@@ -78,10 +80,12 @@ class FakeADBManager:
         Parameters:
             unused_device: The device serial, unused here.
             unused_apk_path: The application file, unused here.
+            package: The package name the caller passes so an identical installed copy can be reused; recorded for the tests.
 
         Returns:
             The configured success flag and message.
         """
+        FakeADBManager.last_package = package
         return FakeADBManager.installed, FakeADBManager.message
 
 class FakeFridaManager:
@@ -362,7 +366,7 @@ class TestDeviceSession:
         calls = []
         original = FakeADBManager.install_apk
 
-        def tracking_install(self, device, apk_path):
+        def tracking_install(self, device, apk_path, package=None):
             """
             Purpose:
                 Record the install and defer to the original behaviour.
@@ -371,6 +375,7 @@ class TestDeviceSession:
                 self: The bridge the install is called on, a real parameter here because this stands in for an unbound method rather than being one.
                 device: The device serial.
                 apk_path: The application file.
+                package: The package name, passed through.
 
             Returns:
                 Whatever the original install reported.
@@ -378,12 +383,13 @@ class TestDeviceSession:
             Side effects:
                 Records the install.
             """
-            calls.append(apk_path)
-            return original(self, device, apk_path)
+            calls.append((apk_path, package))
+            return original(self, device, apk_path, package=package)
 
         monkeypatch.setattr(FakeADBManager, "install_apk", tracking_install)
         run_phase(service, [], monkeypatch)
-        assert calls == ["/tmp/app.apk"]
+        assert [apk for apk, _pkg in calls] == ["/tmp/app.apk"]
+        assert all(pkg for _apk, pkg in calls)
 
     def test_install_is_not_repeated_after_verification(self, service, monkeypatch):
         """
@@ -399,7 +405,7 @@ class TestDeviceSession:
         """
         calls = []
         monkeypatch.setattr(FakeADBManager, "install_apk",
-                            lambda self, _, p: (calls.append(p), (True, "Success"))[1])
+                            lambda self, _, p, **unused_kw: (calls.append(p), (True, "Success"))[1])
         run_phase(service, [{"title": "x"}], monkeypatch)
         assert calls == []
 
@@ -793,3 +799,259 @@ class TestRunNamed:
         out = capsys.readouterr().out
         assert "Grading (validation + chains) output:" in out
         assert "50 completion tokens" in out
+
+
+class _FrameworkResults:
+    """
+    Purpose:
+        A detection outcome naming one framework.
+    """
+    def get_primary_framework_name(self):
+        """
+        Purpose:
+            Name the detected framework.
+
+        Returns:
+            The framework name.
+        """
+        return "Flutter"
+
+    def get_top_frameworks(self, unused_limit):
+        """
+        Purpose:
+            List the ranked frameworks, as the stored result's detection block reads them.
+
+        Parameters:
+            unused_limit: How many to list, unused here.
+
+        Returns:
+            One framework at full confidence.
+        """
+        return [{"name": "Flutter", "confidence": 1.0, "confidence_level": "High"}]
+
+
+class _Detection(FakeDetectionResult):
+    """
+    Purpose:
+        A detection result carrying a framework as well as application information.
+
+    Attributes:
+        framework_results: The framework outcome.
+    """
+    framework_results = _FrameworkResults()
+
+
+class _Detector:
+    """
+    Purpose:
+        A detector that returns the fixed detection result without reading an APK.
+    """
+    def __init__(self, **unused_kwargs):
+        """
+        Purpose:
+            Accept the real constructor's arguments.
+
+        Parameters:
+            unused_kwargs: The real constructor's arguments, ignored.
+        """
+
+    def detect(self, unused_apk_path):
+        """
+        Purpose:
+            Return the fixed detection result.
+
+        Parameters:
+            unused_apk_path: The APK, unused here.
+
+        Returns:
+            The detection result.
+        """
+        return _Detection()
+
+
+class _OutputManager:
+    """
+    Purpose:
+        An output manager that writes nothing, so the run cannot touch the user's output directory.
+    """
+    def __init__(self, **unused_kwargs):
+        """
+        Purpose:
+            Accept the real constructor's arguments.
+
+        Parameters:
+            unused_kwargs: The real constructor's arguments, ignored.
+        """
+
+    def create_output_directory(self, unused_apk_path):
+        """
+        Purpose:
+            Pretend to create the scan folder.
+
+        Parameters:
+            unused_apk_path: The APK, unused here.
+        """
+
+    def get_output_dir(self):
+        """
+        Purpose:
+            Report that there is no scan folder to clean up.
+
+        Returns:
+            None.
+        """
+        return None
+
+    def get_apk_name(self):
+        """
+        Purpose:
+            Report no APK name.
+
+        Returns:
+            An empty name.
+        """
+        return ""
+
+
+class TestAnalyzerOutcomeReachesTheResult:
+    """
+    Purpose:
+        What the analyzer reports about its own run reaching the log and the stored result.
+
+    Implementation notes:
+        A Flutter scan of an x86_64-only APK once ended with the reason held only in the result: the analyzer's message matched none of the dashboard feed's patterns, so neither the live log nor scan.log said why the scan had stopped.
+    """
+    def _run(self, service, monkeypatch, outcome):
+        """
+        Purpose:
+            Run the whole scan with detection, the analyzer, output, export and result assembly stubbed, collecting the log and what export was given.
+
+        Parameters:
+            service: The analysis service.
+            monkeypatch: Applies the stubs.
+            outcome: What the analyzer returns.
+
+        Returns:
+            The log lines and the analyzer results handed to export.
+        """
+        from lu77U_MobileSec.utils import verbose as verbose_mod
+        from lu77U_MobileSec.web.services import analysis_service as svc
+
+        exported = {}
+
+        class _Exporter:
+            """
+            Purpose:
+                Record what the JSON export was given and write nothing.
+            """
+            def __init__(self, **unused_kwargs):
+                """
+                Purpose:
+                    Accept the real constructor's arguments.
+
+                Parameters:
+                    unused_kwargs: The real constructor's arguments, ignored.
+                """
+
+            def export_analysis_results(self, **kwargs):
+                """
+                Purpose:
+                    Record the analyzer results.
+
+                Parameters:
+                    kwargs: The export arguments.
+
+                Returns:
+                    None, as though nothing was written.
+                """
+                exported.update(kwargs.get("analyzer_results") or {})
+
+        class _Analyzer:
+            """
+            Purpose:
+                An analyzer that is ready and returns the given outcome.
+
+            Attributes:
+                framework_label: The framework name.
+                ai_provider: No provider.
+            """
+            framework_label = "Flutter"
+            ai_provider = None
+
+            def __init__(self, **unused_kwargs):
+                """
+                Purpose:
+                    Accept the real constructor's arguments.
+
+                Parameters:
+                    unused_kwargs: The real constructor's arguments, ignored.
+                """
+
+            def preflight(self, *unused_args):
+                """
+                Purpose:
+                    Report ready.
+
+                Parameters:
+                    unused_args: The APK path, ignored.
+
+                Returns:
+                    Ready, with no reason.
+                """
+                return True, ""
+
+            def analyze(self, *unused_args, **unused_kwargs):
+                """
+                Purpose:
+                    Return the given outcome.
+
+                Parameters:
+                    unused_args: The APK path, ignored.
+                    unused_kwargs: The cleanup flag, ignored.
+
+                Returns:
+                    A copy of the outcome.
+                """
+                return dict(outcome)
+
+        monkeypatch.setattr(svc, "MobileSecurityDetector", _Detector)
+        monkeypatch.setattr(svc, "get_analyzer_class", lambda *_: _Analyzer)
+        monkeypatch.setattr(svc, "OutputManager", _OutputManager)
+        monkeypatch.setattr(svc, "build_result", lambda **_: {})
+        monkeypatch.setattr(svc.user_settings, "get_dynamic_verification", lambda: False)
+        monkeypatch.setattr("lu77U_MobileSec.report_generator.json_exporter.JSONExporter", _Exporter)
+        lines = []
+        verbose_mod.register_sink(lines.append)
+        try:
+            service.run("app.apk")
+        finally:
+            verbose_mod.unregister_sink(lines.append)
+        return lines, exported
+
+    def test_a_failed_analysis_is_logged_with_its_reason(self, service, monkeypatch):
+        """
+        Purpose:
+            Pin that a failed analysis puts its reason into the log feed.
+
+        Parameters:
+            service: The analysis service.
+            monkeypatch: Applies the stubs.
+        """
+        reason = "Blutter only supports arm64-v8a, and this APK doesn't ship one."
+        lines, exported = self._run(service, monkeypatch, {"success": False, "error": reason})
+        assert f"Analysis failed: {reason}" in lines
+        assert exported["error"] == reason and exported["decompilation_status"] == "Failed"
+
+    def test_a_limitation_reaches_the_result(self, service, monkeypatch):
+        """
+        Purpose:
+            Pin that a successful analysis's limitation is stored with the analyzer results, and nothing is logged as a failure.
+
+        Parameters:
+            service: The analysis service.
+            monkeypatch: Applies the stubs.
+        """
+        lines, exported = self._run(service, monkeypatch, {
+            "success": True, "vulnerabilities": [], "limitation": "Dart code not disassembled."})
+        assert exported["limitation"] == "Dart code not disassembled."
+        assert not any(line.startswith("Analysis failed") for line in lines)

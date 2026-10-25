@@ -82,10 +82,11 @@ stronger evidence than a static "insecure storage" finding alone.
 
 ## Native (JNI) review
 
-The static phase already ran the symbol table (`objdump -T`) on each `.so`, so a
-native finding already names the exported `Java_<package>_<Class>_<method>` entry and
-the risky libc imports it uses (`strcpy`, `strcat`, `sprintf`, `system`, `exec*`,
-`gets` - classic memory-safety/injection-prone calls). You don't re-run that here.
+The static phase already inspected each `.so` - its symbol table, and its decompiled
+C when Ghidra was configured - so a native finding already names the exported
+`Java_<package>_<Class>_<method>` entry, the risky libc imports it uses (`strcpy`,
+`strcat`, `sprintf`, `system`, `exec*`, `gets` - classic memory-safety/injection-prone
+calls) and, where decompiled, the buffer or constant involved. You don't re-run that here.
 
 To PROVE such a finding at runtime, use `frida`: hook the native export and show it's
 reached with attacker-controlled input.

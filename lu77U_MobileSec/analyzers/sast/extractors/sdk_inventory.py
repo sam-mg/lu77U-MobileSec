@@ -164,7 +164,7 @@ def analyze_sdks(source_root, verbose: bool = False) -> List[SastFinding]:
         Reads files from the tree.
 
     Implementation notes:
-        Debug and instrumentation SDKs are the ones worth flagging on their own: shipping a debugging bridge in a release build is a real exposure, where an ordinary library is context. A file that cannot be read while looking for a version string is skipped with the OSError suppressed, which leaves the version unknown rather than dropping the SDK, and a later matching file still gets the chance to supply it.
+        Debug and instrumentation SDKs are the ones worth flagging on their own: shipping a debugging bridge in a release build is a real exposure, where an ordinary library is context. A cross-platform framework (Flutter, React Native, Cordova, Xamarin) is the app's own runtime, which framework detection already reports, so it is left out of the third-party list; a Flutter app's inventory once read "1 third-party SDK embedded: Flutter". A file that cannot be read while looking for a version string is skipped with the OSError suppressed, which leaves the version unknown rather than dropping the SDK, and a later matching file still gets the chance to supply it.
 
     Security considerations:
         Detection is by bundled artifacts, so an SDK included but shaded or renamed can be missed. An absent SDK here is not evidence it is not present.
@@ -220,6 +220,7 @@ def analyze_sdks(source_root, verbose: bool = False) -> List[SastFinding]:
             cwe="CWE-489", owasp_mobile="M8: Security Misconfiguration",
             extra={"sdk_name": name}))
 
+    detected = {n: i for n, i in detected.items() if i["category"] != "framework"}
     if detected:
         listed = ", ".join(
             f"{n}{' ' + i['version'] if i['version'] else ''}" for n, i in sorted(detected.items())[:20])

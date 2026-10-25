@@ -33,7 +33,10 @@ OWN = ("vulnerability_classes", "finding_quality", "chain_building",
        "native_library_analysis", "packed_app_triage", "frida_hook_recipes",
        "objection_runtime_toolkit", "evidence_discipline",
        "authorized_dynamic_testing", "false_positive_patterns",
-       "taint_source_to_sink")
+       "taint_source_to_sink", "flutter_reverse_engineering",
+       "react_native_reverse_engineering", "oauth_oidc_mobile", "deeplink_clipboard_trust",
+       "business_logic_abuse", "storage_crypto_review", "android_ipc_ui_attacks",
+       "deeplink_endpoint_analysis")
 
 
 class TestSkillsResolve:
@@ -183,6 +186,51 @@ class TestSkillsResolve:
                       "startActivity redirect"):
             loaded = _contextual_skills("search_code", "", probe)
             assert "taint_source_to_sink" in loaded, probe
+
+
+class TestAssessmentSkillRouting:
+    """
+    Purpose:
+        The signals that pull in the OAuth, deep-link and clipboard, deep-link endpoint, business-logic, storage and crypto, and IPC and UI guidance.
+    """
+    @pytest.mark.parametrize("probe, skill", [
+        ("appendQueryParameter redirect_uri", "oauth_oidc_mobile"),
+        ("code_challenge S256", "oauth_oidc_mobile"),
+        ("ClipboardManager setPrimaryClip", "deeplink_clipboard_trust"),
+        ("Linking.getInitialURL", "deeplink_clipboard_trust"),
+        ("isPremium subscription gate", "business_logic_abuse"),
+        ("redeem coupon", "business_logic_abuse"),
+        ("new SecretKeySpec(key", "storage_crypto_review"),
+        ("AsyncStorage setItem", "storage_crypto_review"),
+        ("PendingIntent.getActivity", "android_ipc_ui_attacks"),
+        ("ZipEntry getName", "android_ipc_ui_attacks"),
+        ("intent:// browser_fallback_url", "deeplink_endpoint_analysis"),
+        ("router getQueryParameter target", "deeplink_endpoint_analysis"),
+        ("shouldOverrideUrlLoading", "deeplink_endpoint_analysis"),
+        ("onNewIntent", "deeplink_endpoint_analysis"),
+    ])
+    def test_signal_loads_its_skill(self, probe, skill):
+        """
+        Purpose:
+            Pin that reading one of the skill's signal APIs or words loads it.
+
+        Parameters:
+            probe: Text the agent searched for or read.
+            skill: The skill it must load.
+        """
+        assert skill in _contextual_skills("search_code", "", probe)
+
+    def test_cross_platform_profiles_always_get_logic_and_link_guidance(self):
+        """
+        Purpose:
+            Pin that every Flutter and React Native region starts with the business-logic and deep-link guidance.
+
+        Implementation notes:
+            Benchmark scans of both frameworks repeatedly missed a client-side entitlement gate and a deep link that acted on arrival; their logic sits in JavaScript or Dart that no manifest signal selects.
+        """
+        from lu77U_MobileSec.analyzers.agent.skills_loader import PROFILE_SKILLS
+        for profile in ("flutter", "react_native"):
+            assert {"business_logic_abuse", "deeplink_clipboard_trust"} <= set(PROFILE_SKILLS[profile])
 
 
 _BORROWED_MARKERS = (
@@ -342,3 +390,15 @@ class TestSkillContent:
         reachable |= set(re.findall(r'"([a-z_]+_[a-z_]+)"', source))
         orphans = set(available_skills()) - reachable
         assert not orphans, f"bundled but never loaded: {sorted(orphans)}"
+
+
+def test_the_deep_link_surface_carries_the_endpoint_method():
+    """
+    Purpose:
+        Pin that every deep-link region starts with the endpoint-enumeration and session-path guidance.
+
+    Implementation notes:
+        The method only works if the endpoint list is built before the analysis, so it has to be in the region's opening skills rather than arrive mid-investigation after the agent has already chosen what to read.
+    """
+    surface = next(s for s in ANDROID_SURFACES if s.key == "deeplinks_intents")
+    assert "deeplink_endpoint_analysis" in surface.skills

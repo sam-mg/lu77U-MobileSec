@@ -218,6 +218,55 @@ function bytesToUtf8(a) {
 Try both on key material. A key that renders as readable text was derived from a
 string constant, which usually means it is in the code you already have.
 
+## Flutter apps - the logic is not in Java
+
+In a Flutter app `Java.use` only reaches the platform layer: plugin code, channel
+handlers, root and integrity checks. The app's own logic is compiled Dart in
+`libapp.so` and is hooked by offset - the `** addr: 0x...` value Blutter prints above
+each function, relative to `libapp.so` with no image base to subtract:
+
+```javascript
+function onLibappLoaded() {                 // inside Blutter's blutter_frida.js template
+  Interceptor.attach(libapp.add(0x3a0d14), {
+    onEnter() { init(this.context); },
+    onLeave(retval) {
+      const [, cls, value] = getTaggedObjectValue(retval);   // decodes Dart objects
+      send(`${cls.name} = ${JSON.stringify(value)}`);
+    }
+  });
+}
+```
+
+- Use Blutter's `blutter_frida.js` as the base; it decodes Dart strings, lists and
+  objects for that exact Dart version. Do not hand-decode tagged pointers.
+- Dart `true`/`false` are `NullReg + 0x20` / `NullReg + 0x30`.
+- An `async` function returns a `Future`; hook the caller at the instruction right
+  after its `Await()`, where `x0` holds the resolved value.
+- Spawn (`-f`) and poll for `libapp.so` every 100 ms: checks in `initState()` run once,
+  before a slow hook is installed.
+- Dart HTTP ignores the device proxy and the Android CA store - see
+  `flutter_reverse_engineering` for frida-flutterproxy and the NVISO script before
+  concluding anything from an empty proxy.
+
+## React Native apps - the JS runtime and its native modules
+
+In a React Native app `Java.use` reaches the native modules and React Native's own
+Java (networking, blobs, the bridge); the app's logic is JavaScript in Hermes or JSC.
+
+- Observe traffic below the JS layer by hooking
+  `com.facebook.react.modules.network.ResponseUtil.onResponseReceived` /
+  `onDataReceived` - no proxy needed, and pinning does not hide it.
+- Call a native module directly: `Java.choose('<module class>')`, then invoke the
+  `@ReactMethod` with a `Promise` built by `Java.registerClass` (implement every
+  `reject` overload).
+- On the old bridge, run your own JS inside the app by hooking
+  `com.facebook.react.bridge.CatalystInstanceImpl.loadScriptFromAssets` and calling
+  `loadScriptFromFile` on a payload after the original; `require` is unavailable in a
+  Frida script itself.
+
+`react_native_reverse_engineering` covers bundle redirection, WebView bridges and
+bytecode patching.
+
 ## Keeping the output usable
 
 Hook the one class the finding names. A broad `frida-trace` pattern over every crypto
