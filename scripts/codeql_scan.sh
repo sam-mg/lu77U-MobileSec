@@ -13,6 +13,10 @@
 
 # js/untrusted-data-to-external-api-more-sources is still run, under the same id, on every file - but as a locally re-modelled copy (scripts/codeql/lu77u-js-models), not GitHub's stock version. Empirical testing against this repo's own code (an array filtered through a real TypeScript type guard, primitive fields extracted into a brand-new object, a JSON round trip) proved that query's Sanitizer extension point has no implementations in the shipped library, so no code-level validation was ever going to satisfy it; the query's own documentation names extending its safe-API classes as the supported fix instead of sanitizing application code. The local copy marks exactly two packages (react, react-router-dom) as not being external security boundaries for this concern, since fetch() is the real external call and is already covered everywhere else this query and its siblings run; every other package it can flag - a database driver, a shell, a raw HTTP client - is untouched, and so are its heuristic sibling queries, which real validation in this codebase already satisfies without any re-modelling.
 
+# The CLI is kept at the latest CodeQL release: every run asks GitHub which release is latest and installs it when the cached CLI is older, and the query packs are then fetched at their latest version for that CLI. A machine used to keep whichever CLI it first installed while CI, starting fresh, got the newest one, so the two could disagree about the same commit. Offline, the installed CLI is used as it is.
+
+# Python is extracted with the project's own interpreter - the active virtualenv, else .venv - the one preflight.sh, the pre-push hook and CI run the tests with. The extractor resolves imports through whichever python3 is first on PATH, and with a different one (Homebrew's newer Python, without the project's packages) some queries stay silent: an unused import CI reported was invisible locally for exactly this reason.
+
 # Exit 0: every suite ran and found nothing.
 # Exit 1: a finding was reported, or CodeQL could not be installed or run.
 
@@ -22,6 +26,13 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 CODEQL_HOME="${CODEQL_HOME:-$HOME/.codeql-lu77u}"
 CODEQL_BIN="$CODEQL_HOME/codeql/codeql"
 LANGUAGES="python javascript actions"
+
+if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
+    PATH="${VIRTUAL_ENV}/bin:$PATH"
+elif [ -x ".venv/bin/python" ]; then
+    PATH="$PWD/.venv/bin:$PATH"
+fi
+export PATH
 
 os_asset() {
     case "$(uname -s)" in
@@ -40,9 +51,10 @@ install_codeql() {
         echo "codeql_scan: install the CodeQL CLI yourself and put it on PATH, or set CODEQL_HOME." >&2
         return 1
     fi
-    echo "codeql_scan: no CodeQL CLI found; installing the latest release into $CODEQL_HOME (one-time, a few hundred MB)..."
+    echo "codeql_scan: installing CodeQL $CODEQL_VERSION, the latest release, into $CODEQL_HOME (a few hundred MB, once per release)..."
     mkdir -p "$CODEQL_HOME" || return 1
-    url="https://github.com/github/codeql-cli-binaries/releases/latest/download/$asset"
+    rm -rf "$CODEQL_HOME/codeql"
+    url="https://github.com/github/codeql-cli-binaries/releases/download/v$CODEQL_VERSION/$asset"
     if ! curl -fsSL -o "$CODEQL_HOME/$asset" "$url"; then
         echo "codeql_scan: could not download $url" >&2
         return 1
@@ -53,15 +65,30 @@ install_codeql() {
     fi
 }
 
-if ! [ -x "$CODEQL_BIN" ]; then
-    if command -v codeql >/dev/null 2>&1; then
+cli_version() {
+    "$1" version --format=terse 2>/dev/null
+}
+
+CODEQL_VERSION="$(curl -fsI --max-time 10 https://github.com/github/codeql-cli-binaries/releases/latest 2>/dev/null | tr -d '\r' | sed -n 's#^[Ll]ocation: .*/tag/v##p')"
+
+if [ -z "$CODEQL_VERSION" ]; then
+    if [ ! -x "$CODEQL_BIN" ] && command -v codeql >/dev/null 2>&1; then
+        CODEQL_BIN="$(command -v codeql)"
+    fi
+    if [ -z "$(cli_version "$CODEQL_BIN")" ]; then
+        echo "codeql_scan: could not find the latest CodeQL release and no CLI is installed" >&2
+        exit 1
+    fi
+    echo "codeql_scan: could not check for a newer CodeQL release; using the installed $(cli_version "$CODEQL_BIN")"
+elif [ "$(cli_version "$CODEQL_BIN")" != "$CODEQL_VERSION" ]; then
+    if command -v codeql >/dev/null 2>&1 && [ "$(cli_version "$(command -v codeql)")" = "$CODEQL_VERSION" ]; then
         CODEQL_BIN="$(command -v codeql)"
     else
         install_codeql || exit 1
     fi
 fi
 
-if ! "$CODEQL_BIN" --version >/dev/null 2>&1; then
+if [ -z "$(cli_version "$CODEQL_BIN")" ]; then
     echo "codeql_scan: $CODEQL_BIN is not a runnable CodeQL CLI" >&2
     exit 1
 fi
