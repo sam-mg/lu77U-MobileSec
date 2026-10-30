@@ -13,6 +13,12 @@ A comprehensive mobile security analysis framework that provides advanced APK an
 pip install lu77U-MobileSec
 ```
 
+Semgrep and mitmproxy are optional add-ons, left out of the default install because their pinned dependencies carry known vulnerabilities this tool never reaches. Add them for the Semgrep pass and the HTTPS interception check:
+
+```bash
+pip install "lu77U-MobileSec[semgrep,mitmproxy]"
+```
+
 ## Usage
 
 `lu77U-MobileSec` is a local web application. Running it starts a server on `127.0.0.1` and opens the dashboard in your default browser - there is no terminal menu anymore.

@@ -533,7 +533,7 @@ class MitmproxyManager:
         """
         verbose_print("Running HTTPS intercept check", self.verbose)
         if not self.is_mitmproxy_installed():
-            return False, "mitmproxy is not installed."
+            return False, 'mitmproxy is not installed. Install it with pip install "lu77U-MobileSec[mitmproxy]", or put a mitmdump executable on PATH (brew install mitmproxy, pipx install mitmproxy).'
 
         fw_ok, fw_msg = ensure_macos_firewall_exception(self.verbose)
         if not fw_ok:

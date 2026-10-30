@@ -9,10 +9,10 @@ Responsibilities:
     Combine the checks, report failures to the terminal, and expose the full status as data.
 
 Dependencies:
-    The sibling checker modules, ..ui.colors.
+    The sibling checker modules, ..ui.colors, ..utils.system.find_tool.
 
 Implementation notes:
-    Only JADX and an AI provider are required. The framework-specific decompilers and Ghidra are reported in the status but never block a scan, because an app that needs none of them analyses perfectly well without them.
+    Only JADX and an AI provider are required. The framework-specific decompilers and Ghidra are reported in the status but never block a scan, because an app that needs none of them analyses perfectly well without them. Semgrep and mitmproxy, the two optional pip extras, are reported the same way.
 """
 
 from ..ui.colors import Colors
@@ -22,6 +22,7 @@ from .hermes_checker import check_hermes_configured
 from .jadx_checker import check_jadx_configured, get_jadx_setup_message
 from .ollama_checker import check_ollama_configured, get_ollama_setup_message
 from .rn_decompiler_checker import check_rn_decompiler_configured
+from ..utils.system import find_tool
 from ..utils.verbose import verbose_print
 
 def check_analysis_requirements(verbose: bool = False, show_messages: bool = True) -> bool:
@@ -90,7 +91,7 @@ def get_analysis_status() -> dict:
         Reads settings and stats the configured paths.
 
     Implementation notes:
-        The non-interactive counterpart to check_analysis_requirements: it prints nothing and never blocks, so it is safe to call while serving a request. Every tool is reported, including the optional ones, so the UI can show a Flutter or React Native user what they would gain by configuring more -- while readiness itself depends only on the two required tools.
+        The non-interactive counterpart to check_analysis_requirements: it prints nothing and never blocks, so it is safe to call while serving a request. Every tool is reported, including the optional ones, so the UI can show a Flutter or React Native user what they would gain by configuring more -- while readiness itself depends only on the two required tools. Semgrep and mitmproxy are optional pip extras, left out of the default install because their pinned dependencies carry known vulnerabilities, so their flags say whether each is installed rather than configured. Both are found the same way: on PATH, or beside the running interpreter where pip puts a package's scripts, which also covers a copy installed with brew or pipx outside this environment.
     """
     jadx_ok = check_jadx_configured(verbose=False)
     ollama_ok = check_ollama_configured(verbose=False)
@@ -102,5 +103,7 @@ def get_analysis_status() -> dict:
         'hermes_decomp_configured': check_hermes_configured(verbose=False),
         'rn_decompiler_configured': check_rn_decompiler_configured(verbose=False),
         'ghidra_configured': check_ghidra_configured(verbose=False),
+        'semgrep_available': find_tool("semgrep") is not None,
+        'mitmproxy_available': find_tool("mitmdump") is not None,
         'ready_for_analysis': jadx_ok and ollama_ok
     }

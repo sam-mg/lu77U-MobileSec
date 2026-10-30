@@ -412,7 +412,49 @@ function FrameworkToolsCard({ settings, onChange }: { settings: SettingsT; onCha
           onSave={() => save("ghidra", { ghidra_path: ghidra })}
         />
       </div>
+      <div className="mt-6 border-t border-ink-800 pt-5">
+        <p className="label">Optional add-ons</p>
+        <p className="mb-3 text-xs text-slate-500">
+          Not part of the default install, because their own dependencies carry known
+          vulnerabilities this tool never reaches. Without them, scans still run; only
+          the step each one powers is skipped.
+        </p>
+        <div className="space-y-3">
+          <AddOnRow
+            name="Semgrep"
+            purpose="Runs the bundled Semgrep rules alongside the built-in scanners."
+            installed={settings.status.semgrep_available}
+            extra="semgrep"
+          />
+          <AddOnRow
+            name="mitmproxy"
+            purpose="Checks HTTPS interception on the device during dynamic analysis."
+            installed={settings.status.mitmproxy_available}
+            extra="mitmproxy"
+          />
+        </div>
+      </div>
     </Card>
+  );
+}
+
+function AddOnRow({
+  name, purpose, installed, extra,
+}: { name: string; purpose: string; installed: boolean; extra: string }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-sm text-slate-200">{name}</p>
+        <p className="text-[11px] text-slate-500">{purpose}</p>
+      </div>
+      {installed ? (
+        <span className="shrink-0 text-[11px] text-emerald-400">Installed</span>
+      ) : (
+        <code className="shrink-0 rounded bg-ink-900/60 px-1.5 py-0.5 font-mono text-[11px] text-slate-300">
+          pip install "lu77U-MobileSec[{extra}]"
+        </code>
+      )}
+    </div>
   );
 }
 

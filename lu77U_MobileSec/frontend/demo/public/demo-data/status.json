@@ -5,5 +5,7 @@
   "hermes_decomp_configured": true,
   "rn_decompiler_configured": false,
   "ghidra_configured": true,
+  "semgrep_available": true,
+  "mitmproxy_available": true,
   "ready_for_analysis": true
 }

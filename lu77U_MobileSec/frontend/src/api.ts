@@ -291,6 +291,11 @@ export interface AnalysisStatus {
   hermes_decomp_configured: boolean;
   rn_decompiler_configured: boolean;
   ghidra_configured: boolean;
+  /** Optional pip extras, installed or not - never required, and left out of
+   * the default install because their pinned dependencies carry known
+   * vulnerabilities this tool never reaches. */
+  semgrep_available: boolean;
+  mitmproxy_available: boolean;
   ready_for_analysis: boolean;
 }
 

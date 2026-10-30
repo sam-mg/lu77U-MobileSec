@@ -248,6 +248,8 @@ def build_settings(ollama_model: str = "") -> Dict[str, Any]:
             "hermes_decomp_configured": True,
             "rn_decompiler_configured": False,
             "ghidra_configured": True,
+            "semgrep_available": True,
+            "mitmproxy_available": True,
             "ready_for_analysis": True,
         },
     }
@@ -400,6 +402,8 @@ def main() -> None:
             "hermes_decomp_configured": True,
             "rn_decompiler_configured": False,
             "ghidra_configured": True,
+            "semgrep_available": True,
+            "mitmproxy_available": True,
             "ready_for_analysis": True,
         },
     )

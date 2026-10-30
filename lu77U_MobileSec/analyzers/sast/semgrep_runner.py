@@ -91,7 +91,7 @@ def run_semgrep(source_root, verbose: bool = False,
 
     argv = _resolve_semgrep()
     if argv is None:
-        verbose_print("Semgrep: not available in this environment; skipping", verbose)
+        verbose_print('Semgrep: not installed, so the Semgrep pass is skipped. Install it with pip install "lu77U-MobileSec[semgrep]", or put a semgrep executable on PATH (brew install semgrep, pipx install semgrep)', verbose)
         return []
 
     cmd = argv + [

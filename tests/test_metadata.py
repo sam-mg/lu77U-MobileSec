@@ -15,6 +15,7 @@ Implementation notes:
     A stale copy of the version is not caught by running the tool, because everything still works and merely reports the wrong number. These assertions compare against the configuration rather than against literals, so the tests never need editing on a release.
 """
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -320,3 +321,55 @@ class TestPackagedDataFiles:
             assert any(fnmatch.fnmatch(rel, p) for p in patterns), f"{rel} not in package-data"
             assert any((root / words[1]) in path.parents and any(fnmatch.fnmatch(path.name, g) for g in words[2:])
                        for words in manifest), f"{rel} not in MANIFEST.in"
+
+
+class TestOptionalAddOns:
+    """
+    Purpose:
+        Semgrep and mitmproxy ship as pip extras rather than dependencies, so a default install carries none of the packages with known vulnerabilities that they pin, and a user without them is told what is missing.
+    """
+    @pytest.mark.parametrize("package", ["semgrep", "mitmproxy"])
+    def test_the_package_is_an_extra_not_a_dependency(self, project, package):
+        """
+        Purpose:
+            Pin that the package is not a base dependency, has its own extra, and is part of the all extra.
+
+        Parameters:
+            project: The project table.
+            package: The optional package.
+        """
+        base = [re.split(r"[<>=!~;\[ ]", dep, maxsplit=1)[0].lower() for dep in project["dependencies"]]
+        assert package not in base
+        extras = project["optional-dependencies"]
+        assert any(dep.startswith(package) for dep in extras[package])
+        assert any(dep.startswith(package) for dep in extras["all"])
+
+    def test_readiness_reports_whether_each_add_on_is_installed(self, monkeypatch):
+        """
+        Purpose:
+            Pin that the readiness status reports each add-on as missing when its executable is not found, and as installed when it is.
+
+        Parameters:
+            monkeypatch: Replaces the executable lookup.
+        """
+        from lu77U_MobileSec.tools_checker import analysis_checker
+        monkeypatch.setattr(analysis_checker, "find_tool", lambda *_: None)
+        status = analysis_checker.get_analysis_status()
+        assert status["semgrep_available"] is False and status["mitmproxy_available"] is False
+        monkeypatch.setattr(analysis_checker, "find_tool", lambda name: f"/usr/local/bin/{name}")
+        status = analysis_checker.get_analysis_status()
+        assert status["semgrep_available"] is True and status["mitmproxy_available"] is True
+
+    def test_a_missing_mitmproxy_names_the_extra(self, monkeypatch):
+        """
+        Purpose:
+            Pin that the HTTPS check without mitmproxy stops before touching the device and says how to install it.
+
+        Parameters:
+            monkeypatch: Reports mitmdump as missing.
+        """
+        from lu77U_MobileSec.dynamic_analysis import mitmproxy_manager
+        monkeypatch.setattr(mitmproxy_manager, "find_tool", lambda *_: None)
+        ok, message = mitmproxy_manager.MitmproxyManager().run_https_check(None, "emulator-5554")
+        assert ok is False
+        assert 'pip install "lu77U-MobileSec[mitmproxy]"' in message

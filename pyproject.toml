@@ -58,17 +58,17 @@ dependencies = [
     "frida==16.7.19",
     "frida-tools>=13,<14",
     "uiautomator2>=3.0.0",
-    "mitmproxy>=10.0.0",
     "defusedxml>=0.7.1",
     "Pygments>=2.17.0",
     "json_repair>=0.30",
-    "semgrep>=1.100.0",
 ]
 
 [project.optional-dependencies]
 claude = ["anthropic>=0.40.0"]
+semgrep = ["semgrep>=1.100.0"]
+mitmproxy = ["mitmproxy>=10.0.0"]
 dev = ["pytest>=8.0"]
-all = ["anthropic>=0.40.0", "pytest>=8.0"]
+all = ["anthropic>=0.40.0", "pytest>=8.0", "semgrep>=1.100.0", "mitmproxy>=10.0.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
